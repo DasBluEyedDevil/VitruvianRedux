@@ -36,6 +36,7 @@ import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
 import com.example.vitruvianredux.presentation.viewmodel.AutoStopUiState
 import com.example.vitruvianredux.ui.theme.*
 import kotlin.math.abs
+import kotlinx.coroutines.delay
 
 @Composable
 fun WorkoutTab(
@@ -429,9 +430,11 @@ fun WorkoutTab(
             }
 
             // Only show live metrics after warmup is complete (matches official app behavior)
+            // Don't show metrics for bodyweight exercises
             if (workoutState is WorkoutState.Active
                 && currentMetric != null
-                && repCount.isWarmupComplete) {
+                && repCount.isWarmupComplete
+                && !workoutParameters.isBodyweight) {
                 LiveMetricsCard(
                     metric = currentMetric,
                     weightUnit = weightUnit,
@@ -1598,6 +1601,12 @@ fun CurrentExerciseCard(
 
 @Composable
 fun RepCounterCard(repCount: RepCount, workoutParameters: WorkoutParameters) {
+    // For bodyweight exercises, show duration timer instead
+    if (workoutParameters.isBodyweight) {
+        BodyweightDurationCard(durationSeconds = workoutParameters.durationSeconds)
+        return
+    }
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), // Material 3 Expressive: Use primary container for emphasis
@@ -1652,6 +1661,77 @@ fun RepCounterCard(repCount: RepCount, workoutParameters: WorkoutParameters) {
                 style = MaterialTheme.typography.displayLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+    }
+}
+
+@Composable
+fun BodyweightDurationCard(durationSeconds: Int) {
+    // Track elapsed time
+    var elapsedSeconds by remember { mutableStateOf(0) }
+    
+    LaunchedEffect(Unit) {
+        while (elapsedSeconds < durationSeconds) {
+            delay(1000)
+            elapsedSeconds++
+        }
+    }
+    
+    val remainingSeconds = (durationSeconds - elapsedSeconds).coerceAtLeast(0)
+    val minutes = remainingSeconds / 60
+    val seconds = remainingSeconds % 60
+    val timeText = String.format("%d:%02d", minutes, seconds)
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        shape = RoundedCornerShape(24.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+        border = BorderStroke(3.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.large),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Badge(
+                containerColor = MaterialTheme.colorScheme.tertiary,
+                contentColor = MaterialTheme.colorScheme.onTertiary,
+                modifier = Modifier.padding(bottom = Spacing.small)
+            ) {
+                Text(
+                    text = "BODYWEIGHT",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+
+            Text(
+                text = "TIME REMAINING",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(modifier = Modifier.height(Spacing.medium))
+
+            Text(
+                text = timeText,
+                style = MaterialTheme.typography.displayLarge,
+                fontWeight = FontWeight.Bold,
+                color = if (remainingSeconds <= 10) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            
+            Spacer(modifier = Modifier.height(Spacing.small))
+            
+            // Progress indicator
+            LinearProgressIndicator(
+                progress = { (elapsedSeconds.toFloat() / durationSeconds.toFloat()).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().height(8.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant,
             )
         }
     }
