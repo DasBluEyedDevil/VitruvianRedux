@@ -94,8 +94,7 @@ class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
         kgToDisplay = toDisplay
         displayToKg = toKg
 
-        _exerciseType.value = if (exercise.exercise.equipment.isEmpty() ||
-            exercise.exercise.equipment.equals("bodyweight", ignoreCase = true)) {
+        _exerciseType.value = if (exercise.exercise.isBodyweight) {
             ExerciseType.BODYWEIGHT
         } else {
             ExerciseType.STANDARD

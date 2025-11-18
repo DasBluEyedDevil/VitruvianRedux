@@ -237,18 +237,22 @@ fun RoutineBuilderDialog(
                     id = selectedExercise.id
                 )
 
+                // Check if this is a bodyweight exercise
+                val isBodyweight = selectedExercise.isBodyweight
+
                 val newRoutineExercise = RoutineExercise(
                     id = UUID.randomUUID().toString(),
                     exercise = exercise,
                     cableConfig = exercise.resolveDefaultCableConfig(),
                     orderIndex = exercises.size,
                     setReps = listOf(10, 10, 10),
-                    weightPerCableKg = 20f,
+                    weightPerCableKg = if (isBodyweight) 0f else 20f,  // No weight for bodyweight
                     progressionKg = 0f,
                     setRestSeconds = listOf(60, 60, 60), // Default 60s rest for all sets
                     workoutType = WorkoutType.Program(ProgramMode.OldSchool),
                     eccentricLoad = EccentricLoad.LOAD_100,
-                    echoLevel = EchoLevel.HARDER
+                    echoLevel = EchoLevel.HARDER,
+                    duration = if (isBodyweight) 30 else null  // Set default duration for bodyweight exercises
                 )
                 exerciseToEdit = Pair(exercises.size, newRoutineExercise)
                 showExercisePicker = false

@@ -29,7 +29,14 @@ data class ExerciseEntity(
     val lastPerformed: Long? = null,
     val aliases: String = "", // comma-separated alternative names for improved search
     val defaultCableConfig: String = "DOUBLE" // Derived from sidedness: SINGLE, DOUBLE, or EITHER
-)
+) {
+    /**
+     * Returns true if this is a bodyweight exercise (no equipment required).
+     * Bodyweight exercises should use duration-based workouts instead of rep/weight-based.
+     */
+    val isBodyweight: Boolean
+        get() = equipment.isBlank() || equipment.isEmpty()
+}
 
 /**
  * Room entity for exercise video demonstrations

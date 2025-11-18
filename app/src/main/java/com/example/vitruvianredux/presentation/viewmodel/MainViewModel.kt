@@ -960,10 +960,13 @@ class MainViewModel @Inject constructor(
             // Update the state flow so the rest of the app is consistent
             _workoutParameters.value = params
             
+            // Bodyweight exercises don't need rep tracking - just duration
+            val isBodyweightExercise = params.isBodyweight
+            
             val workingTarget = if (params.isJustLift) 0 else params.reps
             repCounter.reset()
             repCounter.configure(
-                warmupTarget = params.warmupReps,
+                warmupTarget = if (isBodyweightExercise) 0 else params.warmupReps,  // No warmup for bodyweight
                 workingTarget = workingTarget,
                 isJustLift = params.isJustLift,
                 stopAtTop = params.stopAtTop,
@@ -977,15 +980,21 @@ class MainViewModel @Inject constructor(
             workoutStartTime = System.currentTimeMillis()
             collectedMetrics.clear()
 
-            // Countdown (optional) - Skip countdown for Just Lift mode or if explicitly requested
+            // Countdown - bodyweight exercises get 5-second countdown, others get normal countdown
             if (!skipCountdown && !params.isJustLift) {
+                val countdownSeconds = if (isBodyweightExercise) 5 else 5
+                
                 Timber.d("")
                 Timber.d(" STARTING COUNTDOWN")
                 Timber.d(" Mode: ${params.workoutType.displayName}")
-                Timber.d(" Target: ${params.warmupReps} warmup + ${params.reps} working reps")
+                if (isBodyweightExercise) {
+                    Timber.d(" Bodyweight exercise - duration: ${params.durationSeconds}s")
+                } else {
+                    Timber.d(" Target: ${params.warmupReps} warmup + ${params.reps} working reps")
+                }
                 Timber.d("")
 
-                for (i in 5 downTo 1) {
+                for (i in countdownSeconds downTo 1) {
                     _workoutState.value = WorkoutState.Countdown(i)
                     delay(1000)
                 }
@@ -994,47 +1003,84 @@ class MainViewModel @Inject constructor(
             }
 
             Timber.d("")
-            Timber.d(" COUNTDOWN COMPLETE - SENDING WORKOUT COMMAND")
+            Timber.d(" COUNTDOWN COMPLETE - ${if (isBodyweightExercise) "STARTING BODYWEIGHT EXERCISE" else "SENDING WORKOUT COMMAND"}")
             Timber.d("")
-            Timber.d("?? TIMING: About to call bleRepository.startWorkout() at ${System.currentTimeMillis()}ms")
-            val startTime = System.currentTimeMillis()
-
-            // Set initial baseline position for position bars calibration
-            // This ensures bars start at 0% relative to the starting rope position
-            _currentMetric.value?.let { metric ->
-                repCounter.setInitialBaseline(metric.positionA, metric.positionB)
-                _repRanges.value = repCounter.getRepRanges()
-                Timber.d("?? POSITION BASELINE: Set initial baseline to posA=${metric.positionA}, posB=${metric.positionB}")
-            }
-
-            val result = bleRepository.startWorkout(params)
-
-            val commandLatency = System.currentTimeMillis() - startTime
-            Timber.d("?? TIMING: bleRepository.startWorkout() completed in ${commandLatency}ms")
-
-            if (result.isFailure) {
-                _workoutState.value = WorkoutState.Error(
-                    result.exceptionOrNull()?.message ?: "Unknown error"
+            
+            // For bodyweight exercises, we don't need to send BLE commands
+            // Just start a duration timer
+            if (isBodyweightExercise) {
+                Timber.d("Bodyweight exercise - starting ${params.durationSeconds}s timer")
+                _workoutState.value = WorkoutState.Active
+                
+                WorkoutForegroundService.startWorkoutService(
+                    getContext(),
+                    params.workoutType.displayName,
+                    params.reps
                 )
-                Timber.e("Failed to start workout: ${result.exceptionOrNull()?.message}")
-                return@launch
+                
+                // Emit haptic feedback for workout start
+                _hapticEvents.emit(HapticEvent.WORKOUT_START)
+                
+                // Start a timer for the duration
+                viewModelScope.launch {
+                    delay((params.durationSeconds * 1000).toLong())
+                    
+                    // Auto-complete after duration expires
+                    if (_workoutState.value is WorkoutState.Active) {
+                        Timber.d("Bodyweight exercise duration complete")
+                        // Trigger set completion
+                        val metrics = listOf<WorkoutMetric>()
+                        _workoutState.value = WorkoutState.SetSummary(
+                            metrics = metrics,
+                            peakPower = 0f,
+                            averagePower = 0f,
+                            repCount = 0
+                        )
+                        _hapticEvents.emit(HapticEvent.WORKOUT_COMPLETE)
+                    }
+                }
+            } else {
+                // Cable exercise - normal BLE flow
+                Timber.d("?? TIMING: About to call bleRepository.startWorkout() at ${System.currentTimeMillis()}ms")
+                val startTime = System.currentTimeMillis()
+
+                // Set initial baseline position for position bars calibration
+                // This ensures bars start at 0% relative to the starting rope position
+                _currentMetric.value?.let { metric ->
+                    repCounter.setInitialBaseline(metric.positionA, metric.positionB)
+                    _repRanges.value = repCounter.getRepRanges()
+                    Timber.d("?? POSITION BASELINE: Set initial baseline to posA=${metric.positionA}, posB=${metric.positionB}")
+                }
+
+                val result = bleRepository.startWorkout(params)
+
+                val commandLatency = System.currentTimeMillis() - startTime
+                Timber.d("?? TIMING: bleRepository.startWorkout() completed in ${commandLatency}ms")
+
+                if (result.isFailure) {
+                    _workoutState.value = WorkoutState.Error(
+                        result.exceptionOrNull()?.message ?: "Unknown error"
+                    )
+                    Timber.e("Failed to start workout: ${result.exceptionOrNull()?.message}")
+                    return@launch
+                }
+
+                // Only mark the workout as Active after the START command has succeeded
+                val activeStateTime = System.currentTimeMillis()
+                _workoutState.value = WorkoutState.Active
+                Timber.d("?? TIMING: State set to Active at ${activeStateTime}ms (${activeStateTime - startTime}ms after command)")
+
+                WorkoutForegroundService.startWorkoutService(
+                    getContext(),
+                    params.workoutType.displayName,
+                    params.reps
+                )
+
+                Timber.d("Workout command sent successfully! Tracking reps now. Session: $currentSessionId")
+
+                // Emit haptic feedback for workout start
+                _hapticEvents.emit(HapticEvent.WORKOUT_START)
             }
-
-            // Only mark the workout as Active after the START command has succeeded
-            val activeStateTime = System.currentTimeMillis()
-            _workoutState.value = WorkoutState.Active
-            Timber.d("?? TIMING: State set to Active at ${activeStateTime}ms (${activeStateTime - startTime}ms after command)")
-
-            WorkoutForegroundService.startWorkoutService(
-                getContext(),
-                params.workoutType.displayName,
-                params.reps
-            )
-
-            Timber.d("Workout command sent successfully! Tracking reps now. Session: $currentSessionId")
-
-            // Emit haptic feedback for workout start
-            _hapticEvents.emit(HapticEvent.WORKOUT_START)
         }
     }
 
@@ -1454,8 +1500,10 @@ class MainViewModel @Inject constructor(
             Timber.d("  ? Moving to next set")
             _currentSetIndex.value++
             val targetReps = currentExercise.setReps[_currentSetIndex.value]
+            val isBodyweight = currentExercise.exercise.isBodyweight
             Timber.d("  New set index: ${_currentSetIndex.value}")
             Timber.d("  Target reps: $targetReps")
+            Timber.d("  Is bodyweight: $isBodyweight")
             _workoutParameters.value = workoutParameters.value.copy(
                 reps = targetReps ?: 0, // AMRAP sets have null reps
                 // Preserve all other parameters from current exercise
@@ -1463,7 +1511,9 @@ class MainViewModel @Inject constructor(
                 weightPerCableKg = workoutParameters.value.weightPerCableKg,
                 workoutType = workoutParameters.value.workoutType,
                 selectedExerciseId = workoutParameters.value.selectedExerciseId,
-                isAMRAP = targetReps == null // This SET is AMRAP if its reps is null
+                isAMRAP = targetReps == null, // This SET is AMRAP if its reps is null
+                isBodyweight = isBodyweight,
+                durationSeconds = currentExercise.duration ?: 30
             )
             Timber.d("???????????????????????????????????????????????????")
             startWorkout(skipCountdown = true)
@@ -1477,15 +1527,19 @@ class MainViewModel @Inject constructor(
                 // Update workout parameters for new exercise
                 val nextExercise = routine.exercises[_currentExerciseIndex.value]
                 val nextSetReps = nextExercise.setReps[0]
+                val isBodyweight = nextExercise.exercise.isBodyweight
                 Timber.d("  New exercise index: ${_currentExerciseIndex.value}")
                 Timber.d("  Next exercise: ${nextExercise.exercise.displayName}")
+                Timber.d("  Is bodyweight: $isBodyweight")
                 _workoutParameters.value = workoutParameters.value.copy(
                     weightPerCableKg = nextExercise.weightPerCableKg,
                     reps = nextSetReps ?: 0, // AMRAP sets have null reps
                     workoutType = nextExercise.workoutType,
                     progressionRegressionKg = nextExercise.progressionKg,
                     selectedExerciseId = nextExercise.exercise.id,
-                    isAMRAP = nextSetReps == null // First SET is AMRAP if its reps is null
+                    isAMRAP = nextSetReps == null, // First SET is AMRAP if its reps is null
+                    isBodyweight = isBodyweight,
+                    durationSeconds = nextExercise.duration ?: 30
                 )
                 Timber.d("???????????????????????????????????????????????????")
                 startWorkout(skipCountdown = true)
@@ -1842,6 +1896,9 @@ class MainViewModel @Inject constructor(
         // Load parameters from first exercise
         val firstExercise = routine.exercises[0]
         val firstSetReps = firstExercise.setReps.firstOrNull() // Can be null for AMRAP sets
+        
+        // Check if this is a bodyweight exercise
+        val isBodyweight = firstExercise.exercise.isBodyweight
 
         Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         Timber.d("LOADING ROUTINE: ${routine.name}")
@@ -1851,6 +1908,8 @@ class MainViewModel @Inject constructor(
         Timber.d("  Sets: ${firstExercise.setReps.size} (${firstExercise.setReps})")
         Timber.d("  Weight: ${firstExercise.weightPerCableKg}kg")
         Timber.d("  First set reps: $firstSetReps")
+        Timber.d("  Is bodyweight: $isBodyweight")
+        Timber.d("  Duration: ${firstExercise.duration ?: 0}s")
         Timber.d("  Setting isJustLift = false")
         Timber.d("")
         Timber.d("WORKOUT TYPE DETAILS:")
@@ -1876,13 +1935,17 @@ class MainViewModel @Inject constructor(
             progressionRegressionKg = firstExercise.progressionKg,
             isJustLift = false,  // CRITICAL: Routines are NOT just lift mode (enables autoplay)
             stopAtTop = stopAtTop.value,   // Use user preference from settings
-            warmupReps = _workoutParameters.value.warmupReps,
+            warmupReps = if (isBodyweight) 0 else _workoutParameters.value.warmupReps,  // No warmup for bodyweight
             isAMRAP = firstSetReps == null, // This SET is AMRAP if its reps is null
-            selectedExerciseId = firstExercise.exercise.id // Set exercise ID for history tracking
+            selectedExerciseId = firstExercise.exercise.id, // Set exercise ID for history tracking
+            isBodyweight = isBodyweight,  // Mark as bodyweight exercise
+            durationSeconds = firstExercise.duration ?: 30  // Use configured duration or default to 30s
         )
 
         Timber.d("Created WorkoutParameters:")
         Timber.d("  isAMRAP: ${params.isAMRAP}")
+        Timber.d("  isBodyweight: ${params.isBodyweight}")
+        Timber.d("  durationSeconds: ${params.durationSeconds}")
         Timber.d("  workoutType.displayName: ${params.workoutType.displayName}")
         when (val wt = params.workoutType) {
             is com.example.vitruvianredux.domain.model.WorkoutType.Echo -> {

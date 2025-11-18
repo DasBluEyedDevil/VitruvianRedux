@@ -37,6 +37,13 @@ data class Exercise(
      */
     val displayName: String
         get() = name
+    
+    /**
+     * Returns true if this is a bodyweight exercise (no equipment required).
+     * Bodyweight exercises should use duration-based workouts instead of rep/weight-based.
+     */
+    val isBodyweight: Boolean
+        get() = equipment.isBlank() || equipment.isEmpty()
 }
 
 /**

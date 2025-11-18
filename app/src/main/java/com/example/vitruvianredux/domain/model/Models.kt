@@ -181,7 +181,9 @@ data class WorkoutParameters(
     val stopAtTop: Boolean = false,  // false = stop at bottom (extended), true = stop at top (contracted)
     val warmupReps: Int = 3,
     val selectedExerciseId: String? = null,
-    val isAMRAP: Boolean = false  // AMRAP (As Many Reps As Possible) - disables auto-stop
+    val isAMRAP: Boolean = false,  // AMRAP (As Many Reps As Possible) - disables auto-stop
+    val isBodyweight: Boolean = false,  // Bodyweight exercises - duration-based, no cable interaction needed
+    val durationSeconds: Int = 0  // Duration in seconds for bodyweight exercises
 )
 
 /**
