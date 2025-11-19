@@ -313,33 +313,33 @@ class BleRepositoryImpl @Inject constructor(
 
             // Connect to device
             Timber.d("Initiating connection to device...")
-            newBleManager.connect(device)
-                ?.timeout(BleConstants.CONNECTION_TIMEOUT_MS)
+            newBleManager.connect(device).timeout(BleConstants.CONNECTION_TIMEOUT_MS)
                 ?.retry(3, 100)
                 ?.useAutoConnect(false)
                 ?.done {
                     // Device connected successfully
-                    // Send INIT sequence after connection (LEDs acknowledge connection)
-                    Timber.d("Device connected! Waiting 2 seconds before sending INIT...")
+                    // Official app does NOT use 0x0A handshake. It just connects and sets colors.
+                    Timber.d("Device connected! Waiting 2 seconds before setting LED colors...")
                     scope.launch {
-                        delay(2000) // Wait 2 seconds (matching web app behavior)
-                        Timber.d("Now sending INIT sequence...")
-                        val initResult = sendInitSequence()
-                        if (initResult.isSuccess) {
-                            Timber.d("Device fully initialized and ready!")
+                        delay(2000) // Wait 2 seconds for stability
+                        
+                        // Send default color scheme (0x11) to initialize LEDs
+                        // This acts as the "wake up" command for the hardware
+                        Timber.d("Sending default color scheme (Teal) to initialize LEDs...")
+                        val defaultScheme = com.example.vitruvianredux.util.ColorSchemes.TEAL
+                        val colorFrame = ProtocolBuilder.buildColorScheme(defaultScheme.brightness, defaultScheme.colors)
+                        
+                        // We use sendCommand but don't crash if it fails - fire and forget
+                        val result = newBleManager.sendCommand(colorFrame)
+                        if (result.isSuccess) {
+                            Timber.d("✅ LED initialization command sent")
+                            connectionLogger.logCommandSent("INIT_LEDS", deviceName, deviceAddress, colorFrame, "Scheme=Teal")
                         } else {
-                            // FIX FOR ISSUE #124: If initialization fails, disconnect to prevent
-                            // workout from starting on an uninitialized device which causes
-                            // "onServicesInvalidated" disconnect ~5 seconds after workout start
-                            Timber.e("INIT sequence failed after connection: ${initResult.exceptionOrNull()?.message}")
-                            Timber.e("Disconnecting device due to failed initialization...")
-                            _connectionState.value = ConnectionState.Error(
-                                "Device initialization failed: ${initResult.exceptionOrNull()?.message}",
-                                initResult.exceptionOrNull()
-                            )
-                            // Disconnect the device to force user to reconnect
-                            newBleManager.disconnect().enqueue()
+                            Timber.w("⚠️ Failed to send LED initialization: ${result.exceptionOrNull()?.message}")
                         }
+                        
+                        // Device is ready
+                        Timber.d("Device fully initialized and ready (Native Protocol)")
                     }
                 }
                 ?.enqueue()
@@ -363,7 +363,7 @@ class BleRepositoryImpl @Inject constructor(
                 Timber.d("Cleaning up connecting BLE manager...")
                 managerToCancel.stopPolling()
                 managerToCancel.cleanup()
-                managerToCancel.disconnect()?.enqueue()
+                managerToCancel.disconnect().enqueue()
 
                 // Only clear bleManager if it's the same instance we're cancelling
                 // (i.e., connection hasn't succeeded yet)
@@ -402,62 +402,13 @@ class BleRepositoryImpl @Inject constructor(
         }
     }
 
+    /**
+     * @deprecated The official app does not use the 0x0A handshake.
+     * This method is kept empty to satisfy interface but should not be called.
+     */
     override suspend fun sendInitSequence(): Result<Unit> = withContext(Dispatchers.IO) {
-        try {
-            val connectedState = _connectionState.value
-            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
-            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
-
-            Timber.d("=== Starting INIT sequence ===")
-            connectionLogger.logInitStarted(deviceName ?: "Unknown", deviceAddress ?: "")
-
-            val manager = bleManager
-            if (manager == null) {
-                Timber.e("BLE manager is null, cannot send INIT sequence")
-                return@withContext Result.failure(Exception("BLE manager not available"))
-            }
-
-            // Step 1: Send INIT_COMMAND (0x0A) and wait for INIT_RESPONSE (0x0B)
-            Timber.d("Step 1: Sending INIT_COMMAND (0x0A)...")
-            val initCommand = ProtocolBuilder.buildInitCommand()
-            connectionLogger.logCommandSent("INIT_COMMAND", deviceName, deviceAddress, initCommand)
-            manager.sendCommand(initCommand).getOrThrow()
-            
-            Timber.d("Step 1: Waiting for INIT_RESPONSE (0x0B)...")
-            val received0x0B = manager.awaitResponse(0x0Bu, timeoutMs = 5000L)
-            if (!received0x0B) {
-                Timber.e("Timeout waiting for INIT_RESPONSE (0x0B) - device may be in error state")
-                connectionLogger.logInitFailed(deviceName ?: "Unknown", deviceAddress ?: "", "Timeout waiting for 0x0B response")
-                return@withContext Result.failure(Exception("Timeout waiting for INIT_RESPONSE (0x0B)"))
-            }
-            Timber.d("Step 1: ✅ Received INIT_RESPONSE (0x0B)")
-
-            // Step 2: Send INIT_PRESET (0x11) and wait for INIT_PRESET_RESPONSE (0x12)
-            Timber.d("Step 2: Sending INIT_PRESET (0x11)...")
-            val initPreset = ProtocolBuilder.buildInitPreset()
-            connectionLogger.logCommandSent("INIT_PRESET", deviceName, deviceAddress, initPreset)
-            manager.sendCommand(initPreset).getOrThrow()
-            
-            Timber.d("Step 2: Waiting for INIT_PRESET_RESPONSE (0x12)...")
-            val received0x12 = manager.awaitResponse(0x12u, timeoutMs = 5000L)
-            if (!received0x12) {
-                Timber.e("Timeout waiting for INIT_PRESET_RESPONSE (0x12) - device may be in error state")
-                connectionLogger.logInitFailed(deviceName ?: "Unknown", deviceAddress ?: "", "Timeout waiting for 0x12 response")
-                return@withContext Result.failure(Exception("Timeout waiting for INIT_PRESET_RESPONSE (0x12)"))
-            }
-            Timber.d("Step 2: ✅ Received INIT_PRESET_RESPONSE (0x12)")
-
-            Timber.d("=== INIT sequence completed successfully ===")
-            connectionLogger.logInitSuccess(deviceName ?: "Unknown", deviceAddress ?: "")
-            Result.success(Unit)
-        } catch (e: Exception) {
-            val connectedState = _connectionState.value
-            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
-            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
-            Timber.e(e, "Failed to send init sequence")
-            connectionLogger.logInitFailed(deviceName ?: "Unknown", deviceAddress ?: "", e.message ?: "Unknown error")
-            Result.failure(e)
-        }
+        Timber.w("sendInitSequence called but is deprecated/disabled in Native Protocol mode")
+        Result.success(Unit)
     }
 
     override suspend fun startWorkout(params: WorkoutParameters): Result<Unit> = withContext(Dispatchers.IO) {
@@ -574,20 +525,17 @@ class BleRepositoryImpl @Inject constructor(
             delay(BleConstants.BLE_QUEUE_DRAIN_DELAY_MS)
             Timber.d("STOP_DEBUG: BLE queue drain delay complete")
 
-            // Send INIT command to stop workout and release resistance
-            // NOTE: Web app uses buildInitCommand() to stop, not a separate stop command
-            // The device interprets 0x0A contextually based on current state
-            val initCommand = ProtocolBuilder.buildInitCommand()
+            // Use the official StopPacket (0x50) instead of legacy InitCommand (0x0A)
+            val stopCommand = ProtocolBuilder.buildStopPacket()
             val beforeInitSend = System.currentTimeMillis()
-            Timber.d("STOP_DEBUG: [$beforeInitSend] BEFORE sending INIT command")
-            Timber.d("STOP_DEBUG: INIT command bytes: ${initCommand.joinToString(" ") { "0x%02X".format(it) }}")
-            Timber.d("STOP_DEBUG: INIT command size: ${initCommand.size} bytes")
-            Timber.d("STOP_DEBUG: Sending INIT command to release tension...")
-            connectionLogger.logCommandSent("STOP_WORKOUT", deviceName, deviceAddress, initCommand)
-            bleManager?.sendCommand(initCommand)?.getOrThrow()
+            Timber.d("STOP_DEBUG: [$beforeInitSend] BEFORE sending STOP command")
+            Timber.d("STOP_DEBUG: STOP command bytes: ${stopCommand.joinToString(" ") { "0x%02X".format(it) }}")
+            Timber.d("STOP_DEBUG: Sending STOP command (0x50)...")
+            connectionLogger.logCommandSent("STOP_WORKOUT", deviceName, deviceAddress, stopCommand)
+            bleManager?.sendCommand(stopCommand)?.getOrThrow()
             val afterInitSend = System.currentTimeMillis()
-            Timber.d("STOP_DEBUG: [$afterInitSend] AFTER sending INIT command (took ${afterInitSend - beforeInitSend}ms)")
-            Timber.d("STOP_DEBUG: INIT command sent successfully")
+            Timber.d("STOP_DEBUG: [$afterInitSend] AFTER sending STOP command (took ${afterInitSend - beforeInitSend}ms)")
+            Timber.d("STOP_DEBUG: STOP command sent successfully")
 
             val finalTimestamp = System.currentTimeMillis()
             Timber.d("STOP_DEBUG: [$finalTimestamp] Workout stopped - Total stopWorkout() time: ${finalTimestamp - timestamp}ms")

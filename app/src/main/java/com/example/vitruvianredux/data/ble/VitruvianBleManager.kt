@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import no.nordicsemi.android.ble.ConnectionPriorityRequest
 import no.nordicsemi.android.ble.BleManager
 import no.nordicsemi.android.ble.data.Data
 import timber.log.Timber
@@ -407,6 +408,16 @@ class VitruvianBleManager(
                     _connectionState.value = ConnectionStatus.Ready
                     Timber.d("All initialization operations complete! Device ready.")
 
+                    // Log enabled characteristics to ConnectionLogger for debugging
+                    val uuidList = notifyCharacteristics.joinToString(", ") { it.uuid.toString().take(8) + "..." }
+                    connectionLogger?.log(
+                        eventType = "NOTIFICATIONS_ACTIVE",
+                        level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.INFO,
+                        deviceName = currentDeviceName,
+                        deviceAddress = currentDeviceAddress,
+                        message = "Notifications enabled on: $uuidList"
+                    )
+
                     // Start property polling immediately to keep machine alive (keep-alive mechanism)
                     // The official app/web app does this - property polling at 500ms intervals
                     // Monitor polling (100ms) only starts when workout begins
@@ -419,7 +430,7 @@ class VitruvianBleManager(
             // This ensures fast, reliable communication and prevents early disconnections
             // that were causing 5-second disconnect issues (Issue #131)
             Timber.d("Requesting HIGH connection priority for stable connection...")
-            requestConnectionPriority(android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+            requestConnectionPriority(ConnectionPriorityRequest.CONNECTION_PRIORITY_HIGH)
                 .done { _ ->
                     Timber.d("✅ Connection priority set to HIGH")
                     checkAllOperationsComplete()
@@ -974,6 +985,7 @@ class VitruvianBleManager(
      * @param timeoutMs Timeout in milliseconds (default 5 seconds)
      * @return true if response received, false if timeout
      */
+    @Suppress("unused")
     suspend fun awaitResponse(expectedOpcode: UByte, timeoutMs: Long = 5000L): Boolean {
         return try {
             val opcodeHex = expectedOpcode.toString(16).uppercase().padStart(2, '0')
