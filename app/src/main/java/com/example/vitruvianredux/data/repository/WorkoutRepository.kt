@@ -8,17 +8,10 @@ import com.example.vitruvianredux.data.local.RoutineExerciseEntity
 import com.example.vitruvianredux.data.local.WeeklyProgramWithDays
 import com.example.vitruvianredux.data.local.PersonalRecordDao
 import com.example.vitruvianredux.data.local.PersonalRecordEntity
-import com.example.vitruvianredux.domain.model.WorkoutMetric
-import com.example.vitruvianredux.domain.model.WorkoutSession
-import com.example.vitruvianredux.domain.model.Routine
-import com.example.vitruvianredux.domain.model.RoutineExercise
-import com.example.vitruvianredux.domain.model.Exercise
-import com.example.vitruvianredux.domain.model.CableConfiguration
-import com.example.vitruvianredux.domain.model.WorkoutMode
-import com.example.vitruvianredux.domain.model.WorkoutType
-import com.example.vitruvianredux.domain.model.ProgramMode
-import com.example.vitruvianredux.domain.model.EchoLevel
-import com.example.vitruvianredux.domain.model.EccentricLoad
+import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
+import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
+import com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity
+import com.example.vitruvianredux.domain.model.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
@@ -32,7 +25,9 @@ import javax.inject.Singleton
 @Singleton
 class WorkoutRepository @Inject constructor(
     private val workoutDao: WorkoutDao,
-    private val personalRecordDao: PersonalRecordDao
+    private val personalRecordDao: PersonalRecordDao,
+    private val phaseStatisticsDao: PhaseStatisticsDao,
+    private val diagnosticsDao: DiagnosticsDao
 ) {
     
     /**
@@ -93,6 +88,36 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
+
+    /**
+     * Save phase statistics
+     */
+    suspend fun savePhaseStatistics(sessionId: String, stats: HeuristicStatistics): Result<Unit> {
+        return try {
+            val entity = PhaseStatisticsEntity(
+                sessionId = sessionId,
+                concentricKgAvg = stats.concentric.kgAvg,
+                concentricKgMax = stats.concentric.kgMax,
+                concentricVelAvg = stats.concentric.velAvg,
+                concentricVelMax = stats.concentric.velMax,
+                concentricWattAvg = stats.concentric.wattAvg,
+                concentricWattMax = stats.concentric.wattMax,
+                eccentricKgAvg = stats.eccentric.kgAvg,
+                eccentricKgMax = stats.eccentric.kgMax,
+                eccentricVelAvg = stats.eccentric.velAvg,
+                eccentricVelMax = stats.eccentric.velMax,
+                eccentricWattAvg = stats.eccentric.wattAvg,
+                eccentricWattMax = stats.eccentric.wattMax,
+                timestamp = stats.timestamp
+            )
+            phaseStatisticsDao.insert(entity)
+            Timber.d("Saved phase statistics for session $sessionId")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to save phase statistics")
+            Result.failure(e)
+        }
+    }
     
     /**
      * Get all workout sessions
@@ -140,6 +165,13 @@ class WorkoutRepository @Inject constructor(
      */
     suspend fun getRecentSessionsSync(limit: Int = 10): List<WorkoutSession> {
         return workoutDao.getRecentSessionsSync(limit).map { it.toWorkoutSession() }
+    }
+
+    /**
+     * Get all phase statistics
+     */
+    fun getAllPhaseStatistics(): Flow<List<PhaseStatisticsEntity>> {
+        return phaseStatisticsDao.getAll()
     }
     
     /**

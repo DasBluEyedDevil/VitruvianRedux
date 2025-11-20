@@ -14,8 +14,14 @@ object BleConstants {
     // Characteristic UUIDs
     val NUS_RX_CHAR_UUID: UUID = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e")
     val MONITOR_CHAR_UUID: UUID = UUID.fromString("90e991a6-c548-44ed-969b-eb541014eae3")
-    val PROPERTY_CHAR_UUID: UUID = UUID.fromString("5fa538ec-d041-42f6-bbd6-c30d475387b7")
+    
+    // Diagnostic characteristic (formerly PROPERTY_CHAR_UUID)
+    val DIAGNOSTIC_CHAR_UUID: UUID = UUID.fromString("5fa538ec-d041-42f6-bbd6-c30d475387b7")
+    val PROPERTY_CHAR_UUID: UUID = DIAGNOSTIC_CHAR_UUID // Alias for backward compatibility
+    
     val REP_NOTIFY_CHAR_UUID: UUID = UUID.fromString("8308f2a6-0875-4a94-a86f-5c5c5e1b068a")
+    val HEURISTIC_CHAR_UUID: UUID = UUID.fromString("c7b73007-b245-4503-a1ed-9e4e97eb9802")
+    val VERSION_CHAR_UUID: UUID = UUID.fromString("74e994ac-0e80-4c02-9cd0-76cb31d3959b")
 
     val NOTIFY_CHAR_UUIDS = listOf(
         UUID.fromString("383f7276-49af-4335-9072-f01b0f8acad6"),

@@ -8,6 +8,7 @@ import androidx.room.TypeConverters
  * Room database for workout history
  *
  * Version history:
+ * - v23: Added safety tracking to workout_sessions, phase_statistics table, and diagnostics_history table
  * - v22: Added aliases and defaultCableConfig to exercises, isTutorial to exercise_videos
  * - v21: Added exerciseName to WorkoutSessionEntity
  * - v20: Added isAMRAP to routine_exercises for AMRAP workout mode
@@ -38,9 +39,11 @@ import androidx.room.TypeConverters
         PersonalRecordEntity::class,
         WeeklyProgramEntity::class,
         ProgramDayEntity::class,
-        ConnectionLogEntity::class
+        ConnectionLogEntity::class,
+        com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity::class,
+        com.example.vitruvianredux.data.local.entity.DiagnosticsEntity::class
     ],
-    version = 22,  // Added aliases, defaultCableConfig to exercises, isTutorial to exercise_videos
+    version = 23,  // Added safety tracking, phase statistics, diagnostics
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -49,4 +52,6 @@ abstract class WorkoutDatabase : RoomDatabase() {
     abstract fun exerciseDao(): ExerciseDao
     abstract fun personalRecordDao(): PersonalRecordDao
     abstract fun connectionLogDao(): ConnectionLogDao
+    abstract fun phaseStatisticsDao(): com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
+    abstract fun diagnosticsDao(): com.example.vitruvianredux.data.local.dao.DiagnosticsDao
 }

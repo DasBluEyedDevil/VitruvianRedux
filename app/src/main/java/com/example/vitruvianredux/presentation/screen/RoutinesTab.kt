@@ -100,8 +100,9 @@ fun RoutinesTab(
                 )
             } else {
                 LazyColumn(
+                    modifier = Modifier.fillMaxHeight(), // Fill remaining vertical space
                     verticalArrangement = Arrangement.spacedBy(Spacing.small),
-                    contentPadding = PaddingValues(bottom = 80.dp) // Space for FAB (56dp + padding)
+                    contentPadding = PaddingValues(bottom = 16.dp) // Minimal bottom padding (FAB overlays naturally)
                 ) {
                     items(routines, key = { it.id }) { routine ->
                         RoutineCard(

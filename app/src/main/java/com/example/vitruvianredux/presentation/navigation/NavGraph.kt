@@ -185,13 +185,16 @@ fun NavGraph(
                 autoplayEnabled = userPreferences.autoplayEnabled,
                 stopAtTop = userPreferences.stopAtTop,
                 enableVideoPlayback = userPreferences.enableVideoPlayback,
+                strictValidationEnabled = userPreferences.strictValidationEnabled,
                 onWeightUnitChange = { viewModel.setWeightUnit(it) },
                 onAutoplayChange = { viewModel.setAutoplayEnabled(it) },
                 onStopAtTopChange = { viewModel.setStopAtTop(it) },
                 onEnableVideoPlaybackChange = { viewModel.setEnableVideoPlayback(it) },
+                onStrictValidationChange = { viewModel.setStrictValidationEnabled(it) },
                 onColorSchemeChange = { viewModel.setColorScheme(it) },
                 onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() },
                 onNavigateToConnectionLogs = { navController.navigate(NavigationRoutes.ConnectionLogs.route) },
+                onNavigateToDiagnostics = { navController.navigate(NavigationRoutes.Diagnostics.route) },
                 isAutoConnecting = isAutoConnecting,
                 connectionError = connectionError,
                 onClearConnectionError = { viewModel.clearConnectionError() },
@@ -204,6 +207,13 @@ fun NavGraph(
             ConnectionLogsScreen(
                 onNavigateBack = { navController.popBackStack() },
                 mainViewModel = viewModel
+            )
+        }
+
+        // Diagnostics screen
+        composable(NavigationRoutes.Diagnostics.route) {
+            DiagnosticsScreen(
+                onNavigateBack = { navController.popBackStack() }
             )
         }
     }

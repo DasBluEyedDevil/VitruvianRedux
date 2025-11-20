@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -158,9 +159,9 @@ fun EnhancedMainScreen(
                         Icon(
                             imageVector = when (connectionState) {
                                 is ConnectionState.Connected -> Icons.Default.Bluetooth
-                                is ConnectionState.Connecting -> Icons.Default.BluetoothSearching
+                                is ConnectionState.Connecting -> Icons.AutoMirrored.Filled.BluetoothSearching
                                 is ConnectionState.Disconnected -> Icons.Default.BluetoothDisabled
-                                is ConnectionState.Scanning -> Icons.Default.BluetoothSearching
+                                is ConnectionState.Scanning -> Icons.AutoMirrored.Filled.BluetoothSearching
                                 is ConnectionState.Error -> Icons.Default.BluetoothDisabled
                             },
                             contentDescription = when (connectionState) {
@@ -208,190 +209,77 @@ fun EnhancedMainScreen(
             )
         },
         bottomBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp,
-                modifier = Modifier.fillMaxWidth()
+            NavigationBar(
+                tonalElevation = 8.dp
             ) {
-                Column(
-                    modifier = Modifier.navigationBarsPadding()
-                ) {
-                    BottomAppBar(
-                        containerColor = Color.Transparent,
-                        modifier = Modifier.height(80.dp),
-                        tonalElevation = 0.dp
-                    ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // LEFT: Analytics (small)
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        IconButton(
-                            onClick = {
-                                navController.navigate(NavigationRoutes.Analytics.route) {
-                                    popUpTo(NavigationRoutes.Home.route)
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        ) {
-                            Icon(
-                                imageVector = if (currentRoute == NavigationRoutes.Analytics.route)
-                                    Icons.Filled.BarChart
-                                else
-                                    Icons.Outlined.BarChart,
-                                contentDescription = "Analytics",
-                                modifier = Modifier.size(24.dp),
-                                tint = if (currentRoute == NavigationRoutes.Analytics.route)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                // Analytics
+                NavigationBarItem(
+                    selected = currentRoute == NavigationRoutes.Analytics.route,
+                    onClick = {
+                        navController.navigate(NavigationRoutes.Analytics.route) {
+                            popUpTo(NavigationRoutes.Home.route)
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                        Text(
-                            "Analytics",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (currentRoute == NavigationRoutes.Analytics.route)
-                                MaterialTheme.colorScheme.primary
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = if (currentRoute == NavigationRoutes.Analytics.route)
+                                Icons.Filled.BarChart
                             else
-                                MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Visible
+                                Icons.Outlined.BarChart,
+                            contentDescription = "Analytics"
                         )
-                        // Active indicator
-                        if (currentRoute == NavigationRoutes.Analytics.route) {
-                            androidx.compose.foundation.Canvas(
-                                modifier = Modifier
-                                    .width(64.dp)
-                                    .height(4.dp)
-                            ) {
-                                drawRoundRect(
-                                    color = Color(0xFF9333EA),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
-                                )
-                            }
-                        }
-                    }
+                    },
+                    label = { Text("Analytics") },
+                    alwaysShowLabel = false
+                )
 
-                    // CENTER: Workouts (LARGER - FloatingActionButton)
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        FloatingActionButton(
-                            onClick = {
-                                navController.navigate(NavigationRoutes.Home.route) {
-                                    popUpTo(NavigationRoutes.Home.route)
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            modifier = Modifier.size(64.dp),
-                            containerColor = if (isWorkoutsRoute)
-                                MaterialTheme.colorScheme.primaryContainer
+                // Workouts
+                NavigationBarItem(
+                    selected = isWorkoutsRoute,
+                    onClick = {
+                        navController.navigate(NavigationRoutes.Home.route) {
+                            popUpTo(NavigationRoutes.Home.route)
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = if (isWorkoutsRoute)
+                                Icons.Filled.Home
                             else
-                                MaterialTheme.colorScheme.surfaceContainerHighest,
-                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = if (isWorkoutsRoute)
-                                        Icons.Filled.Home
-                                    else
-                                        Icons.Outlined.Home,
-                                    contentDescription = "Workouts",
-                                    modifier = Modifier.size(28.dp),
-                                    tint = if (isWorkoutsRoute)
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    "Workouts",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isWorkoutsRoute)
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    else
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        // Active indicator
-                        if (isWorkoutsRoute) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            androidx.compose.foundation.Canvas(
-                                modifier = Modifier
-                                    .width(48.dp)
-                                    .height(4.dp)
-                            ) {
-                                drawRoundRect(
-                                    color = Color(0xFF9333EA),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
-                                )
-                            }
-                        }
-                    }
-
-                    // RIGHT: Settings (small)
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        IconButton(
-                            onClick = {
-                                navController.navigate(NavigationRoutes.Settings.route) {
-                                    popUpTo(NavigationRoutes.Home.route)
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
-                        ) {
-                            Icon(
-                                imageVector = if (currentRoute == NavigationRoutes.Settings.route)
-                                    Icons.Filled.Settings
-                                else
-                                    Icons.Outlined.Settings,
-                                contentDescription = "Settings",
-                                modifier = Modifier.size(24.dp),
-                                tint = if (currentRoute == NavigationRoutes.Settings.route)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Text(
-                            "Settings",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (currentRoute == NavigationRoutes.Settings.route)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Visible
+                                Icons.Outlined.Home,
+                            contentDescription = "Workouts"
                         )
-                        // Active indicator
-                        if (currentRoute == NavigationRoutes.Settings.route) {
-                            androidx.compose.foundation.Canvas(
-                                modifier = Modifier
-                                    .width(64.dp)
-                                    .height(4.dp)
-                            ) {
-                                drawRoundRect(
-                                    color = Color(0xFF9333EA),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
-                                )
-                            }
+                    },
+                    label = { Text("Workouts") },
+                    alwaysShowLabel = false
+                )
+
+                // Settings
+                NavigationBarItem(
+                    selected = currentRoute == NavigationRoutes.Settings.route,
+                    onClick = {
+                        navController.navigate(NavigationRoutes.Settings.route) {
+                            popUpTo(NavigationRoutes.Home.route)
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                    }
-                }
-                    }
-                }
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = if (currentRoute == NavigationRoutes.Settings.route)
+                                Icons.Filled.Settings
+                            else
+                                Icons.Outlined.Settings,
+                            contentDescription = "Settings"
+                        )
+                    },
+                    label = { Text("Settings") },
+                    alwaysShowLabel = false
+                )
             }
         }
     ) { padding ->
