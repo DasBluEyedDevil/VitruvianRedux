@@ -1,0 +1,136 @@
+package androidx.compose.material.icons.filled;
+
+import androidx.compose.material.icons.Icons;
+import androidx.compose.p000ui.graphics.Brush;
+import androidx.compose.p000ui.graphics.Color;
+import androidx.compose.p000ui.graphics.SolidColor;
+import androidx.compose.p000ui.graphics.StrokeCap;
+import androidx.compose.p000ui.graphics.StrokeJoin;
+import androidx.compose.p000ui.graphics.vector.ImageVector;
+import androidx.compose.p000ui.graphics.vector.PathBuilder;
+import androidx.compose.p000ui.graphics.vector.VectorKt;
+import androidx.compose.p000ui.unit.C0897Dp;
+import kotlin.Metadata;
+import kotlin.jvm.internal.Intrinsics;
+
+/* compiled from: Diversity1.kt */
+@Metadata(m145d1 = {"\u0000\u0010\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\b\u0003\"\u0010\u0010\u0000\u001a\u0004\u0018\u00010\u0001X\u0082\u000e¢\u0006\u0002\n\u0000\"\u0015\u0010\u0002\u001a\u00020\u0001*\u00020\u00038F¢\u0006\u0006\u001a\u0004\b\u0004\u0010\u0005¨\u0006\u0006"}, m146d2 = {"_diversity1", "Landroidx/compose/ui/graphics/vector/ImageVector;", "Diversity1", "Landroidx/compose/material/icons/Icons$Filled;", "getDiversity1", "(Landroidx/compose/material/icons/Icons$Filled;)Landroidx/compose/ui/graphics/vector/ImageVector;", "material-icons-extended_release"}, m147k = 2, m148mv = {1, 8, 0}, m150xi = 48)
+/* loaded from: classes.dex */
+public final class Diversity1Kt {
+    private static ImageVector _diversity1;
+
+    public static final ImageVector getDiversity1(Icons.Filled $this$Diversity1) {
+        ImageVector.Builder m6622addPathoIyEayM;
+        if (_diversity1 != null) {
+            ImageVector imageVector = _diversity1;
+            Intrinsics.checkNotNull(imageVector);
+            return imageVector;
+        }
+        float $this$dp$iv$iv = C0897Dp.m8629constructorimpl(24.0f);
+        float $this$dp$iv$iv2 = C0897Dp.m8629constructorimpl(24.0f);
+        ImageVector.Builder $this$_get_Diversity1__u24lambda_u247 = new ImageVector.Builder("Filled.Diversity1", $this$dp$iv$iv, $this$dp$iv$iv2, 24.0f, 24.0f, 0L, 0, false, 96, null);
+        int pathFillType$iv = VectorKt.getDefaultFillType();
+        Brush fill$iv$iv = new SolidColor(Color.INSTANCE.m5911getBlack0d7_KjU(), null);
+        int strokeLineCap$iv$iv = StrokeCap.INSTANCE.m6255getButtKaPHkGw();
+        int strokeLineJoin$iv$iv = StrokeJoin.INSTANCE.m6265getBevelLxFBmk8();
+        PathBuilder $this$PathData_u24lambda_u240$iv$iv$iv = new PathBuilder();
+        $this$PathData_u24lambda_u240$iv$iv$iv.moveTo(4.0f, 14.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv.moveToRelative(-2.0f, 0.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv.arcToRelative(2.0f, 2.0f, 0.0f, true, true, 4.0f, 0.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv.arcToRelative(2.0f, 2.0f, 0.0f, true, true, -4.0f, 0.0f);
+        $this$_get_Diversity1__u24lambda_u247.m6622addPathoIyEayM($this$PathData_u24lambda_u240$iv$iv$iv.getNodes(), (r30 & 2) != 0 ? VectorKt.getDefaultFillType() : pathFillType$iv, (r30 & 4) != 0 ? "" : "", (r30 & 8) != 0 ? null : fill$iv$iv, (r30 & 16) != 0 ? 1.0f : 1.0f, (r30 & 32) == 0 ? null : null, (r30 & 64) != 0 ? 1.0f : 1.0f, (r30 & 128) != 0 ? 0.0f : 1.0f, (r30 & 256) != 0 ? VectorKt.getDefaultStrokeLineCap() : strokeLineCap$iv$iv, (r30 & 512) != 0 ? VectorKt.getDefaultStrokeLineJoin() : strokeLineJoin$iv$iv, (r30 & 1024) != 0 ? 4.0f : 1.0f, (r30 & 2048) != 0 ? 0.0f : 0.0f, (r30 & 4096) == 0 ? 0.0f : 1.0f, (r30 & 8192) == 0 ? 0.0f : 0.0f);
+        int pathFillType$iv2 = VectorKt.getDefaultFillType();
+        Brush fill$iv$iv2 = new SolidColor(Color.INSTANCE.m5911getBlack0d7_KjU(), null);
+        int strokeLineCap$iv$iv2 = StrokeCap.INSTANCE.m6255getButtKaPHkGw();
+        int strokeLineJoin$iv$iv2 = StrokeJoin.INSTANCE.m6265getBevelLxFBmk8();
+        PathBuilder $this$PathData_u24lambda_u240$iv$iv$iv2 = new PathBuilder();
+        $this$PathData_u24lambda_u240$iv$iv$iv2.moveTo(1.22f, 17.58f);
+        $this$PathData_u24lambda_u240$iv$iv$iv2.curveTo(0.48f, 17.9f, 0.0f, 18.62f, 0.0f, 19.43f);
+        $this$PathData_u24lambda_u240$iv$iv$iv2.verticalLineTo(21.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv2.lineToRelative(4.5f, 0.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv2.verticalLineToRelative(-1.61f);
+        $this$PathData_u24lambda_u240$iv$iv$iv2.curveToRelative(0.0f, -0.83f, 0.23f, -1.61f, 0.63f, -2.29f);
+        $this$PathData_u24lambda_u240$iv$iv$iv2.curveTo(4.76f, 17.04f, 4.39f, 17.0f, 4.0f, 17.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv2.curveTo(3.01f, 17.0f, 2.07f, 17.21f, 1.22f, 17.58f);
+        $this$PathData_u24lambda_u240$iv$iv$iv2.close();
+        $this$_get_Diversity1__u24lambda_u247.m6622addPathoIyEayM($this$PathData_u24lambda_u240$iv$iv$iv2.getNodes(), (r30 & 2) != 0 ? VectorKt.getDefaultFillType() : pathFillType$iv2, (r30 & 4) != 0 ? "" : "", (r30 & 8) != 0 ? null : fill$iv$iv2, (r30 & 16) != 0 ? 1.0f : 1.0f, (r30 & 32) == 0 ? null : null, (r30 & 64) != 0 ? 1.0f : 1.0f, (r30 & 128) != 0 ? 0.0f : 1.0f, (r30 & 256) != 0 ? VectorKt.getDefaultStrokeLineCap() : strokeLineCap$iv$iv2, (r30 & 512) != 0 ? VectorKt.getDefaultStrokeLineJoin() : strokeLineJoin$iv$iv2, (r30 & 1024) != 0 ? 4.0f : 1.0f, (r30 & 2048) != 0 ? 0.0f : 0.0f, (r30 & 4096) == 0 ? 0.0f : 1.0f, (r30 & 8192) == 0 ? 0.0f : 0.0f);
+        int pathFillType$iv3 = VectorKt.getDefaultFillType();
+        Brush fill$iv$iv3 = new SolidColor(Color.INSTANCE.m5911getBlack0d7_KjU(), null);
+        int strokeLineCap$iv$iv3 = StrokeCap.INSTANCE.m6255getButtKaPHkGw();
+        int strokeLineJoin$iv$iv3 = StrokeJoin.INSTANCE.m6265getBevelLxFBmk8();
+        PathBuilder $this$PathData_u24lambda_u240$iv$iv$iv3 = new PathBuilder();
+        $this$PathData_u24lambda_u240$iv$iv$iv3.moveTo(20.0f, 14.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv3.moveToRelative(-2.0f, 0.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv3.arcToRelative(2.0f, 2.0f, 0.0f, true, true, 4.0f, 0.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv3.arcToRelative(2.0f, 2.0f, 0.0f, true, true, -4.0f, 0.0f);
+        $this$_get_Diversity1__u24lambda_u247.m6622addPathoIyEayM($this$PathData_u24lambda_u240$iv$iv$iv3.getNodes(), (r30 & 2) != 0 ? VectorKt.getDefaultFillType() : pathFillType$iv3, (r30 & 4) != 0 ? "" : "", (r30 & 8) != 0 ? null : fill$iv$iv3, (r30 & 16) != 0 ? 1.0f : 1.0f, (r30 & 32) == 0 ? null : null, (r30 & 64) != 0 ? 1.0f : 1.0f, (r30 & 128) != 0 ? 0.0f : 1.0f, (r30 & 256) != 0 ? VectorKt.getDefaultStrokeLineCap() : strokeLineCap$iv$iv3, (r30 & 512) != 0 ? VectorKt.getDefaultStrokeLineJoin() : strokeLineJoin$iv$iv3, (r30 & 1024) != 0 ? 4.0f : 1.0f, (r30 & 2048) != 0 ? 0.0f : 0.0f, (r30 & 4096) == 0 ? 0.0f : 1.0f, (r30 & 8192) == 0 ? 0.0f : 0.0f);
+        int pathFillType$iv4 = VectorKt.getDefaultFillType();
+        Brush fill$iv$iv4 = new SolidColor(Color.INSTANCE.m5911getBlack0d7_KjU(), null);
+        int strokeLineCap$iv$iv4 = StrokeCap.INSTANCE.m6255getButtKaPHkGw();
+        int strokeLineJoin$iv$iv4 = StrokeJoin.INSTANCE.m6265getBevelLxFBmk8();
+        PathBuilder $this$PathData_u24lambda_u240$iv$iv$iv4 = new PathBuilder();
+        $this$PathData_u24lambda_u240$iv$iv$iv4.moveTo(22.78f, 17.58f);
+        $this$PathData_u24lambda_u240$iv$iv$iv4.curveTo(21.93f, 17.21f, 20.99f, 17.0f, 20.0f, 17.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv4.curveToRelative(-0.39f, 0.0f, -0.76f, 0.04f, -1.13f, 0.1f);
+        $this$PathData_u24lambda_u240$iv$iv$iv4.curveToRelative(0.4f, 0.68f, 0.63f, 1.46f, 0.63f, 2.29f);
+        $this$PathData_u24lambda_u240$iv$iv$iv4.verticalLineTo(21.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv4.lineToRelative(4.5f, 0.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv4.verticalLineToRelative(-1.57f);
+        $this$PathData_u24lambda_u240$iv$iv$iv4.curveTo(24.0f, 18.62f, 23.52f, 17.9f, 22.78f, 17.58f);
+        $this$PathData_u24lambda_u240$iv$iv$iv4.close();
+        $this$_get_Diversity1__u24lambda_u247.m6622addPathoIyEayM($this$PathData_u24lambda_u240$iv$iv$iv4.getNodes(), (r30 & 2) != 0 ? VectorKt.getDefaultFillType() : pathFillType$iv4, (r30 & 4) != 0 ? "" : "", (r30 & 8) != 0 ? null : fill$iv$iv4, (r30 & 16) != 0 ? 1.0f : 1.0f, (r30 & 32) == 0 ? null : null, (r30 & 64) != 0 ? 1.0f : 1.0f, (r30 & 128) != 0 ? 0.0f : 1.0f, (r30 & 256) != 0 ? VectorKt.getDefaultStrokeLineCap() : strokeLineCap$iv$iv4, (r30 & 512) != 0 ? VectorKt.getDefaultStrokeLineJoin() : strokeLineJoin$iv$iv4, (r30 & 1024) != 0 ? 4.0f : 1.0f, (r30 & 2048) != 0 ? 0.0f : 0.0f, (r30 & 4096) == 0 ? 0.0f : 1.0f, (r30 & 8192) == 0 ? 0.0f : 0.0f);
+        int pathFillType$iv5 = VectorKt.getDefaultFillType();
+        Brush fill$iv$iv5 = new SolidColor(Color.INSTANCE.m5911getBlack0d7_KjU(), null);
+        int strokeLineCap$iv$iv5 = StrokeCap.INSTANCE.m6255getButtKaPHkGw();
+        int strokeLineJoin$iv$iv5 = StrokeJoin.INSTANCE.m6265getBevelLxFBmk8();
+        PathBuilder $this$PathData_u24lambda_u240$iv$iv$iv5 = new PathBuilder();
+        $this$PathData_u24lambda_u240$iv$iv$iv5.moveTo(16.24f, 16.65f);
+        $this$PathData_u24lambda_u240$iv$iv$iv5.curveToRelative(-1.17f, -0.52f, -2.61f, -0.9f, -4.24f, -0.9f);
+        $this$PathData_u24lambda_u240$iv$iv$iv5.curveToRelative(-1.63f, 0.0f, -3.07f, 0.39f, -4.24f, 0.9f);
+        $this$PathData_u24lambda_u240$iv$iv$iv5.curveTo(6.68f, 17.13f, 6.0f, 18.21f, 6.0f, 19.39f);
+        $this$PathData_u24lambda_u240$iv$iv$iv5.verticalLineTo(21.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv5.horizontalLineToRelative(12.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv5.verticalLineToRelative(-1.61f);
+        $this$PathData_u24lambda_u240$iv$iv$iv5.curveTo(18.0f, 18.21f, 17.32f, 17.13f, 16.24f, 16.65f);
+        $this$PathData_u24lambda_u240$iv$iv$iv5.close();
+        $this$_get_Diversity1__u24lambda_u247.m6622addPathoIyEayM($this$PathData_u24lambda_u240$iv$iv$iv5.getNodes(), (r30 & 2) != 0 ? VectorKt.getDefaultFillType() : pathFillType$iv5, (r30 & 4) != 0 ? "" : "", (r30 & 8) != 0 ? null : fill$iv$iv5, (r30 & 16) != 0 ? 1.0f : 1.0f, (r30 & 32) == 0 ? null : null, (r30 & 64) != 0 ? 1.0f : 1.0f, (r30 & 128) != 0 ? 0.0f : 1.0f, (r30 & 256) != 0 ? VectorKt.getDefaultStrokeLineCap() : strokeLineCap$iv$iv5, (r30 & 512) != 0 ? VectorKt.getDefaultStrokeLineJoin() : strokeLineJoin$iv$iv5, (r30 & 1024) != 0 ? 4.0f : 1.0f, (r30 & 2048) != 0 ? 0.0f : 0.0f, (r30 & 4096) == 0 ? 0.0f : 1.0f, (r30 & 8192) == 0 ? 0.0f : 0.0f);
+        int pathFillType$iv6 = VectorKt.getDefaultFillType();
+        Brush fill$iv$iv6 = new SolidColor(Color.INSTANCE.m5911getBlack0d7_KjU(), null);
+        int strokeLineCap$iv$iv6 = StrokeCap.INSTANCE.m6255getButtKaPHkGw();
+        int strokeLineJoin$iv$iv6 = StrokeJoin.INSTANCE.m6265getBevelLxFBmk8();
+        PathBuilder $this$PathData_u24lambda_u240$iv$iv$iv6 = new PathBuilder();
+        $this$PathData_u24lambda_u240$iv$iv$iv6.moveTo(9.0f, 12.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv6.curveToRelative(0.0f, 1.66f, 1.34f, 3.0f, 3.0f, 3.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv6.reflectiveCurveToRelative(3.0f, -1.34f, 3.0f, -3.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv6.curveToRelative(0.0f, -1.66f, -1.34f, -3.0f, -3.0f, -3.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv6.reflectiveCurveTo(9.0f, 10.34f, 9.0f, 12.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv6.close();
+        $this$_get_Diversity1__u24lambda_u247.m6622addPathoIyEayM($this$PathData_u24lambda_u240$iv$iv$iv6.getNodes(), (r30 & 2) != 0 ? VectorKt.getDefaultFillType() : pathFillType$iv6, (r30 & 4) != 0 ? "" : "", (r30 & 8) != 0 ? null : fill$iv$iv6, (r30 & 16) != 0 ? 1.0f : 1.0f, (r30 & 32) == 0 ? null : null, (r30 & 64) != 0 ? 1.0f : 1.0f, (r30 & 128) != 0 ? 0.0f : 1.0f, (r30 & 256) != 0 ? VectorKt.getDefaultStrokeLineCap() : strokeLineCap$iv$iv6, (r30 & 512) != 0 ? VectorKt.getDefaultStrokeLineJoin() : strokeLineJoin$iv$iv6, (r30 & 1024) != 0 ? 4.0f : 1.0f, (r30 & 2048) != 0 ? 0.0f : 0.0f, (r30 & 4096) == 0 ? 0.0f : 1.0f, (r30 & 8192) == 0 ? 0.0f : 0.0f);
+        int pathFillType$iv7 = VectorKt.getDefaultFillType();
+        Brush fill$iv$iv7 = new SolidColor(Color.INSTANCE.m5911getBlack0d7_KjU(), null);
+        int strokeLineCap$iv$iv7 = StrokeCap.INSTANCE.m6255getButtKaPHkGw();
+        int strokeLineJoin$iv$iv7 = StrokeJoin.INSTANCE.m6265getBevelLxFBmk8();
+        PathBuilder $this$PathData_u24lambda_u240$iv$iv$iv7 = new PathBuilder();
+        $this$PathData_u24lambda_u240$iv$iv$iv7.moveTo(2.48f, 10.86f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveTo(2.17f, 10.1f, 2.0f, 9.36f, 2.0f, 8.6f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveTo(2.0f, 6.02f, 4.02f, 4.0f, 6.6f, 4.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveToRelative(2.68f, 0.0f, 3.82f, 1.74f, 5.4f, 3.59f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveTo(13.57f, 5.76f, 14.7f, 4.0f, 17.4f, 4.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveTo(19.98f, 4.0f, 22.0f, 6.02f, 22.0f, 8.6f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveToRelative(0.0f, 0.76f, -0.17f, 1.5f, -0.48f, 2.26f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveToRelative(0.65f, 0.31f, 1.18f, 0.82f, 1.53f, 1.44f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveTo(23.65f, 11.1f, 24.0f, 9.88f, 24.0f, 8.6f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveTo(24.0f, 4.9f, 21.1f, 2.0f, 17.4f, 2.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveToRelative(-2.09f, 0.0f, -4.09f, 0.97f, -5.4f, 2.51f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveTo(10.69f, 2.97f, 8.69f, 2.0f, 6.6f, 2.0f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveTo(2.9f, 2.0f, 0.0f, 4.9f, 0.0f, 8.6f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveToRelative(0.0f, 1.28f, 0.35f, 2.5f, 0.96f, 3.7f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.curveTo(1.31f, 11.68f, 1.84f, 11.17f, 2.48f, 10.86f);
+        $this$PathData_u24lambda_u240$iv$iv$iv7.close();
+        m6622addPathoIyEayM = $this$_get_Diversity1__u24lambda_u247.m6622addPathoIyEayM($this$PathData_u24lambda_u240$iv$iv$iv7.getNodes(), (r30 & 2) != 0 ? VectorKt.getDefaultFillType() : pathFillType$iv7, (r30 & 4) != 0 ? "" : "", (r30 & 8) != 0 ? null : fill$iv$iv7, (r30 & 16) != 0 ? 1.0f : 1.0f, (r30 & 32) == 0 ? null : null, (r30 & 64) != 0 ? 1.0f : 1.0f, (r30 & 128) != 0 ? 0.0f : 1.0f, (r30 & 256) != 0 ? VectorKt.getDefaultStrokeLineCap() : strokeLineCap$iv$iv7, (r30 & 512) != 0 ? VectorKt.getDefaultStrokeLineJoin() : strokeLineJoin$iv$iv7, (r30 & 1024) != 0 ? 4.0f : 1.0f, (r30 & 2048) != 0 ? 0.0f : 0.0f, (r30 & 4096) == 0 ? 0.0f : 1.0f, (r30 & 8192) == 0 ? 0.0f : 0.0f);
+        _diversity1 = m6622addPathoIyEayM.build();
+        ImageVector imageVector2 = _diversity1;
+        Intrinsics.checkNotNull(imageVector2);
+        return imageVector2;
+    }
+}

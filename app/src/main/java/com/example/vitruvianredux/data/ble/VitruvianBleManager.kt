@@ -56,6 +56,15 @@ class VitruvianBleManager(
         currentDeviceAddress = address
     }
 
+    /**
+     * Enable or disable strict validation mode for sample data.
+     * When enabled, position jumps greater than 200 units will be rejected.
+     */
+    fun setStrictValidationEnabled(enabled: Boolean) {
+        strictValidationEnabled = enabled
+        Timber.d("Strict validation enabled: $enabled")
+    }
+
     // GATT characteristics
     private var nusRxCharacteristic: BluetoothGattCharacteristic? = null
     private var monitorCharacteristic: BluetoothGattCharacteristic? = null
@@ -81,14 +90,9 @@ class VitruvianBleManager(
     @Volatile private var lastPositionA = 0
     @Volatile private var lastPositionB = 0
     @Volatile private var lastTimestamp = 0L
-    
+
     // Validation mode
     @Volatile private var strictValidationEnabled: Boolean = false
-    
-    fun setStrictValidationEnabled(enabled: Boolean) {
-        strictValidationEnabled = enabled
-        Timber.d("Strict validation enabled: $enabled")
-    }
 
     // State flows
     private val _connectionState = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Disconnected)
@@ -131,6 +135,13 @@ class VitruvianBleManager(
     private val HANDLE_GRABBED_THRESHOLD = 8.0  // Position > 8.0 = handles grabbed
     private val HANDLE_REST_THRESHOLD = 2.5     // Position < 2.5 = handles at rest
     private val VELOCITY_THRESHOLD = 100.0      // Velocity > 100 units/s = significant movement
+
+    // Handle detection constants for force-based grab/release detection
+    private val HANDLE_GRAB_FORCE_KG = 3.0f
+    private val HANDLE_GRAB_VELOCITY_THRESHOLD = 0.1f
+    private val HANDLE_GRAB_DURATION_MS = 100L
+    private val HANDLE_RELEASE_FORCE_KG = 1.0f
+    private val HANDLE_RELEASE_DURATION_MS = 150L
 
     // Track position range for tuning (logged at workout end)
     private var minPositionSeen = Double.MAX_VALUE
@@ -366,18 +377,34 @@ class VitruvianBleManager(
             Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             Timber.e("⚠️ onServicesInvalidated() CALLED! [$timestamp]")
             Timber.e("⚠️ This will NULL all characteristic references!")
+            Timber.e("⚠️ CRITICAL: This usually indicates the device unexpectedly reset or disconnected")
+            Timber.e("⚠️ This is the root cause of mid-workout disconnections on Android 16")
             Timber.e("⚠️ Stack trace:")
             Thread.currentThread().stackTrace.take(10).forEach {
                 Timber.e("   at $it")
             }
             Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-            // Log current connection state
+            // Enhanced logging with device state information
+            val deviceInfo = buildString {
+                appendLine("Device Name: ${currentDeviceName ?: "Unknown"}")
+                appendLine("Device Address: ${currentDeviceAddress ?: "Unknown"}")
+                appendLine("Connection State: ${_connectionState.value}")
+                appendLine("Monitor Polling Active: ${monitorPollingJob?.isActive}")
+                appendLine("Property Polling Active: ${propertyPollingJob?.isActive}")
+                appendLine("Characteristics Status BEFORE null:")
+                appendLine("  - nusRxCharacteristic: ${nusRxCharacteristic != null}")
+                appendLine("  - monitorCharacteristic: ${monitorCharacteristic != null}")
+                appendLine("  - propertyCharacteristic: ${propertyCharacteristic != null}")
+                appendLine("  - repNotifyCharacteristic: ${repNotifyCharacteristic != null}")
+            }
+            Timber.e("Device state at time of invalidation:\n$deviceInfo")
+
             connectionLogger?.logError(
                 currentDeviceName ?: "Unknown",
                 currentDeviceAddress ?: "Unknown",
                 "CHARACTERISTICS_INVALIDATED",
-                "onServicesInvalidated() called - all characteristics will be nulled"
+                "onServicesInvalidated() called - all characteristics will be nulled. This is a critical BLE failure that typically indicates the device reset or connection was lost. $deviceInfo"
             )
 
             // NULL all characteristics
@@ -385,6 +412,8 @@ class VitruvianBleManager(
             monitorCharacteristic = null
             propertyCharacteristic = null
             repNotifyCharacteristic = null
+            heuristicCharacteristic = null
+            versionCharacteristic = null
             workoutCmdCharacteristics.clear()
             notifyCharacteristics.clear()
 
@@ -395,6 +424,11 @@ class VitruvianBleManager(
 
             // Stop all polling since characteristics are now invalid
             stopPolling()
+
+            Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            Timber.e("⚠️ onServicesInvalidated() handling complete")
+            Timber.e("⚠️ User must reconnect to device to continue")
+            Timber.e("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         }
 
         @Deprecated("Using deprecated Nordic BLE API")
@@ -500,7 +534,7 @@ class VitruvianBleManager(
                             // Parse opcode from first byte (command responses start with opcode)
                             val opcode = bytes[0].toUByte()
                             Timber.d("[notify ${characteristic.uuid}] ${bytes.size} bytes, opcode=0x${opcode.toString(16).uppercase().padStart(2, '0')}")
-                            
+
                             // Emit opcode to response flow for awaitResponse() to catch
                             _commandResponses.tryEmit(opcode)
                         } else {
@@ -522,7 +556,7 @@ class VitruvianBleManager(
             }
         }
     }
-    
+
     /**
      * Start polling monitor characteristic every 100ms
      * This is how the official app reads position/force data
@@ -560,7 +594,7 @@ class VitruvianBleManager(
             }
         }
     }
-    
+
     /**
      * Start polling diagnostic characteristic every 500ms (keep-alive + health monitoring)
      * Matches official app interval - Renamed from startPropertyPolling
@@ -635,15 +669,15 @@ class VitruvianBleManager(
 
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
             val seconds = buffer.getInt()
-            
+
             val faults = mutableListOf<Short>()
             repeat(4) { faults.add(buffer.getShort()) }
-            
+
             val temps = mutableListOf<Byte>()
             repeat(8) { temps.add(buffer.get()) }
-            
+
             val containsFaults = faults.any { it != 0.toShort() }
-            
+
             _diagnosticData.value = DiagnosticDetails(
                 seconds = seconds,
                 faults = faults,
@@ -693,7 +727,7 @@ class VitruvianBleManager(
         // Official App Validation Ranges
         // Position: -1000.0 to 1000.0
         // Force: 0.0 to 100.0
-        
+
         val posADbl = posA / 10.0
         val posBDbl = posB / 10.0
         val loadADbl = loadA / 100.0
@@ -706,7 +740,7 @@ class VitruvianBleManager(
 
         return true
     }
-    
+
     /**
      * Stop all polling
      */
@@ -946,13 +980,13 @@ class VitruvianBleManager(
 
             // Parse the monitor data packet (matching device.js parseMonitorData)
             // Format: u16[0-1]=ticks, u16[2]=posA, u16[4]=loadA*100, u16[5]=posB, u16[7]=loadB*100
-            
+
             // Strict Validation (Official App Logic)
             val sPosA = buffer.getShort(4)
             val sLoadA = buffer.getShort(8)
             val sPosB = buffer.getShort(10)
             val sLoadB = buffer.getShort(14)
-            
+
             if (!validateSample(sPosA, sLoadA, sPosB, sLoadB)) {
                 Timber.w("Strict Validation: Sample rejected. PosA=$sPosA, LoadA=$sLoadA, PosB=$sPosB, LoadB=$sLoadB")
                 return
@@ -964,10 +998,10 @@ class VitruvianBleManager(
             val f4 = buffer.getShort(8).toInt() and 0xFFFF
             val f5 = buffer.getShort(10).toInt() and 0xFFFF
             val f7 = buffer.getShort(14).toInt() and 0xFFFF
-            
+
             // Reconstruct 32-bit tick counter
             val ticks = f0 + (f1 shl 16)
-            
+
             // Position values (filter spikes > 50000)
             var positionA = f2
             var positionB = f5
@@ -981,7 +1015,7 @@ class VitruvianBleManager(
             } else {
                 lastGoodPosB = positionB
             }
-            
+
             // Load in kg (device sends kg * 100)
             val loadA = f4 / 100.0f
             val loadB = f7 / 100.0f
@@ -1142,7 +1176,7 @@ class VitruvianBleManager(
     /**
      * Wait for a specific command response opcode
      * Used during initialization handshake to ensure proper protocol ordering
-     * 
+     *
      * @param expectedOpcode The opcode to wait for (e.g., 0x0Bu for INIT_RESPONSE)
      * @param timeoutMs Timeout in milliseconds (default 5 seconds)
      * @return true if response received, false if timeout
@@ -1258,4 +1292,3 @@ data class RepNotification(
         return result
     }
 }
-

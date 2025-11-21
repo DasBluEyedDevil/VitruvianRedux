@@ -11,7 +11,18 @@ import com.example.vitruvianredux.data.local.PersonalRecordEntity
 import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
 import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
 import com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity
-import com.example.vitruvianredux.domain.model.*
+import com.example.vitruvianredux.domain.model.HeuristicStatistics
+import com.example.vitruvianredux.domain.model.WorkoutMetric
+import com.example.vitruvianredux.domain.model.WorkoutSession
+import com.example.vitruvianredux.domain.model.Routine
+import com.example.vitruvianredux.domain.model.RoutineExercise
+import com.example.vitruvianredux.domain.model.Exercise
+import com.example.vitruvianredux.domain.model.CableConfiguration
+import com.example.vitruvianredux.domain.model.WorkoutMode
+import com.example.vitruvianredux.domain.model.WorkoutType
+import com.example.vitruvianredux.domain.model.ProgramMode
+import com.example.vitruvianredux.domain.model.EchoLevel
+import com.example.vitruvianredux.domain.model.EccentricLoad
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
@@ -29,7 +40,7 @@ class WorkoutRepository @Inject constructor(
     private val phaseStatisticsDao: PhaseStatisticsDao,
     private val diagnosticsDao: DiagnosticsDao
 ) {
-    
+
     /**
      * Save a workout session
      */
@@ -63,7 +74,7 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     /**
      * Save workout metrics (batch insert for performance)
      */
@@ -118,7 +129,7 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     /**
      * Get all workout sessions
      */
@@ -127,7 +138,7 @@ class WorkoutRepository @Inject constructor(
             entities.map { it.toWorkoutSession() }
         }
     }
-    
+
     /**
      * Get recent workout sessions
      */
@@ -136,14 +147,14 @@ class WorkoutRepository @Inject constructor(
             entities.map { it.toWorkoutSession() }
         }
     }
-    
+
     /**
      * Get a specific workout session
      */
     suspend fun getSession(sessionId: String): WorkoutSession? {
         return workoutDao.getSession(sessionId)?.toWorkoutSession()
     }
-    
+
     /**
      * Get metrics for a workout session
      */
@@ -152,14 +163,14 @@ class WorkoutRepository @Inject constructor(
             entities.map { it.toWorkoutMetric() }
         }
     }
-    
+
     /**
      * Get metrics for a workout session synchronously (for export)
      */
     suspend fun getMetricsForSessionSync(sessionId: String): List<WorkoutMetric> {
         return workoutDao.getMetricsForSessionSync(sessionId).map { it.toWorkoutMetric() }
     }
-    
+
     /**
      * Get recent workout sessions synchronously (for export)
      */
@@ -173,7 +184,13 @@ class WorkoutRepository @Inject constructor(
     fun getAllPhaseStatistics(): Flow<List<PhaseStatisticsEntity>> {
         return phaseStatisticsDao.getAll()
     }
-    
+
+    /**
+     * Get phase statistics for a specific session
+     */
+    suspend fun getPhaseStatisticsForSession(sessionId: String): PhaseStatisticsEntity? =
+        phaseStatisticsDao.getBySessionId(sessionId)
+
     /**
      * Delete a workout
      */
@@ -187,7 +204,7 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     /**
      * Delete all workouts
      */
@@ -201,9 +218,9 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     // ========== Routine Operations ==========
-    
+
     /**
      * Save a routine with exercises
      */
@@ -219,7 +236,7 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     /**
      * Update a routine
      */
@@ -235,7 +252,7 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     /**
      * Get all routines
      */
@@ -247,7 +264,7 @@ class WorkoutRepository @Inject constructor(
             }
         }
     }
-    
+
     /**
      * Get a specific routine
      */
@@ -261,7 +278,7 @@ class WorkoutRepository @Inject constructor(
             null
         }
     }
-    
+
     /**
      * Delete a routine
      */
@@ -275,7 +292,7 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     /**
      * Mark routine as used (updates lastUsed and increments useCount)
      */

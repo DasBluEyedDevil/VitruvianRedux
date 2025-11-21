@@ -14,11 +14,11 @@ object BleConstants {
     // Characteristic UUIDs
     val NUS_RX_CHAR_UUID: UUID = UUID.fromString("6e400002-b5a3-f393-e0a9-e50e24dcca9e")
     val MONITOR_CHAR_UUID: UUID = UUID.fromString("90e991a6-c548-44ed-969b-eb541014eae3")
-    
-    // Diagnostic characteristic (formerly PROPERTY_CHAR_UUID)
+
+    // Diagnostic characteristic (also known as PROPERTY_CHAR)
     val DIAGNOSTIC_CHAR_UUID: UUID = UUID.fromString("5fa538ec-d041-42f6-bbd6-c30d475387b7")
     val PROPERTY_CHAR_UUID: UUID = DIAGNOSTIC_CHAR_UUID // Alias for backward compatibility
-    
+
     val REP_NOTIFY_CHAR_UUID: UUID = UUID.fromString("8308f2a6-0875-4a94-a86f-5c5c5e1b068a")
     val HEURISTIC_CHAR_UUID: UUID = UUID.fromString("c7b73007-b245-4503-a1ed-9e4e97eb9802")
     val VERSION_CHAR_UUID: UUID = UUID.fromString("74e994ac-0e80-4c02-9cd0-76cb31d3959b")
@@ -56,6 +56,11 @@ object BleConstants {
 
     // BLE operation delays
     const val BLE_QUEUE_DRAIN_DELAY_MS = 250L // Delay to allow BLE queue to drain before sending next command
+
+    // Init sequence configuration
+    const val INIT_RESPONSE_TIMEOUT_MS = 8000L // Increased timeout for INIT response (was 5000ms) for Android 16 compatibility
+    const val INIT_MAX_RETRIES = 2 // Number of retries for INIT sequence
+    const val INIT_RETRY_DELAY_MS = 1000L // Base delay between retries (will use exponential backoff)
 }
 
 /**
@@ -103,4 +108,3 @@ object ProtocolConstants {
     const val MODE_ECCENTRIC_ONLY = 6
     const val MODE_ECHO = 10
 }
-
