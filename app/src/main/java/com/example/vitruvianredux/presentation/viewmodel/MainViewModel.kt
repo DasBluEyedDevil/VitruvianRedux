@@ -297,7 +297,7 @@ class MainViewModel @Inject constructor(
     // Current workout tracking
     private var currentSessionId: String? = null
     private var workoutStartTime: Long = 0
-    private val collectedMetrics = mutableListOf<WorkoutMetric>()
+    private val collectedMetrics = java.util.Collections.synchronizedList(mutableListOf<WorkoutMetric>())
 
     // Routine tracking (for grouping sets from the same routine)
     private var currentRoutineSessionId: String? = null
