@@ -1,307 +1,247 @@
 package com.example.vitruvianredux.presentation.screen
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.Routine
-import com.example.vitruvianredux.domain.model.RoutineExercise
-import com.example.vitruvianredux.ui.theme.Spacing
-import kotlinx.coroutines.delay
+import com.example.vitruvianredux.domain.model.WeightUnit
+import com.example.vitruvianredux.presentation.components.EmptyState
+import com.example.vitruvianredux.ui.theme.*
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
-/**
- * Tab displaying user's saved routines with options to start, edit, or delete.
- */
+import com.example.vitruvianredux.presentation.components.CollapsibleRoutineCard
+
 @Composable
 fun RoutinesTab(
     routines: List<Routine>,
+    exerciseRepository: ExerciseRepository,
+    personalRecordRepository: com.example.vitruvianredux.data.repository.PersonalRecordRepository,
+    formatWeight: (Float, WeightUnit) -> String,
+    weightUnit: WeightUnit,
+    enableVideoPlayback: Boolean,
+    kgToDisplay: (Float, WeightUnit) -> Float,
+    displayToKg: (Float, WeightUnit) -> Float,
     onStartWorkout: (Routine) -> Unit,
-    onEditRoutine: (Routine) -> Unit,
     onDeleteRoutine: (String) -> Unit,
-    onDuplicateRoutine: (Routine) -> Unit,
-    modifier: Modifier = Modifier,
-    padding: PaddingValues = PaddingValues()
+    onCreateRoutine: () -> Unit,
+    onSaveRoutine: (Routine) -> Unit,
+    onUpdateRoutine: (Routine) -> Unit = onSaveRoutine,
+    themeMode: ThemeMode,
+    modifier: Modifier = Modifier
 ) {
-    if (routines.isEmpty()) {
-        // Empty state
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Default.FitnessCenter,
-                    contentDescription = null,
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "No Routines Yet",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "Create your first routine to get started",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+    var showRoutineBuilder by remember { mutableStateOf(false) }
+    var routineToEdit by remember { mutableStateOf<Routine?>(null) }
+
+    val backgroundGradient = if (themeMode == ThemeMode.DARK) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF0F172A), // slate-900
+                Color(0xFF1E1B4B), // indigo-950
+                Color(0xFF172554)  // blue-950
+            )
+        )
     } else {
-        LazyColumn(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(Spacing.medium),
-            verticalArrangement = Arrangement.spacedBy(Spacing.medium)
-        ) {
-            items(routines, key = { it.id }) { routine ->
-                RoutineCard(
-                    routine = routine,
-                    onStartWorkout = { onStartWorkout(routine) },
-                    onEdit = { onEditRoutine(routine) },
-                    onDelete = { onDeleteRoutine(routine.id) },
-                    onDuplicate = { onDuplicateRoutine(routine) }
-                )
-            }
-        }
-    }
-}
-
-/**
- * Card displaying a single routine with press animation and dropdown menu.
- */
-@Composable
-fun RoutineCard(
-    routine: Routine,
-    onStartWorkout: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onDuplicate: () -> Unit
-) {
-    var isPressed by remember { mutableStateOf(false) }
-    var showMenu by remember { mutableStateOf(false) }
-
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.98f else 1f,
-        animationSpec = spring(dampingRatio = 0.5f, stiffness = 200f),
-        label = "scale"
-    )
-
-    // Reset press state after a delay
-    LaunchedEffect(isPressed) {
-        if (isPressed) {
-            delay(100)
-            isPressed = false
-        }
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFFE0E7FF), // indigo-200 - soft lavender
+                Color(0xFFFCE7F3), // pink-100 - soft pink
+                Color(0xFFDDD6FE)  // violet-200 - soft violet
+            )
+        )
     }
 
-    Card(
-        onClick = {
-            isPressed = true
-            onStartWorkout()
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .scale(scale),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isPressed) 4.dp else 8.dp
-        ),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(backgroundGradient)
     ) {
         Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
+                .fillMaxSize()
+                .padding(20.dp)
         ) {
-            // Header row with title and menu
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = routine.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (routine.description.isNotBlank()) {
-                        Text(
-                            text = routine.description,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            Text(
+                "My Routines",
+                style = MaterialTheme.typography.headlineLarge, // Material 3 Expressive: Larger (was headlineMedium)
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(Spacing.medium))
 
-                // Dropdown menu
-                Box {
-                    IconButton(onClick = { showMenu = !showMenu }) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = "More options"
-                        )
+            if (routines.isEmpty()) {
+                EmptyState(
+                    icon = Icons.Default.FitnessCenter,
+                    title = "No Routines Yet",
+                    message = "Create your first workout routine to get started",
+                    actionText = "Create Your First Routine",
+                    onAction = {
+                        routineToEdit = null
+                        showRoutineBuilder = true
                     }
-                    DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Edit") },
-                            onClick = {
-                                showMenu = false
-                                onEdit()
+                )
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxHeight(), // Fill remaining vertical space
+                    verticalArrangement = Arrangement.spacedBy(Spacing.small),
+                    contentPadding = PaddingValues(bottom = 16.dp) // Minimal bottom padding (FAB overlays naturally)
+                ) {
+                    items(routines, key = { it.id }) { routine ->
+                        CollapsibleRoutineCard(
+                            routine = routine,
+                            onStartWorkout = { onStartWorkout(routine) },
+                            onEdit = {
+                                routineToEdit = routine
+                                showRoutineBuilder = true
                             },
-                            leadingIcon = {
-                                Icon(Icons.Default.Edit, contentDescription = null)
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Duplicate") },
-                            onClick = {
-                                showMenu = false
-                                onDuplicate()
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.ContentCopy, contentDescription = null)
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Delete") },
-                            onClick = {
-                                showMenu = false
-                                onDelete()
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.error
+                            onDelete = { onDeleteRoutine(routine.id) },
+                            onDuplicate = {
+                                // Generate new IDs explicitly and create deep copies
+                                val newRoutineId = java.util.UUID.randomUUID().toString()
+                                val newExercises = routine.exercises.map { exercise ->
+                                    android.util.Log.d("RoutinesDuplicate", "📋 Original exercise '${exercise.exercise.name}': setReps=${exercise.setReps}, setWeights=${exercise.setWeightsPerCableKg}, setRest=${exercise.setRestSeconds}")
+                                    val copied = exercise.copy(
+                                        id = java.util.UUID.randomUUID().toString(),
+                                        // Deep copy the Exercise object to avoid any shared references
+                                        exercise = exercise.exercise.copy()
+                                    )
+                                    android.util.Log.d("RoutinesDuplicate", "📋 Copied exercise '${copied.exercise.name}': setReps=${copied.setReps}, setWeights=${copied.setWeightsPerCableKg}, setRest=${copied.setRestSeconds}")
+                                    copied
+                                }
+
+                                // Smart duplicate naming: extract base name and find next copy number
+                                val baseName = routine.name.replace(Regex(""" \(Copy( \d+)?\)$"""), "")
+                                val copyPattern = Regex("""^${Regex.escape(baseName)} \(Copy( (\d+))?\)$""")
+                                val existingCopyNumbers = routines
+                                    .mapNotNull { r ->
+                                        when {
+                                            r.name == baseName -> 0 // Original has number 0
+                                            r.name == "$baseName (Copy)" -> 1 // First copy is 1
+                                            else -> copyPattern.find(r.name)?.groups?.get(2)?.value?.toIntOrNull()
+                                        }
+                                    }
+                                val nextCopyNumber = (existingCopyNumbers.maxOrNull() ?: 0) + 1
+                                val newName = if (nextCopyNumber == 1) {
+                                    "$baseName (Copy)"
+                                } else {
+                                    "$baseName (Copy $nextCopyNumber)"
+                                }
+
+                                val duplicated = routine.copy(
+                                    id = newRoutineId,
+                                    name = newName,
+                                    createdAt = System.currentTimeMillis(),
+                                    useCount = 0,
+                                    lastUsed = null,
+                                    exercises = newExercises
                                 )
+                                onSaveRoutine(duplicated)
                             }
                         )
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Stats row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                StatItem(
-                    label = "Exercises",
-                    value = "${routine.exercises.size}"
-                )
-                StatItem(
-                    label = "Sets",
-                    value = "${routine.exercises.sumOf { it.setReps.size }}"
-                )
-                StatItem(
-                    label = "Duration",
-                    value = formatEstimatedDuration(routine)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Exercise preview chips
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                routine.exercises.take(3).forEach { exercise ->
-                    AssistChip(
-                        onClick = { },
-                        label = {
-                            Text(
-                                text = exercise.exercise.name,
-                                maxLines = 1,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    )
-                }
-                if (routine.exercises.size > 3) {
-                    AssistChip(
-                        onClick = { },
-                        label = {
-                            Text(
-                                text = "+${routine.exercises.size - 3}",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    )
-                }
-            }
-
-            // Last modified
-            if (routine.lastModified != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Modified: ${formatDate(routine.lastModified)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
             }
         }
+
+        // Extended Floating Action Button for creating new routine - Material 3 Expressive
+        ExtendedFloatingActionButton(
+            onClick = {
+                routineToEdit = null
+                showRoutineBuilder = true
+            },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(Spacing.medium)
+                .height(56.dp), // Material 3 Expressive: Taller FAB
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shape = RoundedCornerShape(28.dp) // Material 3 Expressive: Very rounded for FAB
+        ) {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = "Add new routine",
+                modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon
+            )
+            Spacer(modifier = Modifier.width(Spacing.small))
+            Text(
+                "New Routine",
+                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+
+    // Show routine builder dialog
+    if (showRoutineBuilder) {
+        RoutineBuilderDialog(
+            routine = routineToEdit,
+            onSave = { routine ->
+                if (routineToEdit != null) {
+                    onUpdateRoutine(routine)
+                } else {
+                    onSaveRoutine(routine)
+                }
+                showRoutineBuilder = false
+                routineToEdit = null
+            },
+            onDismiss = {
+                showRoutineBuilder = false
+                routineToEdit = null
+            },
+            exerciseRepository = exerciseRepository,
+            personalRecordRepository = personalRecordRepository,
+            formatWeight = formatWeight,
+            weightUnit = weightUnit,
+            enableVideoPlayback = enableVideoPlayback,
+            kgToDisplay = kgToDisplay,
+            displayToKg = displayToKg,
+            themeMode = themeMode
+        )
     }
 }
 
-/**
- * Stat item displaying label and value.
- */
 @Composable
 fun StatItem(label: String, value: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = value,
+            value,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
         Text(
-            text = label,
+            label,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
 
-/**
- * Formats set/rep list for display. E.g., [10, 10, 8] -> "2x10, 1x8"
- */
 private fun formatSetReps(setReps: List<Int?>): String {
     if (setReps.isEmpty()) return "0 sets"
 
-    val groups = mutableListOf<Pair<Int, String>>()
+    // Group consecutive identical reps
+    val groups = mutableListOf<Pair<Int, String>>() // Pair of (count, reps as string)
     var currentReps = setReps[0]
     var currentCount = 1
 
@@ -309,42 +249,37 @@ private fun formatSetReps(setReps: List<Int?>): String {
         if (setReps[i] == currentReps) {
             currentCount++
         } else {
-            groups.add(currentCount to (currentReps?.toString() ?: "AMRAP"))
+            groups.add(Pair(currentCount, currentReps?.toString() ?: "AMRAP"))
             currentReps = setReps[i]
             currentCount = 1
         }
     }
-    groups.add(currentCount to (currentReps?.toString() ?: "AMRAP"))
+    groups.add(Pair(currentCount, currentReps?.toString() ?: "AMRAP"))
 
-    return groups.joinToString(", ") { (count, reps) -> "${count}x$reps" }
+    // Format as "3×10, 2×8" or "3×AMRAP"
+    return groups.joinToString(", ") { (count, reps) -> "${count}×${reps}" }
 }
 
-/**
- * Formats timestamp to readable date.
- */
 private fun formatDate(timestamp: Long): String {
     val sdf = SimpleDateFormat("MMM dd", Locale.getDefault())
     return sdf.format(Date(timestamp))
 }
 
-/**
- * Estimates workout duration based on sets and rest times.
- */
 private fun formatEstimatedDuration(routine: Routine): String {
+    // Estimate: 30 seconds per rep + rest time
     val totalSets = routine.exercises.sumOf { it.setReps.size }
-    val totalReps = routine.exercises.sumOf { exercise ->
-        exercise.setReps.filterNotNull().sum()
-    }
+    val totalReps = routine.exercises.sumOf { exercise -> exercise.setReps.filterNotNull().sum() }
     val totalRestSeconds = routine.exercises.sumOf { exercise ->
-        exercise.setRestSeconds.take(maxOf(0, exercise.setReps.size - 1)).sum()
+        // Sum all rest times between sets (one less rest than number of sets)
+        val restCount = maxOf(0, exercise.setReps.size - 1)
+        exercise.setRestSeconds.take(restCount).sum()
     }
-
-    // Estimate: 3 seconds per rep + rest time
-    val estimatedSeconds = (totalReps * 3) + totalRestSeconds
+    
+    val estimatedSeconds = (totalReps * 3) + totalRestSeconds // 3 seconds per rep estimate
     val minutes = estimatedSeconds / 60
-
+    
     return if (minutes < 60) {
-        "$minutes min"
+        "${minutes} min"
     } else {
         val hours = minutes / 60
         val remainingMinutes = minutes % 60

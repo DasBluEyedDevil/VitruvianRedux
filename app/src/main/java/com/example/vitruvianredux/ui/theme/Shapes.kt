@@ -3,8 +3,7 @@ package com.example.vitruvianredux.ui.theme
 import androidx.compose.material3.Shapes
 
 /**
- * Expressive shapes configuration for Material 3 theming.
- * Uses custom ExpressiveShapeValues for a more modern, rounded appearance.
+ * Material 3 Expressive Shapes for MaterialTheme
  */
 val ExpressiveShapes = Shapes(
     extraSmall = ExpressiveShapeValues.ExtraSmall,
@@ -13,3 +12,4 @@ val ExpressiveShapes = Shapes(
     large = ExpressiveShapeValues.Large,
     extraLarge = ExpressiveShapeValues.ExtraLarge
 )
+

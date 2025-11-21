@@ -3,109 +3,60 @@ package com.example.vitruvianredux.data.preferences
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.vitruvianredux.domain.model.UserPreferences
 import com.example.vitruvianredux.domain.model.WeightUnit
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * DataStore extension for accessing preferences.
- */
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "vitruvian_preferences")
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "user_preferences")
 
 /**
- * Manages user preferences using DataStore.
+ * Manager for user preferences using DataStore
  */
 @Singleton
 class PreferencesManager @Inject constructor(
     private val context: Context
 ) {
-    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
-
     private val WEIGHT_UNIT_KEY = stringPreferencesKey("weight_unit")
-    private val AUTOPLAY_ENABLED_KEY = booleanPreferencesKey("autoplay_enabled")
-    private val STOP_AT_TOP_KEY = booleanPreferencesKey("stop_at_top")
-    private val ENABLE_VIDEO_PLAYBACK_KEY = booleanPreferencesKey("enable_video_playback")
-    private val STRICT_VALIDATION_KEY = booleanPreferencesKey("strict_validation")
+    private val AUTOPLAY_ENABLED_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("autoplay_enabled")
+    private val STOP_AT_TOP_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("stop_at_top")
+    private val ENABLE_VIDEO_PLAYBACK_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("enable_video_playback")
+    private val STRICT_VALIDATION_KEY = androidx.datastore.preferences.core.booleanPreferencesKey("strict_validation")
 
     /**
-     * Flow of user preferences.
+     * Flow of user preferences
      */
-    val preferencesFlow: Flow<UserPreferences> = context.dataStore.data.map { preferences ->
-        val weightUnitString = preferences[WEIGHT_UNIT_KEY] ?: WeightUnit.KG.name
-        val weightUnit = try {
-            WeightUnit.valueOf(weightUnitString)
-        } catch (e: IllegalArgumentException) {
-            WeightUnit.KG
+    val preferencesFlow: Flow<UserPreferences> = context.dataStore.data
+        .map { preferences ->
+            val weightUnitString = preferences[WEIGHT_UNIT_KEY]
+            val weightUnit = try {
+                weightUnitString?.let { WeightUnit.valueOf(it) } ?: WeightUnit.KG
+            } catch (e: IllegalArgumentException) {
+                Timber.w(e, "Invalid weight unit in preferences: $weightUnitString, defaulting to KG")
+                WeightUnit.KG
+            }
+            val autoplayEnabled = preferences[AUTOPLAY_ENABLED_KEY] ?: true
+            val stopAtTop = preferences[STOP_AT_TOP_KEY] ?: false
+            val enableVideoPlayback = preferences[ENABLE_VIDEO_PLAYBACK_KEY] ?: true
+            val strictValidationEnabled = preferences[STRICT_VALIDATION_KEY] ?: false
+
+            UserPreferences(
+                weightUnit = weightUnit,
+                autoplayEnabled = autoplayEnabled,
+                stopAtTop = stopAtTop,
+                enableVideoPlayback = enableVideoPlayback,
+                strictValidationEnabled = strictValidationEnabled
+            )
         }
 
-        UserPreferences(
-            weightUnit = weightUnit,
-            autoplayEnabled = preferences[AUTOPLAY_ENABLED_KEY] ?: true,
-            stopAtTop = preferences[STOP_AT_TOP_KEY] ?: false,
-            enableVideoPlayback = preferences[ENABLE_VIDEO_PLAYBACK_KEY] ?: true,
-            strictValidation = preferences[STRICT_VALIDATION_KEY] ?: false
-        )
-    }
-
     /**
-     * StateFlow of user preferences for observation.
-     */
-    val userPreferences: StateFlow<UserPreferences> = preferencesFlow
-        .stateIn(
-            scope = scope,
-            started = SharingStarted.Eagerly,
-            initialValue = UserPreferences()
-        )
-
-    /**
-     * StateFlow of weight unit preference.
-     */
-    val weightUnit: StateFlow<WeightUnit> = preferencesFlow
-        .map { it.weightUnit }
-        .stateIn(
-            scope = scope,
-            started = SharingStarted.Eagerly,
-            initialValue = WeightUnit.KG
-        )
-
-    /**
-     * StateFlow of stop at top preference.
-     */
-    val stopAtTop: StateFlow<Boolean> = preferencesFlow
-        .map { it.stopAtTop }
-        .stateIn(
-            scope = scope,
-            started = SharingStarted.Eagerly,
-            initialValue = false
-        )
-
-    /**
-     * StateFlow of enable video playback preference.
-     */
-    val enableVideoPlayback: StateFlow<Boolean> = preferencesFlow
-        .map { it.enableVideoPlayback }
-        .stateIn(
-            scope = scope,
-            started = SharingStarted.Eagerly,
-            initialValue = true
-        )
-
-    /**
-     * Set the weight unit preference.
+     * Set the weight unit preference
      */
     suspend fun setWeightUnit(unit: WeightUnit) {
         context.dataStore.edit { preferences ->
@@ -115,7 +66,7 @@ class PreferencesManager @Inject constructor(
     }
 
     /**
-     * Set the autoplay enabled preference.
+     * Set the autoplay enabled preference
      */
     suspend fun setAutoplayEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
@@ -125,7 +76,7 @@ class PreferencesManager @Inject constructor(
     }
 
     /**
-     * Set the stop at top preference.
+     * Set the stop at top preference
      */
     suspend fun setStopAtTop(enabled: Boolean) {
         context.dataStore.edit { preferences ->
@@ -135,7 +86,7 @@ class PreferencesManager @Inject constructor(
     }
 
     /**
-     * Set the enable video playback preference.
+     * Set the enable video playback preference
      */
     suspend fun setEnableVideoPlayback(enabled: Boolean) {
         context.dataStore.edit { preferences ->
@@ -145,7 +96,7 @@ class PreferencesManager @Inject constructor(
     }
 
     /**
-     * Set the strict validation preference.
+     * Set strict validation preference
      */
     suspend fun setStrictValidationEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->

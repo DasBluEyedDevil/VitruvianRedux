@@ -1,0 +1,2271 @@
+Index: app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt b/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt
+--- a/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt
++++ b/app/src/main/java/com/example/vitruvianredux/data/repository/BleRepositoryImpl.kt
+@@ -8,8 +8,13 @@
+ import android.bluetooth.le.ScanResult
+ import android.bluetooth.le.ScanSettings
+ import android.content.Context
++import com.example.vitruvianredux.data.ble.BluetoothDisabledException
++import com.example.vitruvianredux.data.ble.BluetoothException
++import com.example.vitruvianredux.data.ble.ConnectionLostException
++import com.example.vitruvianredux.data.ble.ScanFailedException
+ import com.example.vitruvianredux.data.ble.VitruvianBleManager
+ import com.example.vitruvianredux.domain.model.ConnectionState
++import com.example.vitruvianredux.domain.model.HeuristicStatistics
+ import com.example.vitruvianredux.domain.model.WorkoutMetric
+ import com.example.vitruvianredux.domain.model.WorkoutParameters
+ import com.example.vitruvianredux.util.BleConstants
+@@ -40,6 +45,7 @@
+     val repEvents: Flow<com.example.vitruvianredux.data.ble.RepNotification>
+     val scannedDevices: Flow<ScanResult>
+     val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState>
++    val heuristicData: StateFlow<HeuristicStatistics?>
+ 
+     suspend fun startScanning(): Result<Unit>
+     suspend fun stopScanning()
+@@ -53,18 +59,34 @@
+     suspend fun testOfficialAppProtocol(): Result<Unit>
+     fun enableHandleDetection() // Start monitor polling for auto-start detection
+     fun enableJustLiftWaitingMode() // Enable position-based handle detection for next exercise
++
++    /**
++     * Restart monitor polling to clear the machine's danger zone alarm state.
++     *
++     * This sends monitor commands to the Vitruvian device, which causes it to exit
++     * danger zone alarm mode (red flashing lights). Unlike enableHandleDetection(),
++     * this method is NOT intended to enable auto-start behavior.
++     *
++     * Use cases:
++     * - After AMRAP set completion to clear danger zone lights
++     * - After any workout mode that needs to clear machine alarm state without enabling auto-start
++     *
++     * Note: This calls the same underlying startMonitorPolling() as enableHandleDetection(),
++     * but the semantic separation makes the intent clear at call sites.
++     */
++    fun restartMonitorPolling()
++    fun setStrictValidationEnabled(enabled: Boolean)
+ }
+ 
+ @Singleton
+ class BleRepositoryImpl @Inject constructor(
+-    @ApplicationContext private val context: Context,
++    private val bleManager: VitruvianBleManager,
++    @ApplicationContext private val context: Context, // Retain context for BluetoothAdapter/Scanner
+     private val connectionLogger: com.example.vitruvianredux.data.logger.ConnectionLogger
+ ) : BleRepository {
+ 
+     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
+     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
+-    private var bleManager: VitruvianBleManager? = null
+-    private var connectingBleManager: VitruvianBleManager? = null  // Track manager being created during connection
+ 
+     private val scope = CoroutineScope(Dispatchers.IO)
+ 
+@@ -88,6 +110,9 @@
+     private val _handleState = MutableStateFlow(com.example.vitruvianredux.data.ble.HandleState.Released)
+     override val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState> = _handleState.asStateFlow()
+ 
++    private val _heuristicData = MutableStateFlow<HeuristicStatistics?>(null)
++    override val heuristicData: StateFlow<HeuristicStatistics?> = _heuristicData.asStateFlow()
++
+     private var isScanning = false
+ 
+     @SuppressLint("MissingPermission")
+@@ -99,13 +124,13 @@
+             if (bluetoothAdapter == null) {
+                 Timber.e("Bluetooth adapter is null")
+                 connectionLogger.logError("startScanning", null, null, "Bluetooth adapter is null")
+-                return@withContext Result.failure(Exception("Bluetooth not available"))
++                return@withContext Result.failure(BluetoothException("Bluetooth not available"))
+             }
+ 
+             if (!bluetoothAdapter.isEnabled) {
+                 Timber.e("Bluetooth is disabled")
+                 connectionLogger.logError("startScanning", null, null, "Bluetooth is disabled")
+-                return@withContext Result.failure(Exception("Bluetooth is disabled"))
++                return@withContext Result.failure(BluetoothDisabledException())
+             }
+ 
+             if (isScanning) {
+@@ -119,7 +144,7 @@
+             val scanner = bluetoothAdapter.bluetoothLeScanner
+             if (scanner == null) {
+                 Timber.e("BLE scanner is null")
+-                return@withContext Result.failure(Exception("BLE scanner not available"))
++                return@withContext Result.failure(BluetoothException("BLE scanner not available"))
+             }
+ 
+             // Scan without filters to find all BLE devices (more permissive)
+@@ -147,7 +172,8 @@
+         } catch (e: Exception) {
+             Timber.e(e, "Failed to start scanning")
+             _connectionState.value = ConnectionState.Error("Failed to start scanning: ${e.message}")
+-            Result.failure(e)
++            val scanException = ScanFailedException("Failed to start BLE scanning: ${e.message}", cause = e)
++            Result.failure(scanException)
+         }
+     }
+ 
+@@ -218,7 +244,7 @@
+             if (device == null) {
+                 Timber.e("Failed to get remote device for address: $deviceAddress")
+                 connectionLogger.logConnectionFailed("Unknown", deviceAddress, "Device not found")
+-                return@withContext Result.failure(Exception("Device not found"))
++                return@withContext Result.failure(BluetoothException("Device not found at address: $deviceAddress"))
+             }
+ 
+             val deviceName = device.name ?: "Vitruvian"
+@@ -227,10 +253,10 @@
+             _connectionState.value = ConnectionState.Connecting
+             Timber.d("Connection state set to Connecting")
+ 
+-            // Create BLE manager and track it for potential cancellation
+-            val newBleManager = VitruvianBleManager(context, connectionLogger).apply {
++            // Use the injected BLE manager
++            bleManager.apply {
+                 setDeviceInfo(device.name, device.address)
+-                Timber.d("Created VitruvianBleManager")
++                Timber.d("Configured injected VitruvianBleManager with device info")
+ 
+                 // Set up connection observer
+                 scope.launch {
+@@ -244,22 +270,16 @@
+                                     deviceName = device.name ?: "Vitruvian",
+                                     deviceAddress = device.address
+                                 )
+-                                // Connection succeeded, clear the connecting reference
+-                                connectingBleManager = null
+                             }
+                             is com.example.vitruvianredux.data.ble.ConnectionStatus.Disconnected -> {
+                                 Timber.d("Device disconnected")
+                                 connectionLogger.logDisconnected(deviceName, deviceAddress)
+                                 _connectionState.value = ConnectionState.Disconnected
+-                                // Connection failed, clear the connecting reference
+-                                connectingBleManager = null
+                             }
+                             is com.example.vitruvianredux.data.ble.ConnectionStatus.Error -> {
+                                 Timber.e("Connection error: ${status.message}")
+                                 connectionLogger.logConnectionFailed(deviceName, deviceAddress, status.message)
+                                 _connectionState.value = ConnectionState.Error(status.message)
+-                                // Connection failed, clear the connecting reference
+-                                connectingBleManager = null
+                             }
+                         }
+                     }
+@@ -278,7 +298,7 @@
+                 scope.launch {
+                     Timber.d("?? Starting rep event collection from BleManager")
+                     repEvents.collect { repNotification ->
+-                        Timber.d("?? BleRepository forwarding rep event: top=${repNotification.topCounter}, complete=${repNotification.completeCounter}")
++                        Timber.d("?? BleRepository forwarding rep event: ROM=${repNotification.repsRomCount}/${repNotification.repsRomTotal}, Set=${repNotification.repsSetCount}/${repNotification.repsSetTotal}")
+                         _repEvents.emit(repNotification)
+                     }
+                 }
+@@ -289,41 +309,35 @@
+                         _handleState.value = state
+                     }
+                 }
+-            }
++
++                // Collect diagnostic data and forward to repository flow
++                scope.launch {
++                    diagnosticData.collect { diagnosticDetails ->
++                        // Log or handle diagnostic details as needed in the repository
++                        Timber.v("BleRepository forwarding diagnostic data: $diagnosticDetails")
++                    }
++                }
+ 
+-            // Store references to the new BLE manager
+-            bleManager = newBleManager
+-            connectingBleManager = newBleManager
++                // Collect heuristic data and forward to repository flow
++                scope.launch {
++                    heuristicData.collect { heuristicStats ->
++                        // Log or handle heuristic stats as needed in the repository
++                        Timber.v("BleRepository forwarding heuristic data: $heuristicStats")
++                    }
++                }
++            }
+ 
+             // Connect to device
+             Timber.d("Initiating connection to device...")
+-            newBleManager.connect(device)
+-                ?.timeout(BleConstants.CONNECTION_TIMEOUT_MS)
+-                ?.retry(3, 100)
+-                ?.useAutoConnect(false)
+-                ?.done {
+-                    // Device connected successfully
+-                    // Send INIT sequence after connection (LEDs acknowledge connection)
+-                    Timber.d("Device connected! Waiting 2 seconds before sending INIT...")
+-                    scope.launch {
+-                        delay(2000) // Wait 2 seconds (matching web app behavior)
+-                        Timber.d("Now sending INIT sequence...")
+-                        val initResult = sendInitSequence()
+-                        if (initResult.isSuccess) {
+-                            Timber.d("Device fully initialized and ready!")
+-                        } else {
+-                            Timber.e("INIT sequence failed after connection: ${initResult.exceptionOrNull()?.message}")
+-                        }
+-                    }
+-                }
+-                ?.enqueue()
++            bleManager.connect(device).timeout(BleConstants.CONNECTION_TIMEOUT_MS).enqueue()
+ 
+             Timber.d("Connecting to device: ${device.name} (${device.address})")
+             Result.success(Unit)
+         } catch (e: Exception) {
+             Timber.e(e, "Failed to connect to device")
+             _connectionState.value = ConnectionState.Error("Connection failed: ${e.message}")
+-            Result.failure(e)
++            val connectionException = ConnectionLostException("Failed to connect to device: ${e.message}", cause = e)
++            Result.failure(connectionException)
+         }
+     }
+ 
+@@ -331,23 +345,10 @@
+         try {
+             Timber.d("Cancelling in-progress connection...")
+ 
+-            // Cancel the connecting BLE manager if one exists
+-            val managerToCancel = connectingBleManager
+-            if (managerToCancel != null) {
+-                Timber.d("Cleaning up connecting BLE manager...")
+-                managerToCancel.stopPolling()
+-                managerToCancel.cleanup()
+-                managerToCancel.disconnect()?.enqueue()
+-
+-                // Only clear bleManager if it's the same instance we're cancelling
+-                // (i.e., connection hasn't succeeded yet)
+-                if (bleManager === managerToCancel) {
+-                    bleManager = null
+-                }
+-                connectingBleManager = null
+-            } else {
+-                Timber.d("No connecting BLE manager to cancel")
+-            }
++            // Cancel the injected BLE manager
++            bleManager.stopPolling()
++            bleManager.cleanup()
++            bleManager.disconnect().enqueue()
+ 
+             // Reset connection state only if we're still connecting
+             if (_connectionState.value is ConnectionState.Connecting ||
+@@ -364,11 +365,9 @@
+     override suspend fun disconnect() = withContext(Dispatchers.Main) {
+         try {
+             Timber.d("Disconnecting from device...")
+-            bleManager?.stopPolling()
+-            bleManager?.cleanup()  // Clean up resources and cancel polling jobs
+-            bleManager?.disconnect()?.enqueue()
+-            bleManager = null
+-            connectingBleManager = null
++            bleManager.stopPolling()
++            bleManager.cleanup()  // Clean up resources and cancel polling jobs
++            bleManager.disconnect().enqueue()
+             _connectionState.value = ConnectionState.Disconnected
+             Timber.d("Disconnected from device")
+         } catch (e: Exception) {
+@@ -376,62 +375,13 @@
+         }
+     }
+ 
++    /**
++     * @deprecated The official app does not use the 0x0A handshake.
++     * This method is kept empty to satisfy interface but should not be called.
++     */
+     override suspend fun sendInitSequence(): Result<Unit> = withContext(Dispatchers.IO) {
+-        try {
+-            val connectedState = _connectionState.value
+-            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
+-            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
+-
+-            Timber.d("=== Starting INIT sequence ===")
+-            connectionLogger.logInitStarted(deviceName ?: "Unknown", deviceAddress ?: "")
+-
+-            val manager = bleManager
+-            if (manager == null) {
+-                Timber.e("BLE manager is null, cannot send INIT sequence")
+-                return@withContext Result.failure(Exception("BLE manager not available"))
+-            }
+-
+-            // Step 1: Send INIT_COMMAND (0x0A) and wait for INIT_RESPONSE (0x0B)
+-            Timber.d("Step 1: Sending INIT_COMMAND (0x0A)...")
+-            val initCommand = ProtocolBuilder.buildInitCommand()
+-            connectionLogger.logCommandSent("INIT_COMMAND", deviceName, deviceAddress, initCommand)
+-            manager.sendCommand(initCommand).getOrThrow()
+-            
+-            Timber.d("Step 1: Waiting for INIT_RESPONSE (0x0B)...")
+-            val received0x0B = manager.awaitResponse(0x0Bu, timeoutMs = 5000L)
+-            if (!received0x0B) {
+-                Timber.e("Timeout waiting for INIT_RESPONSE (0x0B) - device may be in error state")
+-                connectionLogger.logInitFailed(deviceName ?: "Unknown", deviceAddress ?: "", "Timeout waiting for 0x0B response")
+-                return@withContext Result.failure(Exception("Timeout waiting for INIT_RESPONSE (0x0B)"))
+-            }
+-            Timber.d("Step 1: ✅ Received INIT_RESPONSE (0x0B)")
+-
+-            // Step 2: Send INIT_PRESET (0x11) and wait for INIT_PRESET_RESPONSE (0x12)
+-            Timber.d("Step 2: Sending INIT_PRESET (0x11)...")
+-            val initPreset = ProtocolBuilder.buildInitPreset()
+-            connectionLogger.logCommandSent("INIT_PRESET", deviceName, deviceAddress, initPreset)
+-            manager.sendCommand(initPreset).getOrThrow()
+-            
+-            Timber.d("Step 2: Waiting for INIT_PRESET_RESPONSE (0x12)...")
+-            val received0x12 = manager.awaitResponse(0x12u, timeoutMs = 5000L)
+-            if (!received0x12) {
+-                Timber.e("Timeout waiting for INIT_PRESET_RESPONSE (0x12) - device may be in error state")
+-                connectionLogger.logInitFailed(deviceName ?: "Unknown", deviceAddress ?: "", "Timeout waiting for 0x12 response")
+-                return@withContext Result.failure(Exception("Timeout waiting for INIT_PRESET_RESPONSE (0x12)"))
+-            }
+-            Timber.d("Step 2: ✅ Received INIT_PRESET_RESPONSE (0x12)")
+-
+-            Timber.d("=== INIT sequence completed successfully ===")
+-            connectionLogger.logInitSuccess(deviceName ?: "Unknown", deviceAddress ?: "")
+-            Result.success(Unit)
+-        } catch (e: Exception) {
+-            val connectedState = _connectionState.value
+-            val deviceName = if (connectedState is ConnectionState.Connected) connectedState.deviceName else null
+-            val deviceAddress = if (connectedState is ConnectionState.Connected) connectedState.deviceAddress else null
+-            Timber.e(e, "Failed to send init sequence")
+-            connectionLogger.logInitFailed(deviceName ?: "Unknown", deviceAddress ?: "", e.message ?: "Unknown error")
+-            Result.failure(e)
+-        }
++        Timber.w("sendInitSequence called but is deprecated/disabled in Native Protocol mode")
++        Result.success(Unit)
+     }
+ 
+     override suspend fun startWorkout(params: WorkoutParameters): Result<Unit> = withContext(Dispatchers.IO) {
+@@ -494,7 +444,7 @@
+                         programFrame,
+                         additionalInfo
+                     )
+-                    bleManager?.sendCommand(programFrame)?.getOrThrow()
++                    bleManager.sendCommand(programFrame).getOrThrow()
+                     delay(100)
+                 }
+             }
+@@ -506,7 +456,7 @@
+             // Property polling already running as keep-alive from connection time
+             Timber.d("Starting monitor polling for workout...")
+             connectionLogger.logPollingStarted("MONITOR", deviceName, deviceAddress)
+-            bleManager?.startMonitorPolling()
++            bleManager.startMonitorPolling()
+ 
+             Result.success(Unit)
+         } catch (e: Exception) {
+@@ -536,24 +486,29 @@
+             Timber.d("STOP_DEBUG: [$beforePollingStop] BEFORE stopping polling jobs")
+             Timber.d("STOP_DEBUG: Cancelling polling jobs...")
+             connectionLogger.logPollingStopped("ALL", deviceName, deviceAddress)
+-            bleManager?.stopPolling()
++            bleManager.stopPolling()
+             val afterPollingStop = System.currentTimeMillis()
+             Timber.d("STOP_DEBUG: [$afterPollingStop] AFTER stopping polling jobs (took ${afterPollingStop - beforePollingStop}ms)")
+ 
+-            // Send INIT command to stop workout and release resistance
+-            // NOTE: Web app uses buildInitCommand() to stop, not a separate stop command
+-            // The device interprets 0x0A contextually based on current state
+-            val initCommand = ProtocolBuilder.buildInitCommand()
++            // FIX FOR ISSUE #124: Add delay to allow BLE queue to drain pending operations
++            // This prevents race condition where INIT command is sent while rep notifications
++            // or monitor reads are still being processed, especially critical on Android 16
++            // which has stricter BLE timing enforcement
++            Timber.d("STOP_DEBUG: Waiting 250ms for BLE queue to drain...")
++            delay(BleConstants.BLE_QUEUE_DRAIN_DELAY_MS)
++            Timber.d("STOP_DEBUG: BLE queue drain delay complete")
++
++            // Use the official StopPacket (0x50) instead of legacy InitCommand (0x0A)
++            val stopCommand = ProtocolBuilder.buildStopPacket()
+             val beforeInitSend = System.currentTimeMillis()
+-            Timber.d("STOP_DEBUG: [$beforeInitSend] BEFORE sending INIT command")
+-            Timber.d("STOP_DEBUG: INIT command bytes: ${initCommand.joinToString(" ") { "0x%02X".format(it) }}")
+-            Timber.d("STOP_DEBUG: INIT command size: ${initCommand.size} bytes")
+-            Timber.d("STOP_DEBUG: Sending INIT command to release tension...")
+-            connectionLogger.logCommandSent("STOP_WORKOUT", deviceName, deviceAddress, initCommand)
+-            bleManager?.sendCommand(initCommand)?.getOrThrow()
++            Timber.d("STOP_DEBUG: [$beforeInitSend] BEFORE sending STOP command")
++            Timber.d("STOP_DEBUG: STOP command bytes: ${stopCommand.joinToString(" ") { "0x%02X".format(it) }}")
++            Timber.d("STOP_DEBUG: Sending STOP command (0x50)...")
++            connectionLogger.logCommandSent("STOP_WORKOUT", deviceName, deviceAddress, stopCommand)
++            bleManager.sendCommand(stopCommand).getOrThrow()
+             val afterInitSend = System.currentTimeMillis()
+-            Timber.d("STOP_DEBUG: [$afterInitSend] AFTER sending INIT command (took ${afterInitSend - beforeInitSend}ms)")
+-            Timber.d("STOP_DEBUG: INIT command sent successfully")
++            Timber.d("STOP_DEBUG: [$afterInitSend] AFTER sending STOP command (took ${afterInitSend - beforeInitSend}ms)")
++            Timber.d("STOP_DEBUG: STOP command sent successfully")
+ 
+             val finalTimestamp = System.currentTimeMillis()
+             Timber.d("STOP_DEBUG: [$finalTimestamp] Workout stopped - Total stopWorkout() time: ${finalTimestamp - timestamp}ms")
+@@ -591,7 +546,7 @@
+                 colorFrame,
+                 "Scheme=${scheme.name}, Brightness=${scheme.brightness}, Colors=${scheme.colors.size}"
+             )
+-            bleManager?.sendCommand(colorFrame)?.getOrThrow()
++            bleManager.sendCommand(colorFrame).getOrThrow()
+ 
+             Timber.d("Color scheme set to: ${scheme.name}")
+             connectionLogger.logCommandSuccess("SET_LED_COLOR", deviceName, deviceAddress)
+@@ -609,7 +564,7 @@
+     override suspend fun testOfficialAppProtocol(): Result<Unit> = withContext(Dispatchers.IO) {
+         try {
+             Timber.d("Repository: Starting official app protocol test")
+-            bleManager?.testOfficialAppProtocol()?.getOrThrow()
++            bleManager.testOfficialAppProtocol().getOrThrow()
+             Result.success(Unit)
+         } catch (e: Exception) {
+             Timber.e(e, "Failed to test official app protocol")
+@@ -619,12 +574,22 @@
+ 
+     override fun enableHandleDetection() {
+         Timber.d("Enabling handle detection - starting monitor polling for auto-start")
+-        bleManager?.startMonitorPolling()
++        bleManager.startMonitorPolling()
+     }
+ 
+     override fun enableJustLiftWaitingMode() {
+         Timber.d("Enabling Just Lift waiting mode - position-based handle detection")
+-        bleManager?.enableJustLiftWaitingMode()
++        bleManager.enableJustLiftWaitingMode()
++    }
++
++    override fun restartMonitorPolling() {
++        Timber.d("Restarting monitor polling - clearing danger zone alarm state on machine")
++        bleManager.startMonitorPolling()
++    }
++
++    override fun setStrictValidationEnabled(enabled: Boolean) {
++        Timber.d("Setting strict validation enabled: $enabled")
++        bleManager.setStrictValidationEnabled(enabled)
+     }
+ }
+ 
+Index: app/src/main/java/com/example/vitruvianredux/presentation/screen/EnhancedMainScreen.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/presentation/screen/EnhancedMainScreen.kt b/app/src/main/java/com/example/vitruvianredux/presentation/screen/EnhancedMainScreen.kt
+--- a/app/src/main/java/com/example/vitruvianredux/presentation/screen/EnhancedMainScreen.kt
++++ b/app/src/main/java/com/example/vitruvianredux/presentation/screen/EnhancedMainScreen.kt
+@@ -9,6 +9,7 @@
+ import androidx.compose.foundation.lazy.items
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
+ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+ import androidx.compose.material.icons.filled.*
+ import androidx.compose.material.icons.outlined.*
+@@ -158,9 +159,9 @@
+                         Icon(
+                             imageVector = when (connectionState) {
+                                 is ConnectionState.Connected -> Icons.Default.Bluetooth
+-                                is ConnectionState.Connecting -> Icons.Default.BluetoothSearching
++                                is ConnectionState.Connecting -> Icons.AutoMirrored.Filled.BluetoothSearching
+                                 is ConnectionState.Disconnected -> Icons.Default.BluetoothDisabled
+-                                is ConnectionState.Scanning -> Icons.Default.BluetoothSearching
++                                is ConnectionState.Scanning -> Icons.AutoMirrored.Filled.BluetoothSearching
+                                 is ConnectionState.Error -> Icons.Default.BluetoothDisabled
+                             },
+                             contentDescription = when (connectionState) {
+@@ -208,190 +209,77 @@
+             )
+         },
+         bottomBar = {
+-            Surface(
+-                color = MaterialTheme.colorScheme.surface,
+-                tonalElevation = 8.dp,
+-                modifier = Modifier.fillMaxWidth()
++            NavigationBar(
++                tonalElevation = 8.dp
+             ) {
+-                Column(
+-                    modifier = Modifier.navigationBarsPadding()
+-                ) {
+-                    BottomAppBar(
+-                        containerColor = Color.Transparent,
+-                        modifier = Modifier.height(80.dp),
+-                        tonalElevation = 0.dp
+-                    ) {
+-                Row(
+-                    modifier = Modifier.fillMaxWidth(),
+-                    horizontalArrangement = Arrangement.SpaceAround,
+-                    verticalAlignment = Alignment.CenterVertically
+-                ) {
+-                    // LEFT: Analytics (small)
+-                    Column(
+-                        modifier = Modifier.weight(1f),
+-                        horizontalAlignment = Alignment.CenterHorizontally
+-                    ) {
+-                        IconButton(
+-                            onClick = {
+-                                navController.navigate(NavigationRoutes.Analytics.route) {
+-                                    popUpTo(NavigationRoutes.Home.route)
+-                                    launchSingleTop = true
+-                                    restoreState = true
+-                                }
+-                            }
+-                        ) {
+-                            Icon(
+-                                imageVector = if (currentRoute == NavigationRoutes.Analytics.route)
+-                                    Icons.Filled.BarChart
+-                                else
+-                                    Icons.Outlined.BarChart,
+-                                contentDescription = "Analytics",
+-                                modifier = Modifier.size(24.dp),
+-                                tint = if (currentRoute == NavigationRoutes.Analytics.route)
+-                                    MaterialTheme.colorScheme.primary
+-                                else
+-                                    MaterialTheme.colorScheme.onSurfaceVariant
+-                            )
+-                        }
+-                        Text(
+-                            "Analytics",
+-                            style = MaterialTheme.typography.labelSmall,
+-                            color = if (currentRoute == NavigationRoutes.Analytics.route)
+-                                MaterialTheme.colorScheme.primary
+-                            else
+-                                MaterialTheme.colorScheme.onSurfaceVariant,
+-                            maxLines = 1,
+-                            overflow = TextOverflow.Visible
++                // Analytics
++                NavigationBarItem(
++                    selected = currentRoute == NavigationRoutes.Analytics.route,
++                    onClick = {
++                        navController.navigate(NavigationRoutes.Analytics.route) {
++                            popUpTo(NavigationRoutes.Home.route)
++                            launchSingleTop = true
++                            restoreState = true
++                        }
++                    },
++                    icon = {
++                        Icon(
++                            imageVector = if (currentRoute == NavigationRoutes.Analytics.route)
++                                Icons.Filled.BarChart
++                            else
++                                Icons.Outlined.BarChart,
++                            contentDescription = "Analytics"
+                         )
+-                        // Active indicator
+-                        if (currentRoute == NavigationRoutes.Analytics.route) {
+-                            androidx.compose.foundation.Canvas(
+-                                modifier = Modifier
+-                                    .width(64.dp)
+-                                    .height(4.dp)
+-                            ) {
+-                                drawRoundRect(
+-                                    color = Color(0xFF9333EA),
+-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+-                                )
+-                            }
+-                        }
+-                    }
++                    },
++                    label = { Text("Analytics") },
++                    alwaysShowLabel = false
++                )
+ 
+-                    // CENTER: Workouts (LARGER - FloatingActionButton)
+-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+-                        FloatingActionButton(
+-                            onClick = {
+-                                navController.navigate(NavigationRoutes.Home.route) {
+-                                    popUpTo(NavigationRoutes.Home.route)
+-                                    launchSingleTop = true
+-                                    restoreState = true
+-                                }
+-                            },
+-                            modifier = Modifier.size(64.dp),
+-                            containerColor = if (isWorkoutsRoute)
+-                                MaterialTheme.colorScheme.primaryContainer
+-                            else
+-                                MaterialTheme.colorScheme.surfaceContainerHighest,
+-                            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
+-                        ) {
+-                            Column(
+-                                horizontalAlignment = Alignment.CenterHorizontally,
+-                                verticalArrangement = Arrangement.Center
+-                            ) {
+-                                Icon(
+-                                    imageVector = if (isWorkoutsRoute)
+-                                        Icons.Filled.Home
+-                                    else
+-                                        Icons.Outlined.Home,
+-                                    contentDescription = "Workouts",
+-                                    modifier = Modifier.size(28.dp),
+-                                    tint = if (isWorkoutsRoute)
+-                                        MaterialTheme.colorScheme.onPrimaryContainer
+-                                    else
+-                                        MaterialTheme.colorScheme.onSurfaceVariant
+-                                )
+-                                Text(
+-                                    "Workouts",
+-                                    style = MaterialTheme.typography.labelSmall,
+-                                    fontWeight = FontWeight.Bold,
+-                                    color = if (isWorkoutsRoute)
+-                                        MaterialTheme.colorScheme.onPrimaryContainer
+-                                    else
+-                                        MaterialTheme.colorScheme.onSurfaceVariant
+-                                )
+-                            }
+-                        }
+-                        // Active indicator
+-                        if (isWorkoutsRoute) {
+-                            Spacer(modifier = Modifier.height(4.dp))
+-                            androidx.compose.foundation.Canvas(
+-                                modifier = Modifier
+-                                    .width(48.dp)
+-                                    .height(4.dp)
+-                            ) {
+-                                drawRoundRect(
+-                                    color = Color(0xFF9333EA),
+-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+-                                )
+-                            }
+-                        }
+-                    }
++                // Workouts
++                NavigationBarItem(
++                    selected = isWorkoutsRoute,
++                    onClick = {
++                        navController.navigate(NavigationRoutes.Home.route) {
++                            popUpTo(NavigationRoutes.Home.route)
++                            launchSingleTop = true
++                            restoreState = true
++                        }
++                    },
++                    icon = {
++                        Icon(
++                            imageVector = if (isWorkoutsRoute)
++                                Icons.Filled.Home
++                            else
++                                Icons.Outlined.Home,
++                            contentDescription = "Workouts"
++                        )
++                    },
++                    label = { Text("Workouts") },
++                    alwaysShowLabel = false
++                )
+ 
+-                    // RIGHT: Settings (small)
+-                    Column(
+-                        modifier = Modifier.weight(1f),
+-                        horizontalAlignment = Alignment.CenterHorizontally
+-                    ) {
+-                        IconButton(
+-                            onClick = {
+-                                navController.navigate(NavigationRoutes.Settings.route) {
+-                                    popUpTo(NavigationRoutes.Home.route)
+-                                    launchSingleTop = true
+-                                    restoreState = true
+-                                }
+-                            }
+-                        ) {
+-                            Icon(
+-                                imageVector = if (currentRoute == NavigationRoutes.Settings.route)
+-                                    Icons.Filled.Settings
+-                                else
+-                                    Icons.Outlined.Settings,
+-                                contentDescription = "Settings",
+-                                modifier = Modifier.size(24.dp),
+-                                tint = if (currentRoute == NavigationRoutes.Settings.route)
+-                                    MaterialTheme.colorScheme.primary
+-                                else
+-                                    MaterialTheme.colorScheme.onSurfaceVariant
+-                            )
+-                        }
+-                        Text(
+-                            "Settings",
+-                            style = MaterialTheme.typography.labelSmall,
+-                            color = if (currentRoute == NavigationRoutes.Settings.route)
+-                                MaterialTheme.colorScheme.primary
+-                            else
+-                                MaterialTheme.colorScheme.onSurfaceVariant,
+-                            maxLines = 1,
+-                            overflow = TextOverflow.Visible
++                // Settings
++                NavigationBarItem(
++                    selected = currentRoute == NavigationRoutes.Settings.route,
++                    onClick = {
++                        navController.navigate(NavigationRoutes.Settings.route) {
++                            popUpTo(NavigationRoutes.Home.route)
++                            launchSingleTop = true
++                            restoreState = true
++                        }
++                    },
++                    icon = {
++                        Icon(
++                            imageVector = if (currentRoute == NavigationRoutes.Settings.route)
++                                Icons.Filled.Settings
++                            else
++                                Icons.Outlined.Settings,
++                            contentDescription = "Settings"
+                         )
+-                        // Active indicator
+-                        if (currentRoute == NavigationRoutes.Settings.route) {
+-                            androidx.compose.foundation.Canvas(
+-                                modifier = Modifier
+-                                    .width(64.dp)
+-                                    .height(4.dp)
+-                            ) {
+-                                drawRoundRect(
+-                                    color = Color(0xFF9333EA),
+-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+-                                )
+-                            }
+-                        }
+-                    }
+-                }
+-                    }
+-                }
++                    },
++                    label = { Text("Settings") },
++                    alwaysShowLabel = false
++                )
+             }
+         }
+     ) { padding ->
+Index: app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/ExerciseConfigViewModel.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/ExerciseConfigViewModel.kt b/app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/ExerciseConfigViewModel.kt
+--- a/app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/ExerciseConfigViewModel.kt
++++ b/app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/ExerciseConfigViewModel.kt
+@@ -101,11 +101,28 @@
+             ExerciseType.STANDARD
+         }
+ 
+-        _setMode.value = if (exercise.duration != null) SetMode.DURATION else SetMode.REPS
++        // Force DURATION mode for bodyweight exercises, otherwise use existing duration setting
++        _setMode.value = if (_exerciseType.value == ExerciseType.BODYWEIGHT) {
++            SetMode.DURATION
++        } else if (exercise.duration != null) {
++            SetMode.DURATION
++        } else {
++            SetMode.REPS
++        }
+ 
+         // Use PR weight as default if available, otherwise use 15kg
+         val defaultWeightKg = prWeightKg ?: 15f
+ 
++        // Determine default duration and log if defaulting for bodyweight exercises
++        val defaultDuration = if (exercise.duration != null) {
++            exercise.duration
++        } else {
++            if (_exerciseType.value == ExerciseType.BODYWEIGHT) {
++                Timber.w("Bodyweight exercise '${exercise.exercise.name}' missing duration - defaulting to 30s")
++            }
++            30
++        }
++
+         val initialSets = exercise.setReps.mapIndexed { index, reps ->
+             val perSetWeightKg = exercise.setWeightsPerCableKg.getOrNull(index) ?: exercise.weightPerCableKg
+             val perSetRest = exercise.setRestSeconds.getOrNull(index) ?: 60
+@@ -114,7 +131,7 @@
+                 setNumber = index + 1,
+                 reps = reps, // Preserve null for AMRAP sets
+                 weightPerCable = kgToDisplay(perSetWeightKg, weightUnit),
+-                duration = exercise.duration ?: 30,
++                duration = defaultDuration,
+                 restSeconds = perSetRest
+             )
+         }.ifEmpty {
+@@ -153,6 +170,11 @@
+     }
+ 
+     fun onSetModeChange(mode: SetMode) {
++        // Bodyweight exercises must always use DURATION mode (cannot count reps)
++        if (_exerciseType.value == ExerciseType.BODYWEIGHT && mode == SetMode.REPS) {
++            Timber.w("Cannot switch to REPS mode for bodyweight exercises - staying in DURATION mode")
++            return
++        }
+         _setMode.value = mode
+     }
+ 
+@@ -264,7 +286,9 @@
+             echoLevel = _echoLevel.value,
+             progressionKg = displayToKg(_weightChange.value.toFloat(), weightUnit),
+             setRestSeconds = restTimes,
+-            duration = if (_setMode.value == SetMode.DURATION) _sets.value.firstOrNull()?.duration else null,
++            duration = if (_setMode.value == SetMode.DURATION) {
++                _sets.value.firstOrNull()?.duration ?: 30 // Default to 30 seconds if not set
++            } else null,
+             perSetRestTime = _perSetRestTime.value,
+             isAMRAP = isAMRAP
+         )
+Index: app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt b/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt
+--- a/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt
++++ b/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt
+@@ -769,13 +769,16 @@
+     autoplayEnabled: Boolean,
+     stopAtTop: Boolean,
+     enableVideoPlayback: Boolean,
++    strictValidationEnabled: Boolean,
+     onWeightUnitChange: (WeightUnit) -> Unit,
+     onAutoplayChange: (Boolean) -> Unit,
+     onStopAtTopChange: (Boolean) -> Unit,
+     onEnableVideoPlaybackChange: (Boolean) -> Unit,
++    onStrictValidationChange: (Boolean) -> Unit,
+     onColorSchemeChange: (Int) -> Unit,
+     onDeleteAllWorkouts: () -> Unit,
+     onNavigateToConnectionLogs: () -> Unit = {},
++    onNavigateToDiagnostics: () -> Unit = {},
+     isAutoConnecting: Boolean = false,
+     connectionError: String? = null,
+     onClearConnectionError: () -> Unit = {},
+@@ -1015,6 +1018,36 @@
+                         onCheckedChange = onEnableVideoPlaybackChange
+                     )
+                 }
++
++                Spacer(modifier = Modifier.height(Spacing.medium))
++
++                // Strict Validation toggle
++                Row(
++                    modifier = Modifier.fillMaxWidth(),
++                    horizontalArrangement = Arrangement.SpaceBetween,
++                    verticalAlignment = Alignment.CenterVertically
++                ) {
++                    Column(
++                        modifier = Modifier.weight(1f)
++                    ) {
++                        Text(
++                            "Strict Sensor Validation",
++                            style = MaterialTheme.typography.bodyLarge,
++                            fontWeight = FontWeight.Medium,
++                            color = MaterialTheme.colorScheme.onSurface
++                        )
++                        Spacer(modifier = Modifier.height(4.dp))
++                        Text(
++                            "Reject sensor data outside safety ranges (may prevent workouts on noisy hardware)",
++                            style = MaterialTheme.typography.bodySmall,
++                            color = MaterialTheme.colorScheme.onSurfaceVariant
++                        )
++                    }
++                    Switch(
++                        checked = strictValidationEnabled,
++                        onCheckedChange = onStrictValidationChange
++                    )
++                }
+             }
+         }
+ 
+@@ -1219,6 +1252,50 @@
+                         fontWeight = FontWeight.Bold
+                     )
+                 }
++
++                Spacer(modifier = Modifier.height(Spacing.small))
++
++                OutlinedButton(
++                    onClick = onNavigateToDiagnostics,
++                    modifier = Modifier
++                        .fillMaxWidth()
++                        .height(56.dp),
++                    shape = RoundedCornerShape(20.dp)
++                ) {
++                    Icon(
++                        Icons.Default.MedicalServices,
++                        contentDescription = "Diagnostics",
++                        modifier = Modifier.size(24.dp)
++                    )
++                    Spacer(modifier = Modifier.width(Spacing.small))
++                    Text(
++                        "Device Diagnostics",
++                        style = MaterialTheme.typography.titleLarge,
++                        fontWeight = FontWeight.Bold
++                    )
++                }
++
++                Spacer(modifier = Modifier.height(Spacing.small))
++
++                OutlinedButton(
++                    onClick = onNavigateToDiagnostics,
++                    modifier = Modifier
++                        .fillMaxWidth()
++                        .height(56.dp),
++                    shape = RoundedCornerShape(20.dp)
++                ) {
++                    Icon(
++                        Icons.Default.MedicalServices,
++                        contentDescription = "Diagnostics",
++                        modifier = Modifier.size(24.dp)
++                    )
++                    Spacer(modifier = Modifier.width(Spacing.small))
++                    Text(
++                        "Device Diagnostics",
++                        style = MaterialTheme.typography.titleLarge,
++                        fontWeight = FontWeight.Bold
++                    )
++                }
+ 
+                 Spacer(modifier = Modifier.height(4.dp))
+                 Text(
+@@ -1273,8 +1350,8 @@
+                 )
+             }
+                 Spacer(modifier = Modifier.height(Spacing.small))
+-                Text("Version: 0.4.0-beta", color = MaterialTheme.colorScheme.onSurface)
+-                Text("Build: Beta 4", color = MaterialTheme.colorScheme.onSurface)
++                Text("Version: 0.5.1-beta", color = MaterialTheme.colorScheme.onSurface)
++                Text("Build: Beta 5 Patch 1", color = MaterialTheme.colorScheme.onSurface)
+                 Spacer(modifier = Modifier.height(Spacing.small))
+                 Text(
+                     "Open source community project to control Vitruvian Trainer machines locally.",
+Index: app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/MainViewModel.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/MainViewModel.kt b/app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/MainViewModel.kt
+--- a/app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/MainViewModel.kt
++++ b/app/src/main/java/com/example/vitruvianredux/presentation/viewmodel/MainViewModel.kt
+@@ -12,6 +12,7 @@
+ import com.example.vitruvianredux.data.repository.WorkoutRepository
+ import com.example.vitruvianredux.domain.model.*
+ import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine
++import com.example.vitruvianredux.presentation.components.SafetyEventSummary
+ import com.example.vitruvianredux.service.WorkoutForegroundService
+ import dagger.hilt.android.lifecycle.HiltViewModel
+ import kotlinx.coroutines.Job
+@@ -184,6 +185,15 @@
+                 initialValue = emptyList()
+             )
+ 
++    // All phase statistics for analytics
++    val allPhaseStatistics: StateFlow<List<com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity>> =
++        workoutRepository.getAllPhaseStatistics()
++            .stateIn(
++                scope = viewModelScope,
++                started = SharingStarted.WhileSubscribed(5000),
++                initialValue = emptyList()
++            )
++
+     // Grouped workout history for the History tab
+     val groupedWorkoutHistory: StateFlow<List<HistoryItem>> = allWorkoutSessions.map { sessions ->
+         Timber.d("📊 GROUPING HISTORY: Total sessions = ${sessions.size}")
+@@ -322,6 +332,16 @@
+     private var currentHandleState: com.example.vitruvianredux.data.ble.HandleState =
+         com.example.vitruvianredux.data.ble.HandleState.Released
+ 
++    // Safety Event Tracking
++    data class SafetyEventCounts(
++        val deloadWarnings: Int = 0,
++        val romViolations: Int = 0,
++        val spotterActivations: Int = 0,
++        val allFlags: MutableSet<SampleStatus> = mutableSetOf()
++    )
++    private val _safetyEventCounts = MutableStateFlow(SafetyEventCounts())
++    val safetyEventCounts: StateFlow<SafetyEventCounts> = _safetyEventCounts.asStateFlow()
++
+     private var autoStartJob: Job? = null
+     private var restTimerJob: Job? = null
+     private var connectionJob: Job? = null  // Track connection attempt for cancellation
+@@ -329,6 +349,7 @@
+     // Store collection jobs for monitor and rep event flows so they can be cancelled during stop
+     private var monitorDataCollectionJob: Job? = null
+     private var repEventsCollectionJob: Job? = null
++    private var bodyweightTimerJob: Job? = null  // Timer for bodyweight exercises
+ 
+     // Session-level peak loads (debug/analytics)
+     private var maxConcentricPerCableKgThisSession: Float = 0f
+@@ -408,6 +429,46 @@
+                 Timber.v("Monitor metric received in ViewModel: pos=(${metric.positionA},${metric.positionB})")
+                 _currentMetric.value = metric
+                 handleMonitorMetric(metric)
++
++                // Track safety events
++                metric.statusFlags.forEach { flag ->
++                    val current = _safetyEventCounts.value
++                    when (flag) {
++                        SampleStatus.DELOAD_WARN, SampleStatus.DELOAD_OCCURRED -> {
++                            if (!current.allFlags.contains(flag)) { // Only count once per flag occurrence
++                                _safetyEventCounts.value = current.copy(
++                                    deloadWarnings = current.deloadWarnings + 1,
++                                    allFlags = current.allFlags.apply { add(flag) }
++                                )
++                            }
++                        }
++                        SampleStatus.ROM_OUTSIDE_HIGH, SampleStatus.ROM_OUTSIDE_LOW -> {
++                            if (!current.allFlags.contains(flag)) {
++                                _safetyEventCounts.value = current.copy(
++                                    romViolations = current.romViolations + 1,
++                                    allFlags = current.allFlags.apply { add(flag) }
++                                )
++                            }
++                        }
++                        SampleStatus.SPOTTER_ACTIVE -> {
++                            if (!current.allFlags.contains(flag)) {
++                                _safetyEventCounts.value = current.copy(
++                                    spotterActivations = current.spotterActivations + 1,
++                                    allFlags = current.allFlags.apply { add(flag) }
++                                )
++                            }
++                        }
++                        else -> {
++                            // Other flags (REP_TOP_READY, REP_BOTTOM_READY, ROM_UNLOAD_ACTIVE)
++                            // We track them in allFlags but don't increment a dedicated counter
++                            if (!current.allFlags.contains(flag)) {
++                                _safetyEventCounts.value = current.copy(
++                                    allFlags = current.allFlags.apply { add(flag) }
++                                )
++                            }
++                        }
++                    }
++                }
+             }
+         }
+ 
+@@ -416,7 +477,7 @@
+             Timber.d("Starting to collect rep notifications...")
+             bleRepository.repEvents.collect { repNotification ->
+                 val state = _workoutState.value
+-                Timber.d("Rep notification received: top=${repNotification.topCounter}, complete=${repNotification.completeCounter}, state=$state")
++                Timber.d("Rep notification received: up=${repNotification.up}, down=${repNotification.down}, ROM=${repNotification.repsRomCount}/${repNotification.repsRomTotal}, Set=${repNotification.repsSetCount}/${repNotification.repsSetTotal}, state=$state")
+ 
+                 if (state is WorkoutState.Active) {
+                     handleRepNotification(repNotification)
+@@ -511,6 +572,15 @@
+                 }
+             }
+         }
++
++        // Observe strict validation preference
++        viewModelScope.launch {
++            userPreferences
++                .map { it.strictValidationEnabled }
++                .collect { enabled ->
++                    bleRepository.setStrictValidationEnabled(enabled)
++                }
++        }
+     }
+ 
+     private fun cancelAutoStartTimer() {
+@@ -566,12 +636,15 @@
+ 
+     /**
+      * Handle rep notifications provided by the machine.
++     * Uses machine's ROM and Set counters directly to eliminate "getting ready" pull offset.
+      */
+     private fun handleRepNotification(notification: com.example.vitruvianredux.data.ble.RepNotification) {
+         val currentPositions = _currentMetric.value
+         repCounter.process(
+-            topCounter = notification.topCounter,
+-            completeCounter = notification.completeCounter,
++            repsRomCount = notification.repsRomCount?.toInt() ?: 0,
++            repsSetCount = notification.repsSetCount?.toInt() ?: 0,
++            up = notification.up,
++            down = notification.down,
+             posA = currentPositions?.positionA ?: 0,
+             posB = currentPositions?.positionB ?: 0
+         )
+@@ -937,11 +1010,13 @@
+     }
+ 
+     fun startWorkout(skipCountdown: Boolean = false, isJustLiftMode: Boolean = false) {
+-        Timber.d("$$$ startWorkout() CALLED! skipCountdown=$skipCountdown, isJustLiftMode=$isJustLiftMode $$$")
++        Timber.d("$$ startWorkout() CALLED! skipCountdown=$skipCountdown, isJustLiftMode=$isJustLiftMode $$")
+ 
+         // CRITICAL: Re-set rep event callback to ensure it's active for this workout
+         // This fixes the issue where callback set in init block may not persist
+ 
++        // Reset safety event tracking
++        _safetyEventCounts.value = SafetyEventCounts()
+ 
+         viewModelScope.launch {
+             // Reset per-session peak tracking
+@@ -959,11 +1034,15 @@
+ 
+             // Update the state flow so the rest of the app is consistent
+             _workoutParameters.value = params
+-            
++
++            // Check if current exercise is bodyweight with duration mode
++            val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
++            val isBodyweightDuration = isBodyweightExercise(currentExercise)
++
+             val workingTarget = if (params.isJustLift) 0 else params.reps
+             repCounter.reset()
+             repCounter.configure(
+-                warmupTarget = params.warmupReps,
++                warmupTarget = if (isBodyweightDuration) 0 else params.warmupReps, // Skip warmup for bodyweight
+                 workingTarget = workingTarget,
+                 isJustLift = params.isJustLift,
+                 stopAtTop = params.stopAtTop,
+@@ -994,47 +1073,77 @@
+             }
+ 
+             Timber.d("")
+-            Timber.d(" COUNTDOWN COMPLETE - SENDING WORKOUT COMMAND")
++            Timber.d(" COUNTDOWN COMPLETE")
+             Timber.d("")
+-            Timber.d("?? TIMING: About to call bleRepository.startWorkout() at ${System.currentTimeMillis()}ms")
+-            val startTime = System.currentTimeMillis()
++
++            // For bodyweight exercises with duration, skip BLE commands and use timer
++            if (isBodyweightDuration) {
++                val duration = currentExercise?.duration ?: 30
++                Timber.d("BODYWEIGHT EXERCISE DETECTED - Starting ${duration}s timer (no BLE commands)")
++
++                _workoutState.value = WorkoutState.Active
++
++                WorkoutForegroundService.startWorkoutService(
++                    getContext(),
++                    "Bodyweight - ${currentExercise?.exercise?.displayName ?: "Exercise"}",
++                    0 // No rep count for bodyweight
++                )
++
++                // Emit haptic feedback for workout start
++                _hapticEvents.emit(HapticEvent.WORKOUT_START)
++
++                // Start a cancellable timer for bodyweight exercise
++                // Note: Metrics (timestamp, duration, exerciseId) are still collected via saveWorkoutSession()
++                // even though no cable load/rep data is gathered. workingReps will be 0 (expected for bodyweight).
++                bodyweightTimerJob?.cancel()  // Cancel any existing timer
++                bodyweightTimerJob = viewModelScope.launch {
++                    delay(duration * 1000L)
++                    Timber.d("BODYWEIGHT EXERCISE TIMER COMPLETE (${duration}s) - Auto-completing set")
++                    handleSetCompletion()
++                }
++            } else {
++                // Normal cable-based exercise - send BLE commands
++                Timber.d(" SENDING WORKOUT COMMAND TO CABLES")
++                Timber.d("?? TIMING: About to call bleRepository.startWorkout() at ${System.currentTimeMillis()}ms")
++                val startTime = System.currentTimeMillis()
+ 
+-            // Set initial baseline position for position bars calibration
+-            // This ensures bars start at 0% relative to the starting rope position
+-            _currentMetric.value?.let { metric ->
+-                repCounter.setInitialBaseline(metric.positionA, metric.positionB)
+-                _repRanges.value = repCounter.getRepRanges()
+-                Timber.d("?? POSITION BASELINE: Set initial baseline to posA=${metric.positionA}, posB=${metric.positionB}")
+-            }
++                // Set initial baseline position for position bars calibration
++                // This ensures bars start at 0% relative to the starting rope position
++                _currentMetric.value?.let { metric ->
++                    repCounter.setInitialBaseline(metric.positionA, metric.positionB)
++                    _repRanges.value = repCounter.getRepRanges()
++                    Timber.d("?? POSITION BASELINE: Set initial baseline to posA=${metric.positionA}, posB=${metric.positionB}")
++                }
+ 
+-            val result = bleRepository.startWorkout(params)
++                val result = bleRepository.startWorkout(params)
+ 
+-            val commandLatency = System.currentTimeMillis() - startTime
+-            Timber.d("?? TIMING: bleRepository.startWorkout() completed in ${commandLatency}ms")
++                val commandLatency = System.currentTimeMillis() - startTime
++                Timber.d("?? TIMING: bleRepository.startWorkout() completed in ${commandLatency}ms")
+ 
+-            if (result.isFailure) {
+-                _workoutState.value = WorkoutState.Error(
+-                    result.exceptionOrNull()?.message ?: "Unknown error"
+-                )
+-                Timber.e("Failed to start workout: ${result.exceptionOrNull()?.message}")
+-                return@launch
+-            }
++                if (result.isFailure) {
++                    _workoutState.value = WorkoutState.Error(
++                        result.exceptionOrNull()?.message ?: "Unknown error"
++                    )
++                    Timber.e("Failed to start workout: ${result.exceptionOrNull()?.message}")
++                    return@launch
++                }
+ 
+-            // Only mark the workout as Active after the START command has succeeded
+-            val activeStateTime = System.currentTimeMillis()
+-            _workoutState.value = WorkoutState.Active
+-            Timber.d("?? TIMING: State set to Active at ${activeStateTime}ms (${activeStateTime - startTime}ms after command)")
++                // Only mark the workout as Active after the START command has succeeded
++                val activeStateTime = System.currentTimeMillis()
++                _workoutState.value = WorkoutState.Active
++                Timber.d("?? TIMING: State set to Active at ${activeStateTime}ms (${activeStateTime - startTime}ms after command)")
+ 
+-            WorkoutForegroundService.startWorkoutService(
+-                getContext(),
+-                params.workoutType.displayName,
+-                params.reps
+-            )
++                WorkoutForegroundService.startWorkoutService(
++                    getContext(),
++                    params.workoutType.displayName,
++                    params.reps
++                )
+ 
+-            Timber.d("Workout command sent successfully! Tracking reps now. Session: $currentSessionId")
++                Timber.d("Workout command sent successfully! Tracking reps now. Session: $currentSessionId")
+ 
+-            // Emit haptic feedback for workout start
+-            _hapticEvents.emit(HapticEvent.WORKOUT_START)
++                // Emit haptic feedback for workout start
++                _hapticEvents.emit(HapticEvent.WORKOUT_START)
++            }
+         }
+     }
+ 
+@@ -1042,14 +1151,24 @@
+         viewModelScope.launch {
+             val isJustLift = _workoutParameters.value.isJustLift
+ 
+-            // Cancel any running rest timer to prevent auto-restart
++            // Cancel any running timers to prevent auto-restart
+             restTimerJob?.cancel()
+             restTimerJob = null
++            bodyweightTimerJob?.cancel()
++            bodyweightTimerJob = null
++
++            // Check if current exercise is bodyweight (skip BLE calls if so)
++            val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
++            val isBodyweight = isBodyweightExercise(currentExercise)
+ 
+             // CRITICAL SAFETY: Stop all active polling and data collection
+             // This ensures the machine fully exits workout mode
+-            // Stop hardware immediately (this will stop monitor/property polling in BLE layer)
+-            bleRepository.stopWorkout()
++            // Only send stop command to cables if not bodyweight exercise
++            if (!isBodyweight) {
++                bleRepository.stopWorkout()
++            } else {
++                Timber.d("Bodyweight exercise - skipping BLE stop command")
++            }
+ 
+             // Stop foreground service
+             WorkoutForegroundService.stopWorkoutService(getApplication())
+@@ -1143,14 +1262,23 @@
+             val completedReps = _repCount.value.workingReps
+ 
+             // Show set summary for all modes
++            val heuristics = bleRepository.heuristicData.value
++            val safetyEvents = SafetyEventSummary(
++                deloadWarnings = _safetyEventCounts.value.deloadWarnings,
++                romViolations = _safetyEventCounts.value.romViolations,
++                spotterActivations = _safetyEventCounts.value.spotterActivations
++            )
++            
+             _workoutState.value = WorkoutState.SetSummary(
+                 metrics = collectedMetrics.toList(),
+                 peakPower = peakPerCableKg,
+                 averagePower = averagePerCableKg,
+-                repCount = completedReps
++                repCount = completedReps,
++                heuristicStatistics = heuristics,
++                safetyEventSummary = safetyEvents
+             )
+ 
+-            Timber.d("Set summary: peakPerCableKg=$peakPerCableKg, avgPerCableKg=$averagePerCableKg, reps=$completedReps, metrics=${collectedMetrics.size}")
++            Timber.d("Set summary: peakPerCableKg=$peakPerCableKg, avgPerCableKg=$averagePerCableKg, reps=$completedReps, metrics=${collectedMetrics.size}, hasHeuristics=${heuristics != null}, hasSafetyEvents=${safetyEvents.hasSafetyEvents}")
+ 
+             // Just Lift mode: Auto-advance to next set after showing summary
+             if (isJustLift) {
+@@ -1168,6 +1296,13 @@
+                 // Enable velocity-based wake-up detection for next exercise
+                 bleRepository.enableJustLiftWaitingMode()
+                 Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Ready for next set - grab handles to auto-start")
++            } else if (params.isAMRAP) {
++                // AMRAP mode: Restart monitor polling to clear danger zone alarm on machine
++                // This ensures the machine exits danger zone state just like Just Lift mode
++                // Note: We use restartMonitorPolling() instead of enableHandleDetection() to be
++                // explicit that we're NOT enabling auto-start behavior for AMRAP mode
++                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] AMRAP: Restarting monitor polling to clear danger zone")
++                bleRepository.restartMonitorPolling()
+             }
+             // Normal mode or Routine: Wait for user to click "Continue"
+ 
+@@ -1187,6 +1322,19 @@
+         return routine == null || routine.id.startsWith("temp_single_exercise_")
+     }
+ 
++    /**
++     * Check if the given exercise is a bodyweight exercise with duration mode.
++     * Bodyweight exercises are identified by empty equipment field and must have duration set.
++     *
++     * @param exercise The routine exercise to check, or null
++     * @return true if this is a bodyweight exercise with duration, false otherwise
++     */
++    private fun isBodyweightExercise(exercise: RoutineExercise?): Boolean {
++        return exercise?.let {
++            it.exercise.equipment.isEmpty() && it.duration != null
++        } ?: false
++    }
++
+     /**
+      * Proceed from set summary to rest timer or completion
+      * Called when user clicks "Continue" button on set summary screen
+@@ -1370,6 +1518,16 @@
+                     val currentExerciseSets = routine?.exercises?.getOrNull(_currentExerciseIndex.value)
+                     if (currentExerciseSets != null && _currentSetIndex.value < currentExerciseSets.setReps.size - 1) {
+                         _currentSetIndex.value++
++                        // Update workout parameters for the new set (reps, weight, isAMRAP)
++                        val targetReps = currentExerciseSets.setReps[_currentSetIndex.value]
++                        val setWeight = currentExerciseSets.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
++                            ?: currentExerciseSets.weightPerCableKg
++                        _workoutParameters.value = _workoutParameters.value.copy(
++                            reps = targetReps ?: 0, // AMRAP sets have null reps
++                            weightPerCableKg = setWeight,
++                            isAMRAP = targetReps == null // This SET is AMRAP if its reps is null
++                        )
++                        Timber.d("  Updated params for set ${_currentSetIndex.value + 1}: reps=$targetReps, weight=$setWeight kg, isAMRAP=${targetReps == null}")
+                         startWorkout(skipCountdown = true)
+                     } else {
+                         Timber.d("Single exercise complete - no more sets remaining")
+@@ -1454,17 +1612,23 @@
+             Timber.d("  ? Moving to next set")
+             _currentSetIndex.value++
+             val targetReps = currentExercise.setReps[_currentSetIndex.value]
++            // Get per-set weight if available, otherwise use exercise default
++            val setWeight = currentExercise.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
++                ?: currentExercise.weightPerCableKg
+             Timber.d("  New set index: ${_currentSetIndex.value}")
+             Timber.d("  Target reps: $targetReps")
++            Timber.d("  Set weight: $setWeight kg")
+             _workoutParameters.value = workoutParameters.value.copy(
+                 reps = targetReps ?: 0, // AMRAP sets have null reps
++                weightPerCableKg = setWeight, // FIXED: Use per-set weight, not previous set's weight
+                 // Preserve all other parameters from current exercise
+                 progressionRegressionKg = workoutParameters.value.progressionRegressionKg,
+-                weightPerCableKg = workoutParameters.value.weightPerCableKg,
+                 workoutType = workoutParameters.value.workoutType,
+                 selectedExerciseId = workoutParameters.value.selectedExerciseId,
+                 isAMRAP = targetReps == null // This SET is AMRAP if its reps is null
+             )
++            Timber.d("  AFTER UPDATE - isAMRAP set to: ${_workoutParameters.value.isAMRAP} (targetReps was: $targetReps)")
++            Timber.d("  AFTER UPDATE - reps set to: ${_workoutParameters.value.reps}")
+             Timber.d("???????????????????????????????????????????????????")
+             startWorkout(skipCountdown = true)
+         } else {
+@@ -1624,8 +1788,17 @@
+             exerciseId = params.selectedExerciseId,
+             exerciseName = exerciseName,
+             routineSessionId = currentRoutineSessionId,
+-            routineName = currentRoutineName
++            routineName = currentRoutineName,
++            safetyFlags = _safetyEventCounts.value.allFlags
++                .fold(0) { acc, flag -> acc or flag.mask },
++            deloadWarningCount = _safetyEventCounts.value.deloadWarnings,
++            romViolationCount = _safetyEventCounts.value.romViolations,
++            spotterActivations = _safetyEventCounts.value.spotterActivations
+         )
++
++        // Check if this is a bodyweight exercise (for logging purposes)
++        val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
++        val isBodyweight = isBodyweightExercise(currentExercise)
+ 
+         Timber.d("💾 SAVING WORKOUT SESSION:")
+         Timber.d("  sessionId: $sessionId")
+@@ -1633,12 +1806,16 @@
+         Timber.d("  reps (target): ${params.reps}")
+         Timber.d("  totalReps (actual): $working")
+         Timber.d("  isAMRAP: ${params.isAMRAP}")
++        Timber.d("  isBodyweight: $isBodyweight")
+         Timber.d("  exerciseId: ${params.selectedExerciseId}")
+         Timber.d("  routineSessionId: $currentRoutineSessionId")
+         Timber.d("  routineName: $currentRoutineName")
+         Timber.d("  _loadedRoutine.value: ${_loadedRoutine.value?.name}")
+         Timber.d("  _loadedRoutine.value.id: ${_loadedRoutine.value?.id}")
+         Timber.d("  maxConcentricPerCableKgThisSession=$maxConcentricPerCableKgThisSession, maxEccentricPerCableKgThisSession=$maxEccentricPerCableKgThisSession")
++        if (isBodyweight) {
++            Timber.d("  Note: Bodyweight exercise - working reps is 0 (expected), duration tracked instead")
++        }
+ 
+         workoutRepository.saveSession(session)
+ 
+@@ -1646,6 +1823,12 @@
+             workoutRepository.saveMetrics(sessionId, collectedMetrics)
+         }
+ 
++        // Save phase statistics if available
++        val heuristics = bleRepository.heuristicData.value
++        if (heuristics != null) {
++            workoutRepository.savePhaseStatistics(sessionId, heuristics)
++        }
++
+         // Track personal record if exercise is selected
+         params.selectedExerciseId?.let { exerciseId ->
+             // Only track PRs for completed working sets (not warmups, not just lift, not echo mode)
+@@ -1726,6 +1909,13 @@
+         }
+     }
+ 
++    fun setStrictValidationEnabled(enabled: Boolean) {
++        viewModelScope.launch {
++            preferencesManager.setStrictValidationEnabled(enabled)
++            bleRepository.setStrictValidationEnabled(enabled)
++        }
++    }
++
+     /**
+      * Convert weight from KG to display unit
+      */
+Index: app/src/main/java/com/example/vitruvianredux/presentation/navigation/NavigationRoutes.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/presentation/navigation/NavigationRoutes.kt b/app/src/main/java/com/example/vitruvianredux/presentation/navigation/NavigationRoutes.kt
+--- a/app/src/main/java/com/example/vitruvianredux/presentation/navigation/NavigationRoutes.kt
++++ b/app/src/main/java/com/example/vitruvianredux/presentation/navigation/NavigationRoutes.kt
+@@ -17,6 +17,7 @@
+     object Analytics : NavigationRoutes("analytics")
+     object Settings : NavigationRoutes("settings")
+     object ConnectionLogs : NavigationRoutes("connection_logs")
++    object Diagnostics : NavigationRoutes("diagnostics")
+ }
+ 
+ /**
+Index: app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt b/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt
+--- a/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt
++++ b/app/src/main/java/com/example/vitruvianredux/util/ProtocolBuilder.kt
+@@ -14,13 +14,16 @@
+ 
+     /**
+      * Build the initial 4-byte command sent before INIT
++     * @deprecated Not used by official Android app (legacy web protocol)
+      */
++    @Deprecated("Not used by official Android app")
+     fun buildInitCommand(): ByteArray {
+         return byteArrayOf(0x0A, 0x00, 0x00, 0x00)
+     }
+ 
+     /**
+      * Build the INIT preset frame with coefficient table (34 bytes)
++     * Note: This is actually a Color Scheme packet (0x11)
+      */
+     fun buildInitPreset(): ByteArray {
+         return byteArrayOf(
+@@ -377,11 +380,21 @@
+ 
+     /**
+      * Build the STOP command (4 bytes)
++     * @deprecated Use buildStopPacket() instead - official app uses 0x50
+      */
++    @Deprecated("Use buildStopPacket() instead - official app uses 0x50")
+     fun buildStopCommand(): ByteArray {
+         return byteArrayOf(0x05, 0x00, 0x00, 0x00)
+     }
+ 
++    /**
++     * Build the STOP packet used by official app (0x50)
++     */
++    fun buildStopPacket(): ByteArray {
++        // Matches official StopPacket: 0x50 0x00
++        return byteArrayOf(0x50, 0x00)
++    }
++
+     /**
+      * Build a color scheme command using predefined schemes
+      */
+Index: app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt b/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt
+--- a/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt
++++ b/app/src/main/java/com/example/vitruvianredux/data/ble/VitruvianBleManager.kt
+@@ -3,6 +3,13 @@
+ import android.bluetooth.BluetoothGatt
+ import android.bluetooth.BluetoothGattCharacteristic
+ import android.content.Context
++import com.example.vitruvianredux.data.ble.GattRequestRejectedException
++import com.example.vitruvianredux.data.ble.GattStatusException
++import com.example.vitruvianredux.data.ble.NotReadyException
++import com.example.vitruvianredux.domain.model.DiagnosticDetails
++import com.example.vitruvianredux.domain.model.HeuristicPhaseStatistics
++import com.example.vitruvianredux.domain.model.HeuristicStatistics
++import com.example.vitruvianredux.domain.model.SampleStatus
+ import com.example.vitruvianredux.domain.model.WorkoutMetric
+ import com.example.vitruvianredux.util.BleConstants
+ import kotlinx.coroutines.CoroutineScope
+@@ -22,6 +29,7 @@
+ import kotlinx.coroutines.isActive
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.withTimeoutOrNull
++import no.nordicsemi.android.ble.ConnectionPriorityRequest
+ import no.nordicsemi.android.ble.BleManager
+ import no.nordicsemi.android.ble.data.Data
+ import timber.log.Timber
+@@ -51,8 +59,10 @@
+     // GATT characteristics
+     private var nusRxCharacteristic: BluetoothGattCharacteristic? = null
+     private var monitorCharacteristic: BluetoothGattCharacteristic? = null
+-    private var propertyCharacteristic: BluetoothGattCharacteristic? = null
++    private var propertyCharacteristic: BluetoothGattCharacteristic? = null // Diagnostic
+     private var repNotifyCharacteristic: BluetoothGattCharacteristic? = null
++    private var heuristicCharacteristic: BluetoothGattCharacteristic? = null
++    private var versionCharacteristic: BluetoothGattCharacteristic? = null
+ 
+     // Official app workout command characteristics (for testing)
+     private val workoutCmdCharacteristics = mutableListOf<BluetoothGattCharacteristic>()
+@@ -61,6 +71,7 @@
+     private val pollingScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+     private var monitorPollingJob: Job? = null
+     private var propertyPollingJob: Job? = null
++    private var heuristicPollingJob: Job? = null
+ 
+     // Last good positions for filtering spikes (volatile for thread safety)
+     @Volatile private var lastGoodPosA = 0
+@@ -70,11 +81,25 @@
+     @Volatile private var lastPositionA = 0
+     @Volatile private var lastPositionB = 0
+     @Volatile private var lastTimestamp = 0L
++    
++    // Validation mode
++    @Volatile private var strictValidationEnabled: Boolean = false
++    
++    fun setStrictValidationEnabled(enabled: Boolean) {
++        strictValidationEnabled = enabled
++        Timber.d("Strict validation enabled: $enabled")
++    }
+ 
+     // State flows
+     private val _connectionState = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Disconnected)
+     val connectionState: StateFlow<ConnectionStatus> = _connectionState.asStateFlow()
+ 
++    private val _diagnosticData = MutableStateFlow<DiagnosticDetails?>(null)
++    val diagnosticData: StateFlow<DiagnosticDetails?> = _diagnosticData.asStateFlow()
++
++    private val _heuristicData = MutableStateFlow<HeuristicStatistics?>(null)
++    val heuristicData: StateFlow<HeuristicStatistics?> = _heuristicData.asStateFlow()
++
+     // Monitor data flow - CRITICAL: Need buffer for high-frequency emissions!
+     private val _monitorData = MutableSharedFlow<WorkoutMetric>(
+         replay = 0,
+@@ -168,31 +193,31 @@
+             // Get required characteristics
+             nusRxCharacteristic = nusService.getCharacteristic(BleConstants.NUS_RX_CHAR_UUID)
+             monitorCharacteristic = nusService.getCharacteristic(BleConstants.MONITOR_CHAR_UUID)
+-            propertyCharacteristic = nusService.getCharacteristic(BleConstants.PROPERTY_CHAR_UUID)
++            propertyCharacteristic = nusService.getCharacteristic(BleConstants.DIAGNOSTIC_CHAR_UUID) // Also known as PROPERTY_CHAR
+             repNotifyCharacteristic = nusService.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
++            heuristicCharacteristic = nusService.getCharacteristic(BleConstants.HEURISTIC_CHAR_UUID)
++            versionCharacteristic = nusService.getCharacteristic(BleConstants.VERSION_CHAR_UUID)
+ 
+             // DIAGNOSTIC: Log characteristic discovery with timestamp
+             val timestamp = System.currentTimeMillis()
+             Timber.i("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+             Timber.i("✅ CHARACTERISTICS DISCOVERED! [$timestamp]")
+-            Timber.i("✅ RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
++            Timber.i("✅ RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Diagnostic=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
++            Timber.i("✅ Heuristic=${heuristicCharacteristic != null}, Version=${versionCharacteristic != null}")
+             if (nusRxCharacteristic != null) {
+                 Timber.i("✅ nusRxCharacteristic UUID: ${nusRxCharacteristic?.uuid}, instance: ${nusRxCharacteristic?.instanceId}")
+             }
+             Timber.i("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+ 
+-            Timber.d("Found characteristics in NUS service: RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
++            Timber.d("Found characteristics in NUS service: RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Diagnostic=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
+ 
+-            // If rep notify not in NUS service, search all services
++            // If characteristics not in NUS service, search all services
+             if (repNotifyCharacteristic == null) {
+-                Timber.w("Rep notify characteristic not found in NUS service, searching all services...")
+                 gatt.services.forEach { service ->
+-                    val found = service.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
+-                    if (found != null) {
+-                        repNotifyCharacteristic = found
+-                        Timber.d("Found rep notify characteristic in service: ${service.uuid}")
+-                        return@forEach
+-                    }
++                    if (repNotifyCharacteristic == null) repNotifyCharacteristic = service.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
++                    if (heuristicCharacteristic == null) heuristicCharacteristic = service.getCharacteristic(BleConstants.HEURISTIC_CHAR_UUID)
++                    if (versionCharacteristic == null) versionCharacteristic = service.getCharacteristic(BleConstants.VERSION_CHAR_UUID)
++                    if (propertyCharacteristic == null) propertyCharacteristic = service.getCharacteristic(BleConstants.DIAGNOSTIC_CHAR_UUID)
+                 }
+             }
+ 
+@@ -396,9 +421,9 @@
+         override fun initialize() {
+             super.initialize()
+ 
+-            // Track pending operations: MTU request + all notification enables
+-            val pendingOperations = AtomicInteger(notifyCharacteristics.size + 1)
+-            
++            // Track pending operations: MTU request + connection priority + all notification enables
++            val pendingOperations = AtomicInteger(notifyCharacteristics.size + 2)
++
+             // Helper to check if all operations complete
+             fun checkAllOperationsComplete() {
+                 val remaining = pendingOperations.decrementAndGet()
+@@ -406,16 +431,41 @@
+                 if (remaining == 0) {
+                     _connectionState.value = ConnectionStatus.Ready
+                     Timber.d("All initialization operations complete! Device ready.")
+-                    
++
++                    // Log enabled characteristics to ConnectionLogger for debugging
++                    val uuidList = notifyCharacteristics.joinToString(", ") { it.uuid.toString().take(8) + "..." }
++                    connectionLogger?.log(
++                        eventType = "NOTIFICATIONS_ACTIVE",
++                        level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.INFO,
++                        deviceName = currentDeviceName,
++                        deviceAddress = currentDeviceAddress,
++                        message = "Notifications enabled on: $uuidList"
++                    )
++
+                     // Start property polling immediately to keep machine alive (keep-alive mechanism)
+-                    // The official app/web app does this - property polling at 500ms intervals
++                    // The official app does this - property polling at 500ms intervals (matches official app)
+                     // Monitor polling (100ms) only starts when workout begins
+-                    Timber.d("Starting keep-alive property polling (500ms)...")
+-                    startPropertyPolling()
++                    Timber.d("Starting keep-alive diagnostic polling (500ms - official app interval)...")
++                    startDiagnosticPolling()
+                 }
+             }
+ 
+-            // REQUEST MTU FIRST - Critical for large frames (96 bytes)!
++            // REQUEST HIGH CONNECTION PRIORITY FIRST - Critical for connection stability!
++            // This ensures fast, reliable communication and prevents early disconnections
++            // that were causing 5-second disconnect issues (Issue #131)
++            Timber.d("Requesting HIGH connection priority for stable connection...")
++            requestConnectionPriority(ConnectionPriorityRequest.CONNECTION_PRIORITY_HIGH)
++                .done { _ ->
++                    Timber.d("✅ Connection priority set to HIGH")
++                    checkAllOperationsComplete()
++                }
++                .fail { _, status ->
++                    Timber.w("⚠️ Failed to set connection priority (status: $status) - continuing anyway")
++                    checkAllOperationsComplete()
++                }
++                .enqueue()
++
++            // REQUEST MTU - Critical for large frames (96 bytes)!
+             // Default MTU is 23 bytes, we need at least 100 bytes for program params
+             requestMtu(247)
+                 .with { _, mtu ->
+@@ -486,6 +536,9 @@
+         // Start with handles released; wait for actual grab detection from data
+         _handleState.value = HandleState.Released
+ 
++        // Start heuristic polling alongside monitor
++        startHeuristicPolling()
++
+         monitorPollingJob?.cancel()
+         monitorPollingJob = pollingScope.launch {
+             Timber.d("Starting monitor polling (100ms interval)")
+@@ -509,28 +562,149 @@
+     }
+     
+     /**
+-     * Start polling property characteristic every 500ms
+-     * Called when workout starts  
++     * Start polling diagnostic characteristic every 500ms (keep-alive + health monitoring)
++     * Matches official app interval - Renamed from startPropertyPolling
+      */
+-    fun startPropertyPolling() {
++    fun startDiagnosticPolling() {
+         propertyPollingJob?.cancel()
+         propertyPollingJob = pollingScope.launch {
+-            Timber.d("Starting property polling (500ms interval)")
++            Timber.d("🔄 Starting diagnostic polling (500ms interval - matches official app)")
++            var successfulReads = 0
++            var failedReads = 0
++
++            while (isActive) {
++                try {
++                    val char = propertyCharacteristic
++                    if (char == null) {
++                        Timber.w("⚠️ Diagnostic characteristic is null - cannot maintain keep-alive!")
++                        delay(500)
++                        continue
++                    }
++
++                    readCharacteristic(char)
++                        .with { _, data ->
++                            successfulReads++
++                            val bytes = data.value
++                            if (bytes != null) {
++                                parseDiagnosticData(bytes)
++                            }
++                        }
++                        .fail { _, status ->
++                            failedReads++
++                            Timber.w("⚠️ Diagnostic read failed (status: $status)")
++                        }
++                        .enqueue()
++
++                    delay(500) // Poll every 500ms (Official app interval - verified)
++                } catch (e: Exception) {
++                    failedReads++
++                    Timber.e(e, "❌ Exception in diagnostic polling")
++                    delay(500)
++                }
++            }
++        }
++    }
++
++    fun startHeuristicPolling() {
++        heuristicPollingJob?.cancel()
++        heuristicPollingJob = pollingScope.launch {
++            Timber.d("Starting heuristic polling (1000ms interval)")
+             while (isActive) {
+                 try {
+-                    propertyCharacteristic?.let { char ->
++                    heuristicCharacteristic?.let { char ->
+                         readCharacteristic(char)
+                             .with { _, data ->
+-                                Timber.v("Property data: ${data.value?.joinToString(" ") { "%02X".format(it) } ?: "null"}")
++                                val bytes = data.value
++                                if (bytes != null) {
++                                    parseHeuristicData(bytes)
++                                }
+                             }
+                             .enqueue()
+                     }
+-                    delay(500) // Poll every 500ms (matches web app)
++                    delay(1000) // Poll every 1s
+                 } catch (e: Exception) {
+-                    Timber.e(e, "Error in property polling")
+-                }
+-            }
+-        }
++                    Timber.e(e, "Error in heuristic polling")
++                }
++            }
++        }
++    }
++
++    private fun parseDiagnosticData(bytes: ByteArray) {
++        try {
++            if (bytes.size < 20) return
++
++            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
++            val seconds = buffer.getInt()
++            
++            val faults = mutableListOf<Short>()
++            repeat(4) { faults.add(buffer.getShort()) }
++            
++            val temps = mutableListOf<Byte>()
++            repeat(8) { temps.add(buffer.get()) }
++            
++            val containsFaults = faults.any { it != 0.toShort() }
++            
++            _diagnosticData.value = DiagnosticDetails(
++                seconds = seconds,
++                faults = faults,
++                temps = temps,
++                containsFaults = containsFaults
++            )
++        } catch (e: Exception) {
++            Timber.e(e, "Failed to parse diagnostic data")
++        }
++    }
++
++    private fun parseHeuristicData(bytes: ByteArray) {
++        try {
++            if (bytes.size < 48) return
++
++            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
++
++            // Concentric
++            val concentric = HeuristicPhaseStatistics(
++                kgAvg = buffer.getFloat(),
++                kgMax = buffer.getFloat(),
++                velAvg = buffer.getFloat(),
++                velMax = buffer.getFloat(),
++                wattAvg = buffer.getFloat(),
++                wattMax = buffer.getFloat()
++            )
++
++            // Eccentric
++            val eccentric = HeuristicPhaseStatistics(
++                kgAvg = buffer.getFloat(),
++                kgMax = buffer.getFloat(),
++                velAvg = buffer.getFloat(),
++                velMax = buffer.getFloat(),
++                wattAvg = buffer.getFloat(),
++                wattMax = buffer.getFloat()
++            )
++
++            _heuristicData.value = HeuristicStatistics(concentric, eccentric)
++        } catch (e: Exception) {
++            Timber.e(e, "Failed to parse heuristic data")
++        }
++    }
++
++    private fun validateSample(posA: Short, loadA: Short, posB: Short, loadB: Short): Boolean {
++        if (!strictValidationEnabled) return true
++
++        // Official App Validation Ranges
++        // Position: -1000.0 to 1000.0
++        // Force: 0.0 to 100.0
++        
++        val posADbl = posA / 10.0
++        val posBDbl = posB / 10.0
++        val loadADbl = loadA / 100.0
++        val loadBDbl = loadB / 100.0
++
++        if (posADbl !in -1000.0..1000.0) return false
++        if (posBDbl !in -1000.0..1000.0) return false
++        if (loadADbl !in 0.0..100.0) return false
++        if (loadBDbl !in 0.0..100.0) return false
++
++        return true
+     }
+     
+     /**
+@@ -552,18 +726,22 @@
+         }
+ 
+         val monitorJobState = monitorPollingJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
+-        val propertyJobState = propertyPollingJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
++        val diagnosticJobState = propertyPollingJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
++        val heuristicJobState = heuristicPollingJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
+ 
+         Timber.d("STOP_DEBUG: Monitor polling job state BEFORE cancel: $monitorJobState")
+-        Timber.d("STOP_DEBUG: Property polling job state BEFORE cancel: $propertyJobState")
++        Timber.d("STOP_DEBUG: Diagnostic polling job state BEFORE cancel: $diagnosticJobState")
++        Timber.d("STOP_DEBUG: Heuristic polling job state BEFORE cancel: $heuristicJobState")
+ 
+         monitorPollingJob?.cancel()
+         propertyPollingJob?.cancel()
++        heuristicPollingJob?.cancel()
+ 
+         val afterCancel = System.currentTimeMillis()
+         Timber.d("STOP_DEBUG: [$afterCancel] Jobs cancelled (took ${afterCancel - timestamp}ms)")
+         Timber.d("STOP_DEBUG: Monitor job cancelled: ${monitorPollingJob?.isCancelled}")
+-        Timber.d("STOP_DEBUG: Property job cancelled: ${propertyPollingJob?.isCancelled}")
++        Timber.d("STOP_DEBUG: Diagnostic job cancelled: ${propertyPollingJob?.isCancelled}")
++        Timber.d("STOP_DEBUG: Heuristic job cancelled: ${heuristicPollingJob?.isCancelled}")
+     }
+ 
+     /**
+@@ -617,7 +795,7 @@
+                 Timber.d("STOP_DEBUG: [$afterWrite] Write enqueued (took ${afterWrite - beforeWrite}ms)")
+                 Timber.d("STOP_DEBUG: === COMMAND SENT ===")
+                 Result.success(Unit)
+-            } ?: Result.failure(Exception("NUS RX characteristic not available"))
++            } ?: Result.failure(NotReadyException("NUS RX characteristic not available"))
+         } catch (e: Exception) {
+             Timber.e(e, "STOP_DEBUG: Failed to send command")
+             Result.failure(e)
+@@ -636,7 +814,7 @@
+ 
+             if (workoutCmdCharacteristics.isEmpty()) {
+                 Timber.e("No workout command characteristics found!")
+-                return@withContext Result.failure(Exception("No workout command characteristics available"))
++                return@withContext Result.failure(NotReadyException("No workout command characteristics available"))
+             }
+ 
+             // Build PROGRAM frame for Old School workout: 20kg per cable, 5 reps
+@@ -768,6 +946,18 @@
+ 
+             // Parse the monitor data packet (matching device.js parseMonitorData)
+             // Format: u16[0-1]=ticks, u16[2]=posA, u16[4]=loadA*100, u16[5]=posB, u16[7]=loadB*100
++            
++            // Strict Validation (Official App Logic)
++            val sPosA = buffer.getShort(4)
++            val sLoadA = buffer.getShort(8)
++            val sPosB = buffer.getShort(10)
++            val sLoadB = buffer.getShort(14)
++            
++            if (!validateSample(sPosA, sLoadA, sPosB, sLoadB)) {
++                Timber.w("Strict Validation: Sample rejected. PosA=$sPosA, LoadA=$sLoadA, PosB=$sPosB, LoadB=$sLoadB")
++                return
++            }
++
+             val f0 = buffer.getShort(0).toInt() and 0xFFFF
+             val f1 = buffer.getShort(2).toInt() and 0xFFFF
+             val f2 = buffer.getShort(4).toInt() and 0xFFFF
+@@ -796,6 +986,14 @@
+             val loadA = f4 / 100.0f
+             val loadB = f7 / 100.0f
+ 
++            // Parse Status Flags (Safety) - Bytes 16-17
++            val statusFlags = if (bytes.size >= 18) {
++                val rawFlags = buffer.getShort(16).toInt() and 0xFFFF
++                SampleStatus.fromBitfield(rawFlags)
++            } else {
++                emptySet()
++            }
++
+             // Calculate velocity for handle detection (official app protocol)
+             val currentTime = System.currentTimeMillis()
+             val velocityA = if (lastTimestamp > 0L) {
+@@ -852,7 +1050,8 @@
+                 positionB = positionB,
+                 ticks = ticks,
+                 velocityA = velocityA,
+-                velocityB = velocityB
++                velocityB = velocityB,
++                statusFlags = statusFlags
+             )
+ 
+             // Log monitor data to ConnectionLogger (sampled)
+@@ -885,29 +1084,51 @@
+ 
+     /**
+      * Handle rep notification data
+-     * Based on reference web app: parses u16 array with top counter and complete counter
+-     * u16[0] = top counter (reached top of range)
+-     * u16[2] = complete counter (rep complete at bottom)
++     * Parses full 24-byte Reps characteristic structure (matches official app)
++     *
++     * Structure (Little-Endian):
++     * - Bytes 0-3: up (int32) - upward movement counter
++     * - Bytes 4-7: down (int32) - downward movement counter
++     * - Bytes 8-11: rangeTop (float) - upper range threshold (default 300.0)
++     * - Bytes 12-15: rangeBottom (float) - lower range threshold (default 0.0)
++     * - Bytes 16-17: repsRomCount (short) - Current ROM (Range of Motion) rep count
++     * - Bytes 18-19: repsRomTotal (short) - Total ROM reps
++     * - Bytes 20-21: repsSetCount (short) - Current set rep count
++     * - Bytes 22-23: repsSetTotal (short) - Total set reps
+      */
+     private fun handleRepNotification(data: Data) {
+         try {
+             val bytes = data.value ?: return
+-            
+-            if (bytes.size < 6) {
+-                Timber.w("Rep notification too short: ${bytes.size} bytes")
++
++            if (bytes.size < 24) {
++                Timber.w("Rep notification too short: ${bytes.size} bytes (expected 24)")
+                 return
+             }
+ 
+-            // Parse as u16 little-endian array
+             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+-            val topCounter = buffer.getShort(0).toInt() and 0xFFFF
+-            val completeCounter = buffer.getShort(4).toInt() and 0xFFFF
+-            
+-            Timber.d("Rep notification: top=$topCounter, complete=$completeCounter, hex=${bytes.joinToString(" ") { "%02X".format(it) }}")
++
++            // Parse full structure
++            val up = buffer.getInt(0)
++            val down = buffer.getInt(4)
++            val rangeTop = buffer.getFloat(8)
++            val rangeBottom = buffer.getFloat(12)
++            val repsRomCount = buffer.getShort(16)
++            val repsRomTotal = buffer.getShort(18)
++            val repsSetCount = buffer.getShort(20)
++            val repsSetTotal = buffer.getShort(22)
+ 
++            Timber.d("Rep notification: up=$up, down=$down, rangeTop=$rangeTop, rangeBottom=$rangeBottom")
++            Timber.d("  ROM: $repsRomCount/$repsRomTotal, Set: $repsSetCount/$repsSetTotal")
++
+             val repData = RepNotification(
+-                topCounter = topCounter,
+-                completeCounter = completeCounter,
++                up = up,
++                down = down,
++                rangeTop = rangeTop,
++                rangeBottom = rangeBottom,
++                repsRomCount = repsRomCount,
++                repsRomTotal = repsRomTotal,
++                repsSetCount = repsSetCount,
++                repsSetTotal = repsSetTotal,
+                 rawData = bytes,
+                 timestamp = System.currentTimeMillis()
+             )
+@@ -926,6 +1147,7 @@
+      * @param timeoutMs Timeout in milliseconds (default 5 seconds)
+      * @return true if response received, false if timeout
+      */
++    @Suppress("unused")
+     suspend fun awaitResponse(expectedOpcode: UByte, timeoutMs: Long = 5000L): Boolean {
+         return try {
+             val opcodeHex = expectedOpcode.toString(16).uppercase().padStart(2, '0')
+@@ -955,7 +1177,9 @@
+         Timber.d("Cleaning up BleManager resources")
+         monitorPollingJob?.cancel()
+         propertyPollingJob?.cancel()
+-        pollingScope.coroutineContext[Job]?.cancel()
++        heuristicPollingJob?.cancel()
++        // Do NOT cancel the scope itself, as it needs to be reused for future connections
++        // pollingScope.coroutineContext[Job]?.cancel()
+     }
+ 
+ }
+@@ -977,12 +1201,26 @@
+ 
+ /**
+  * Rep notification data class
+- * Parsed from device notifications on characteristic 0x0036
+- * Format: u16 array with [topCounter, ?, completeCounter, ...]
++ * Parsed from device notifications on characteristic 8308f2a6-0875-4a94-a86f-5c5c5e1b068a
++ * Full 24-byte structure from official app:
++ * - Bytes 0-3: up (int32) - upward movement counter
++ * - Bytes 4-7: down (int32) - downward movement counter
++ * - Bytes 8-11: rangeTop (float) - upper range threshold
++ * - Bytes 12-15: rangeBottom (float) - lower range threshold
++ * - Bytes 16-17: repsRomCount (short) - Current ROM rep count
++ * - Bytes 18-19: repsRomTotal (short) - Total ROM reps
++ * - Bytes 20-21: repsSetCount (short) - Current set rep count
++ * - Bytes 22-23: repsSetTotal (short) - Total set reps
+  */
+ data class RepNotification(
+-    val topCounter: Int,        // Counter increments when reaching top of range
+-    val completeCounter: Int,   // Counter increments when rep completes (bottom)
++    val up: Int,                // Upward movement counter (int32 from bytes 0-3)
++    val down: Int,              // Downward movement counter (int32 from bytes 4-7)
++    val rangeTop: Float,        // Upper range threshold (float from bytes 8-11, default 300.0)
++    val rangeBottom: Float,     // Lower range threshold (float from bytes 12-15, default 0.0)
++    val repsRomCount: Short?,   // Current ROM rep count (short from bytes 16-17)
++    val repsRomTotal: Short?,   // Total ROM reps (short from bytes 18-19)
++    val repsSetCount: Short?,   // Current set rep count (short from bytes 20-21)
++    val repsSetTotal: Short?,   // Total set reps (short from bytes 22-23)
+     val rawData: ByteArray,
+     val timestamp: Long
+ ) {
+@@ -992,8 +1230,14 @@
+ 
+         other as RepNotification
+ 
+-        if (topCounter != other.topCounter) return false
+-        if (completeCounter != other.completeCounter) return false
++        if (up != other.up) return false
++        if (down != other.down) return false
++        if (rangeTop != other.rangeTop) return false
++        if (rangeBottom != other.rangeBottom) return false
++        if (repsRomCount != other.repsRomCount) return false
++        if (repsRomTotal != other.repsRomTotal) return false
++        if (repsSetCount != other.repsSetCount) return false
++        if (repsSetTotal != other.repsSetTotal) return false
+         if (!rawData.contentEquals(other.rawData)) return false
+         if (timestamp != other.timestamp) return false
+ 
+@@ -1001,8 +1245,14 @@
+     }
+ 
+     override fun hashCode(): Int {
+-        var result = topCounter
+-        result = 31 * result + completeCounter
++        var result = up
++        result = 31 * result + down
++        result = 31 * result + rangeTop.hashCode()
++        result = 31 * result + rangeBottom.hashCode()
++        result = 31 * result + (repsRomCount?.hashCode() ?: 0)
++        result = 31 * result + (repsRomTotal?.hashCode() ?: 0)
++        result = 31 * result + (repsSetCount?.hashCode() ?: 0)
++        result = 31 * result + (repsSetTotal?.hashCode() ?: 0)
+         result = 31 * result + rawData.contentHashCode()
+         result = 31 * result + timestamp.hashCode()
+         return result
+Index: app/src/main/java/com/example/vitruvianredux/data/repository/WorkoutRepository.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/data/repository/WorkoutRepository.kt b/app/src/main/java/com/example/vitruvianredux/data/repository/WorkoutRepository.kt
+--- a/app/src/main/java/com/example/vitruvianredux/data/repository/WorkoutRepository.kt
++++ b/app/src/main/java/com/example/vitruvianredux/data/repository/WorkoutRepository.kt
+@@ -8,17 +8,10 @@
+ import com.example.vitruvianredux.data.local.WeeklyProgramWithDays
+ import com.example.vitruvianredux.data.local.PersonalRecordDao
+ import com.example.vitruvianredux.data.local.PersonalRecordEntity
+-import com.example.vitruvianredux.domain.model.WorkoutMetric
+-import com.example.vitruvianredux.domain.model.WorkoutSession
+-import com.example.vitruvianredux.domain.model.Routine
+-import com.example.vitruvianredux.domain.model.RoutineExercise
+-import com.example.vitruvianredux.domain.model.Exercise
+-import com.example.vitruvianredux.domain.model.CableConfiguration
+-import com.example.vitruvianredux.domain.model.WorkoutMode
+-import com.example.vitruvianredux.domain.model.WorkoutType
+-import com.example.vitruvianredux.domain.model.ProgramMode
+-import com.example.vitruvianredux.domain.model.EchoLevel
+-import com.example.vitruvianredux.domain.model.EccentricLoad
++import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
++import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
++import com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity
++import com.example.vitruvianredux.domain.model.*
+ import kotlinx.coroutines.flow.Flow
+ import kotlinx.coroutines.flow.firstOrNull
+ import kotlinx.coroutines.flow.map
+@@ -32,7 +25,9 @@
+ @Singleton
+ class WorkoutRepository @Inject constructor(
+     private val workoutDao: WorkoutDao,
+-    private val personalRecordDao: PersonalRecordDao
++    private val personalRecordDao: PersonalRecordDao,
++    private val phaseStatisticsDao: PhaseStatisticsDao,
++    private val diagnosticsDao: DiagnosticsDao
+ ) {
+     
+     /**
+@@ -93,6 +88,36 @@
+             Result.failure(e)
+         }
+     }
++
++    /**
++     * Save phase statistics
++     */
++    suspend fun savePhaseStatistics(sessionId: String, stats: HeuristicStatistics): Result<Unit> {
++        return try {
++            val entity = PhaseStatisticsEntity(
++                sessionId = sessionId,
++                concentricKgAvg = stats.concentric.kgAvg,
++                concentricKgMax = stats.concentric.kgMax,
++                concentricVelAvg = stats.concentric.velAvg,
++                concentricVelMax = stats.concentric.velMax,
++                concentricWattAvg = stats.concentric.wattAvg,
++                concentricWattMax = stats.concentric.wattMax,
++                eccentricKgAvg = stats.eccentric.kgAvg,
++                eccentricKgMax = stats.eccentric.kgMax,
++                eccentricVelAvg = stats.eccentric.velAvg,
++                eccentricVelMax = stats.eccentric.velMax,
++                eccentricWattAvg = stats.eccentric.wattAvg,
++                eccentricWattMax = stats.eccentric.wattMax,
++                timestamp = stats.timestamp
++            )
++            phaseStatisticsDao.insert(entity)
++            Timber.d("Saved phase statistics for session $sessionId")
++            Result.success(Unit)
++        } catch (e: Exception) {
++            Timber.e(e, "Failed to save phase statistics")
++            Result.failure(e)
++        }
++    }
+     
+     /**
+      * Get all workout sessions
+@@ -141,6 +166,13 @@
+     suspend fun getRecentSessionsSync(limit: Int = 10): List<WorkoutSession> {
+         return workoutDao.getRecentSessionsSync(limit).map { it.toWorkoutSession() }
+     }
++
++    /**
++     * Get all phase statistics
++     */
++    fun getAllPhaseStatistics(): Flow<List<PhaseStatisticsEntity>> {
++        return phaseStatisticsDao.getAll()
++    }
+     
+     /**
+      * Delete a workout
+Index: app/src/main/java/com/example/vitruvianredux/presentation/screen/WorkoutTab.kt
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/app/src/main/java/com/example/vitruvianredux/presentation/screen/WorkoutTab.kt b/app/src/main/java/com/example/vitruvianredux/presentation/screen/WorkoutTab.kt
+--- a/app/src/main/java/com/example/vitruvianredux/presentation/screen/WorkoutTab.kt
++++ b/app/src/main/java/com/example/vitruvianredux/presentation/screen/WorkoutTab.kt
+@@ -32,7 +32,9 @@
+ import com.example.vitruvianredux.data.local.ExerciseEntity
+ import com.example.vitruvianredux.data.repository.ExerciseRepository
+ import com.example.vitruvianredux.domain.model.*
++import com.example.vitruvianredux.domain.model.HeuristicStatistics
+ import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
++import com.example.vitruvianredux.presentation.components.SafetyEventSummary
+ import com.example.vitruvianredux.presentation.viewmodel.AutoStopUiState
+ import com.example.vitruvianredux.ui.theme.*
+ import kotlin.math.abs
+@@ -70,7 +72,9 @@
+     onHideWorkoutSetupDialog: () -> Unit = {},
+     modifier: Modifier = Modifier,
+     showConnectionCard: Boolean = true,
+-    showWorkoutSetupCard: Boolean = true
++    showWorkoutSetupCard: Boolean = true,
++    heuristicStatistics: HeuristicStatistics? = null,
++    safetyEventSummary: SafetyEventSummary? = null
+ ) {
+     // Haptic feedback effect
+     hapticEvents?.let {
+@@ -159,6 +163,13 @@
+         }
+ 
+         if (connectionState is ConnectionState.Connected) {
++            // Show safety warnings if present
++            currentMetric?.let { metric ->
++                if (metric.statusFlags.isNotEmpty()) {
++                    SafetyStatusCard(metric.statusFlags)
++                }
++            }
++
+             // Show setup button when in Idle state, otherwise show workout controls
+             when (workoutState) {
+                 is WorkoutState.Idle -> {
+@@ -458,7 +469,9 @@
+                     formatWeight = formatWeight,
+                     onContinue = onProceedFromSummary,
+                     autoplayEnabled = autoplayEnabled,
+-                    configuredPerCableKg = workoutParameters.weightPerCableKg
++                    configuredPerCableKg = workoutParameters.weightPerCableKg,
++                    heuristics = heuristicStatistics,
++                    safetyEvents = safetyEventSummary
+                 )
+             }
+             is WorkoutState.Resting -> {
+@@ -1874,3 +1887,67 @@
+         )
+     }
+ }
++
++@Composable
++fun SafetyStatusCard(statusFlags: Set<SampleStatus>) {
++    val hasCritical = statusFlags.any { 
++        it == SampleStatus.DELOAD_OCCURRED 
++    }
++    
++    val cardColor = if (hasCritical) {
++        MaterialTheme.colorScheme.errorContainer
++    } else {
++        MaterialTheme.colorScheme.tertiaryContainer
++    }
++    
++    val contentColor = if (hasCritical) {
++        MaterialTheme.colorScheme.onErrorContainer
++    } else {
++        MaterialTheme.colorScheme.onTertiaryContainer
++    }
++
++    Card(
++        modifier = Modifier.fillMaxWidth(),
++        colors = CardDefaults.cardColors(containerColor = cardColor),
++        shape = RoundedCornerShape(12.dp)
++    ) {
++        Column(modifier = Modifier.padding(16.dp)) {
++            Row(verticalAlignment = Alignment.CenterVertically) {
++                Icon(
++                    imageVector = if (hasCritical) Icons.Default.Warning else Icons.Default.Info,
++                    contentDescription = "Safety Alert",
++                    tint = contentColor
++                )
++                Spacer(modifier = Modifier.width(8.dp))
++                Text(
++                    text = if (hasCritical) "Safety Intervention" else "Safety Warning",
++                    style = MaterialTheme.typography.titleMedium,
++                    fontWeight = FontWeight.Bold,
++                    color = contentColor
++                )
++            }
++            
++            Spacer(modifier = Modifier.height(8.dp))
++            
++            statusFlags.forEach { flag ->
++                val message = when(flag) {
++                    SampleStatus.DELOAD_WARN -> "Force cap approaching - Ease off!"
++                    SampleStatus.DELOAD_OCCURRED -> "Force released due to overload/safety."
++                    SampleStatus.ROM_OUTSIDE_HIGH -> "Extension limit reached (Top)."
++                    SampleStatus.ROM_OUTSIDE_LOW -> "Retraction limit reached (Bottom)."
++                    SampleStatus.SPOTTER_ACTIVE -> "Spotter active."
++                    SampleStatus.ROM_UNLOAD_ACTIVE -> "Unload active."
++                    else -> null
++                }
++                
++                if (message != null) {
++                    Text(
++                        text = "• $message",
++                        style = MaterialTheme.typography.bodyMedium,
++                        color = contentColor
++                    )
++                }
++            }
++        }
++    }
++}

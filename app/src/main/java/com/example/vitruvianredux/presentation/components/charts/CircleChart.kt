@@ -1,119 +1,141 @@
 package com.example.vitruvianredux.presentation.components.charts
 
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PieChart
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 /**
- * A donut/circle chart for displaying muscle group data.
- *
- * @param data List of muscle group names paired with their values
- * @param modifier Modifier for the composable
- * @param onSegmentClick Callback when a segment is clicked
+ * Material 3 Expressive Circle Chart (Donut Chart)
+ * Custom Compose Canvas implementation for beautiful donut/pie visualizations
+ * Perfect for muscle group distribution and progress tracking
  */
 @Composable
 fun MuscleGroupCircleChart(
-    data: List<Pair<String, Float>>,
+    data: List<Pair<String, Float>>, // Label to value pairs
     modifier: Modifier = Modifier,
-    onSegmentClick: ((String, Float) -> Unit)? = null
+    onSegmentClick: ((String, Float) -> Unit)? = null // Reserved for future click handling
 ) {
-    if (data.isEmpty()) {
-        EmptyChartState(modifier = modifier)
+    // Data validation - Material 3 Expressive: Handle empty/invalid data gracefully
+    if (data.isEmpty() || data.all { it.second <= 0f }) {
+        EmptyChartState(
+            modifier = modifier
+        )
         return
     }
 
-    val animationProgress = remember { Animatable(0f) }
-
-    LaunchedEffect(data) {
-        animationProgress.snapTo(0f)
-        animationProgress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = 1000)
+    // Material 3 Expressive color palette
+    val colorScheme = MaterialTheme.colorScheme
+    val colors = remember(colorScheme) {
+        listOf(
+            colorScheme.primary,
+            colorScheme.secondary,
+            colorScheme.tertiary,
+            colorScheme.primaryContainer,
+            colorScheme.secondaryContainer,
+            colorScheme.tertiaryContainer,
+            colorScheme.error,
+            colorScheme.errorContainer
         )
     }
 
-    // Normalize data to percentages
+    // Calculate total and normalized values
     val total = data.sumOf { it.second.toDouble() }.toFloat()
-    val normalizedData = data.map { it.first to (it.second / total.coerceAtLeast(1f)) }
+    val normalizedData = remember(data, total) {
+        data.map { (label, value) -> label to (value / total) }
+    }
 
-    // Chart colors palette
-    val colorScheme = MaterialTheme.colorScheme
-    val colors = listOf(
-        colorScheme.primary,
-        colorScheme.secondary,
-        colorScheme.tertiary,
-        colorScheme.primaryContainer,
-        colorScheme.secondaryContainer,
-        colorScheme.tertiaryContainer
+    // Animation state
+    val animationProgress by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = tween(durationMillis = 1500),
+        label = "chart_animation"
     )
-    val surfaceColor = colorScheme.surface
 
-    Canvas(
+    Box(
         modifier = modifier
-            .size(280.dp)
+            .fillMaxWidth()
+            .height(280.dp) // Material 3 Expressive: Taller charts
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
     ) {
-        val centerX = size.width / 2f
-        val centerY = size.height / 2f
-        val center = Offset(centerX, centerY)
-        val radius = size.minDimension / 2f
-        val innerRadius = radius * 0.4f
-        val strokeWidth = 24.dp.toPx()
-        val spacing = 8.dp.toPx()
-
-        var startAngle = -90f // Start from top
-
-        normalizedData.forEachIndexed { index, (_, value) ->
-            val sweepAngle = 360f * value * animationProgress.value
-            val color = colors[index % colors.size]
-            val actualSweepAngle = (sweepAngle - spacing).coerceAtLeast(0f)
-
-            // Draw arc segment
-            drawArc(
-                color = color,
-                startAngle = startAngle,
-                sweepAngle = actualSweepAngle,
-                useCenter = false,
-                topLeft = Offset(centerX - radius, centerY - radius),
-                size = Size(radius * 2, radius * 2),
-                style = Stroke(
-                    width = strokeWidth,
-                    cap = StrokeCap.Round
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .then(
+                    if (onSegmentClick != null) {
+                        Modifier.clickable { 
+                            // TODO: Implement segment click detection
+                        }
+                    } else {
+                        Modifier
+                    }
                 )
+        ) {
+            val surfaceColor = colorScheme.surface
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val radius = size.minDimension / 2f
+            val innerRadius = radius * 0.4f // Donut chart style (40% inner radius)
+            val strokeWidth = 24.dp.toPx() // Material 3 Expressive: Thicker strokes
+            val spacing = 8.dp.toPx() // Material 3 Expressive: More spacing
+
+            var startAngle = -90f // Start from top
+
+            // Draw all donut segments
+            normalizedData.forEachIndexed { index, (_, percentage) ->
+                val sweepAngle = percentage * 360f * animationProgress
+                val color = colors[index % colors.size]
+
+                // Draw donut segment
+                drawArc(
+                    color = color,
+                    startAngle = startAngle,
+                    sweepAngle = maxOf(0f, sweepAngle - spacing),
+                    useCenter = false,
+                    topLeft = Offset(
+                        center.x - radius,
+                        center.y - radius
+                    ),
+                    size = Size(radius * 2f, radius * 2f),
+                    style = Stroke(
+                        width = strokeWidth,
+                        cap = StrokeCap.Round
+                    )
+                )
+
+                startAngle += sweepAngle
+            }
+
+            // Draw inner circle once to create donut effect
+            drawCircle(
+                color = surfaceColor,
+                radius = innerRadius,
+                center = center
             )
-
-            startAngle += sweepAngle
         }
-
-        // Draw inner circle (donut hole)
-        drawCircle(
-            color = surfaceColor,
-            radius = innerRadius,
-            center = center
-        )
     }
 }
 
 /**
- * Displays an empty state for the circle chart.
+ * Empty state for charts when no data is available
  */
 @Composable
 private fun EmptyChartState(
@@ -121,14 +143,28 @@ private fun EmptyChartState(
 ) {
     Box(
         modifier = modifier
-            .size(280.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+            .fillMaxWidth()
+            .height(280.dp)
+            .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "No muscle group data",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.PieChart,
+                contentDescription = "No data available",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(48.dp)
+            )
+            Text(
+                text = "No data available",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
+

@@ -1,0 +1,329 @@
+================================================================================
+PHASE 4: INTERNAL CODE DEOBFUSCATION - RENAME LOG
+================================================================================
+Generated: 2025-11-19 02:39:37
+Analysis file: PHASE4_FORMTRAINER_COMPLETE.json
+Mode: DRY RUN
+================================================================================
+
+STATISTICS
+--------------------------------------------------------------------------------
+Files processed:       33
+Files modified:        22
+Fields renamed:        82
+Methods renamed:       41
+Conflicts detected:    5
+Errors encountered:    5
+--------------------------------------------------------------------------------
+
+DETAILED CHANGES
+--------------------------------------------------------------------------------
+
+BleUpdateCancelPacket.java
+  FIELD    f42341a              → field42341A          (2 occurrences)
+
+BleUpdateRequest.java
+  FIELD    f42342a              → field42342A          (3 occurrences)
+  FIELD    f42343b              → field42343B          (6 occurrences)
+  METHOD   b                    → executeB             (3 occurrences)
+  METHOD   d                    → methodD              (2 occurrences)
+
+Cable.java
+  FIELD    f42345d              → count                (2 occurrences)
+  FIELD    f42346a              → field42346A          (9 occurrences)
+  FIELD    f42347b              → field42347B          (9 occurrences)
+  FIELD    f42348c              → field42348C          (9 occurrences)
+  FIELD    f42349a              → field42349A          (3 occurrences)
+  FIELD    f42350b              → field42350B          (5 occurrences)
+  METHOD   b                    → executeB             (4 occurrences)
+  METHOD   d                    → methodD              (1 occurrences)
+  METHOD   a                    → methodA              (6 occurrences)
+
+DeviceColorSchemePacket.java
+  FIELD    f42351a              → timestamp            (3 occurrences)
+
+DiagnosticDetails.java
+  FIELD    f42353a              → field42353A          (3 occurrences)
+
+FirmwareVersion.java
+  FIELD    f42372a              → objectData           (2 occurrences)
+  FIELD    f42373a              → field42373A          (2 occurrences)
+  FIELD    f42374b              → field42374B          (8 occurrences)
+  FIELD    f42375a              → field42375A          (4 occurrences)
+  FIELD    f42376b              → field42376B          (6 occurrences)
+  FIELD    f42377b              → text                 (8 occurrences)
+  FIELD    f42378a              → field42378A          (4 occurrences)
+  FIELD    f42379b              → field42379B          (6 occurrences)
+  METHOD   b                    → executeB             (14 occurrences)
+  METHOD   d                    → methodD              (5 occurrences)
+
+FormTrainer.java
+  FIELD    f42380a              → field42380A          (9 occurrences)
+  FIELD    f42381b              → field42381B          (14 occurrences)
+  FIELD    f42382c              → connectionState      (2 occurrences)
+  FIELD    f42383d              → field42383D          (3 occurrences)
+  FIELD    f42384e              → field42384E          (3 occurrences)
+  FIELD    f42385f              → list                 (4 occurrences)
+  FIELD    f42386g              → reps                 (3 occurrences)
+  FIELD    f42387h              → isEnabled            (4 occurrences)
+  FIELD    f42388i              → field42388I          (4 occurrences)
+  FIELD    f42389a              → field42389A          (3 occurrences)
+  METHOD   c                    → methodC              (12 occurrences)
+  METHOD   e                    → methodE              (23 occurrences)
+  METHOD   a                    → methodA              (22 occurrences)
+  METHOD   b                    → handleBleB           (45 occurrences)
+  METHOD   f                    → processSampleF       (6 occurrences)
+  METHOD   g                    → methodG              (6 occurrences)
+  METHOD   h                    → processSampleH       (4 occurrences)
+  METHOD   i                    → handleBleI           (11 occurrences)
+  METHOD   j                    → methodJ              (4 occurrences)
+
+FormTrainerCharacteristicReader.java
+  FIELD    f42546A              → field42546A          (4 occurrences)
+  FIELD    f42547a              → count                (3 occurrences)
+  FIELD    f42548b              → field42548B          (5 occurrences)
+  FIELD    f42549c              → field42549C          (4 occurrences)
+  FIELD    f42550A              → field42550A          (4 occurrences)
+  FIELD    f42551B              → field42551B          (4 occurrences)
+  FIELD    f42552C              → field42552C          (4 occurrences)
+  FIELD    f42553a              → field42553A          (4 occurrences)
+  FIELD    f42554b              → characteristic       (4 occurrences)
+
+FormTrainerInitializer.java
+  METHOD   b                    → methodB              (1 occurrences)
+
+Heuristic.java
+  FIELD    f42355a              → field42355A          (3 occurrences)
+  FIELD    f42356b              → field42356B          (6 occurrences)
+  METHOD   b                    → executeB             (5 occurrences)
+  METHOD   d                    → methodD              (3 occurrences)
+
+HeuristicPhaseStatistics.java
+  FIELD    f42556a              → field42556A          (8 occurrences)
+  FIELD    f42557b              → field42557B          (8 occurrences)
+  FIELD    f42558c              → field42558C          (8 occurrences)
+  FIELD    f42559d              → field42559D          (8 occurrences)
+  FIELD    f42560e              → field42560E          (8 occurrences)
+  FIELD    f42561f              → field42561F          (8 occurrences)
+  FIELD    f42562a              → field42562A          (3 occurrences)
+  FIELD    f42563b              → field42563B          (6 occurrences)
+  METHOD   b                    → executeB             (4 occurrences)
+  METHOD   d                    → methodD              (8 occurrences)
+
+HeuristicStatistics.java
+  FIELD    f42564a              → field42564A          (8 occurrences)
+  FIELD    f42565b              → field42565B          (8 occurrences)
+  FIELD    f42566a              → field42566A          (3 occurrences)
+  FIELD    f42567b              → field42567B          (6 occurrences)
+  METHOD   b                    → executeB             (6 occurrences)
+  METHOD   d                    → methodD              (1 occurrences)
+
+Reps.java
+  FIELD    f42358a              → field42358A          (3 occurrences)
+  FIELD    f42359b              → field42359B          (5 occurrences)
+  METHOD   b                    → executeB             (8 occurrences)
+  METHOD   d                    → methodD              (3 occurrences)
+
+Sample.java
+  FIELD    f42360a              → field42360A          (3 occurrences)
+  FIELD    f42361b              → field42361B          (6 occurrences)
+  METHOD   b                    → executeB             (9 occurrences)
+  METHOD   d                    → methodD              (1 occurrences)
+
+SampleCalculations.java
+  FIELD    f42568a              → field42568A          (7 occurrences)
+  FIELD    f42569b              → field42569B          (7 occurrences)
+  FIELD    f42570c              → field42570C          (7 occurrences)
+  FIELD    f42571a              → field42571A          (3 occurrences)
+  FIELD    f42572b              → field42572B          (6 occurrences)
+  METHOD   b                    → executeB             (4 occurrences)
+  METHOD   d                    → methodD              (1 occurrences)
+
+SampleStatus.java
+  FIELD    f42573a              → field42573A          (9 occurrences)
+  FIELD    f42574a              → field42574A          (3 occurrences)
+  FIELD    f42575b              → field42575B          (6 occurrences)
+  FIELD    f42576A              → field42576A          (2 occurrences)
+  FIELD    f42577B              → field42577B          (2 occurrences)
+  FIELD    f42578C              → field42578C          (2 occurrences)
+  FIELD    f42579D              → field42579D          (2 occurrences)
+  FIELD    f42580E              → field42580E          (2 occurrences)
+  FIELD    f42581F              → field42581F          (2 occurrences)
+  METHOD   b                    → executeB             (4 occurrences)
+  METHOD   d                    → methodD              (1 occurrences)
+  METHOD   a                    → isA                  (3 occurrences)
+
+SemanticVersion.java
+  FIELD    f42586A              → text                 (8 occurrences)
+  FIELD    f42588a              → count                (8 occurrences)
+  FIELD    f42591a              → field42591A          (2 occurrences)
+  FIELD    f42592b              → field42592B          (2 occurrences)
+  METHOD   a                    → methodA              (3 occurrences)
+  METHOD   b                    → executeB             (14 occurrences)
+  METHOD   d                    → methodD              (1 occurrences)
+
+StopPacket.java
+  FIELD    f42362a              → field42362A          (2 occurrences)
+
+UpdateBeginPacket.java
+  FIELD    f42363a              → field42363A          (2 occurrences)
+
+UpdateState.java
+  FIELD    f42365a              → field42365A          (3 occurrences)
+  FIELD    f42366b              → field42366B          (5 occurrences)
+  METHOD   b                    → executeB             (4 occurrences)
+  METHOD   d                    → methodD              (1 occurrences)
+
+Version.java
+  FIELD    f42368a              → field42368A          (3 occurrences)
+  FIELD    f42369b              → field42369B          (5 occurrences)
+  METHOD   b                    → executeB             (12 occurrences)
+  METHOD   d                    → methodD              (5 occurrences)
+
+WifiState.java
+  FIELD    f42370a              → field42370A          (3 occurrences)
+  FIELD    f42371b              → field42371B          (6 occurrences)
+  METHOD   b                    → executeB             (5 occurrences)
+  METHOD   d                    → methodD              (1 occurrences)
+--------------------------------------------------------------------------------
+
+ERRORS AND WARNINGS
+--------------------------------------------------------------------------------
+  • Field name conflict: 'text' already exists in SemanticVersion.java
+  • Field name conflict: 'count' already exists in SemanticVersion.java
+  • Field name conflict: 'count' already exists in SemanticVersion.java
+  • Field name conflict: 'field42592B' already exists in SemanticVersion.java
+  • Field name conflict: 'count' already exists in FormTrainerCharacteristicReader.java
+--------------------------------------------------------------------------------
+
+SUMMARY BY TYPE
+--------------------------------------------------------------------------------
+
+Field Renames (82):
+  f42341a                   → field42341A
+  f42342a                   → field42342A
+  f42343b                   → field42343B
+  f42345d                   → count
+  f42346a                   → field42346A
+  f42347b                   → field42347B
+  f42348c                   → field42348C
+  f42349a                   → field42349A
+  f42350b                   → field42350B
+  f42351a                   → timestamp
+  f42353a                   → field42353A
+  f42355a                   → field42355A
+  f42356b                   → field42356B
+  f42358a                   → field42358A
+  f42359b                   → field42359B
+  f42360a                   → field42360A
+  f42361b                   → field42361B
+  f42362a                   → field42362A
+  f42363a                   → field42363A
+  f42365a                   → field42365A
+  f42366b                   → field42366B
+  f42368a                   → field42368A
+  f42369b                   → field42369B
+  f42370a                   → field42370A
+  f42371b                   → field42371B
+  f42372a                   → objectData
+  f42373a                   → field42373A
+  f42374b                   → field42374B
+  f42375a                   → field42375A
+  f42376b                   → field42376B
+  f42377b                   → text
+  f42378a                   → field42378A
+  f42379b                   → field42379B
+  f42380a                   → field42380A
+  f42381b                   → field42381B
+  f42382c                   → connectionState
+  f42383d                   → field42383D
+  f42384e                   → field42384E
+  f42385f                   → list
+  f42386g                   → reps
+  f42387h                   → isEnabled
+  f42388i                   → field42388I
+  f42389a                   → field42389A
+  f42546A                   → field42546A
+  f42547a                   → count
+  f42548b                   → field42548B
+  f42549c                   → field42549C
+  f42550A                   → field42550A
+  f42551B                   → field42551B
+  f42552C                   → field42552C
+  f42553a                   → field42553A
+  f42554b                   → characteristic
+  f42556a                   → field42556A
+  f42557b                   → field42557B
+  f42558c                   → field42558C
+  f42559d                   → field42559D
+  f42560e                   → field42560E
+  f42561f                   → field42561F
+  f42562a                   → field42562A
+  f42563b                   → field42563B
+  f42564a                   → field42564A
+  f42565b                   → field42565B
+  f42566a                   → field42566A
+  f42567b                   → field42567B
+  f42568a                   → field42568A
+  f42569b                   → field42569B
+  f42570c                   → field42570C
+  f42571a                   → field42571A
+  f42572b                   → field42572B
+  f42573a                   → field42573A
+  f42574a                   → field42574A
+  f42575b                   → field42575B
+  f42576A                   → field42576A
+  f42577B                   → field42577B
+  f42578C                   → field42578C
+  f42579D                   → field42579D
+  f42580E                   → field42580E
+  f42581F                   → field42581F
+  f42586A                   → text
+  f42588a                   → count
+  f42591a                   → field42591A
+  f42592b                   → field42592B
+
+Method Renames (41):
+  a                         → methodA
+  a                         → methodA
+  a                         → isA
+  a                         → methodA
+  b                         → executeB
+  b                         → executeB
+  b                         → executeB
+  b                         → executeB
+  b                         → executeB
+  b                         → executeB
+  b                         → executeB
+  b                         → executeB
+  b                         → executeB
+  b                         → executeB
+  b                         → executeB
+  b                         → methodB
+  b                         → executeB
+  b                         → executeB
+  b                         → handleBleB
+  b                         → executeB
+  c                         → methodC
+  d                         → methodD
+  d                         → methodD
+  d                         → methodD
+  d                         → methodD
+  d                         → methodD
+  d                         → methodD
+  d                         → methodD
+  d                         → methodD
+  d                         → methodD
+  d                         → methodD
+  d                         → methodD
+  d                         → methodD
+  d                         → methodD
+  d                         → methodD
+  e                         → methodE
+  f                         → processSampleF
+  g                         → methodG
+  h                         → processSampleH
+  i                         → handleBleI
+  j                         → methodJ
+
+================================================================================

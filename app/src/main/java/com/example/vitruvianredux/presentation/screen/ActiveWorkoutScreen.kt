@@ -1,242 +1,230 @@
 package com.example.vitruvianredux.presentation.screen
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.vitruvianredux.data.repository.ExerciseRepository
-import com.example.vitruvianredux.domain.model.ConnectionState
-import com.example.vitruvianredux.domain.model.PRCelebrationEvent
-import com.example.vitruvianredux.domain.model.RepCount
-import com.example.vitruvianredux.domain.model.Routine
-import com.example.vitruvianredux.domain.model.UserPreferences
-import com.example.vitruvianredux.domain.model.WeightUnit
-import com.example.vitruvianredux.domain.model.WorkoutMetric
-import com.example.vitruvianredux.domain.model.WorkoutParameters
-import com.example.vitruvianredux.domain.model.WorkoutState
-import com.example.vitruvianredux.domain.usecase.RepRanges
-import com.example.vitruvianredux.presentation.components.ActiveWorkoutContent
-import com.example.vitruvianredux.presentation.components.ConnectionStatusCard
-import com.example.vitruvianredux.presentation.components.PRCelebrationOverlay
-import com.example.vitruvianredux.presentation.components.WorkoutSummaryCard
-import com.example.vitruvianredux.presentation.viewmodel.AutoStopUiState
+import com.example.vitruvianredux.domain.model.*
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
+import com.example.vitruvianredux.ui.theme.Spacing
+import kotlinx.coroutines.delay
 
 /**
- * Active workout screen for tracking ongoing workouts.
- *
- * @param navController Navigation controller
- * @param viewModel Main app ViewModel
- * @param exerciseRepository Repository for exercise data
- * @param padding Padding values from parent scaffold
+ * Active Workout screen - displays workout controls and metrics during an active workout.
+ * This screen is shown when a workout is in progress.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ActiveWorkoutScreen(
     navController: NavController,
     viewModel: MainViewModel,
-    exerciseRepository: ExerciseRepository,
-    padding: PaddingValues = PaddingValues(0.dp)
+    exerciseRepository: ExerciseRepository
 ) {
-    // Collect state from ViewModel
     val workoutState by viewModel.workoutState.collectAsState()
     val currentMetric by viewModel.currentMetric.collectAsState()
     val workoutParameters by viewModel.workoutParameters.collectAsState()
     val repCount by viewModel.repCount.collectAsState()
     val repRanges by viewModel.repRanges.collectAsState()
-    val autoStopState by viewModel.autoStopUiState.collectAsState()
+    val autoStopState by viewModel.autoStopState.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
     val enableVideoPlayback by viewModel.enableVideoPlayback.collectAsState()
     val loadedRoutine by viewModel.loadedRoutine.collectAsState()
     val currentExerciseIndex by viewModel.currentExerciseIndex.collectAsState()
+    val hapticEvents = viewModel.hapticEvents
     val connectionState by viewModel.connectionState.collectAsState()
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
 
-    // Local state
+    // State for confirmation dialog
     var showExitConfirmation by remember { mutableStateOf(false) }
-    var prCelebrationEvent by remember { mutableStateOf<PRCelebrationEvent?>(null) }
-    var routineAutoStarted by remember { mutableStateOf(false) }
 
-    // Observe PR events
+    // PR Celebration state
+    var prCelebrationEvent by remember { mutableStateOf<PRCelebrationEvent?>(null) }
     LaunchedEffect(Unit) {
-        viewModel.prCelebrationEvents.collect { event ->
+        viewModel.prCelebrationEvent.collect { event ->
             prCelebrationEvent = event
         }
     }
 
-    // Auto-start routine workout
-    LaunchedEffect(loadedRoutine, connectionState) {
-        if (loadedRoutine != null &&
-            connectionState is ConnectionState.Connected &&
-            !routineAutoStarted &&
-            workoutState is WorkoutState.Idle
-        ) {
-            routineAutoStarted = true
-            viewModel.startWorkout()
+    // Dynamic title based on workout type
+    val screenTitle = remember(loadedRoutine, workoutParameters.isJustLift) {
+        when {
+            loadedRoutine != null -> loadedRoutine?.name ?: "Routine"
+            workoutParameters.isJustLift -> "Just Lift"
+            else -> "Single Exercise"
         }
     }
 
-    // Build screen title
-    val screenTitle = buildScreenTitle(loadedRoutine, currentExerciseIndex)
+    // Haptic and audio feedback effect
+    HapticFeedbackEffect(hapticEvents = hapticEvents)
+
+    // Watch for workout completion and navigate back
+    // For Just Lift, navigate back when state becomes Idle (after auto-reset)
+    LaunchedEffect(workoutState, workoutParameters) {
+        when {
+            workoutState is WorkoutState.Completed -> {
+                delay(2000)
+                navController.navigateUp()
+            }
+            workoutState is WorkoutState.Idle && workoutParameters.isJustLift -> {
+                // Just Lift completed and reset to Idle - navigate back to Just Lift screen
+                navController.navigateUp()
+            }
+            workoutState is WorkoutState.Error -> {
+                // Show error for 3 seconds then navigate back
+                delay(3000)
+                navController.navigateUp()
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(screenTitle) },
+                title = {
+                    Column {
+                        Text(screenTitle)
+                        // Show progress indicator for routines
+                        loadedRoutine?.let { routine ->
+                            val totalExercises = routine.exercises.size
+                            val currentExerciseNum = currentExerciseIndex + 1
+                            if (totalExercises > 1) {
+                                Text(
+                                    text = "Exercise $currentExerciseNum of $totalExercises",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(
                         onClick = {
-                            when (workoutState) {
-                                is WorkoutState.Active,
-                                is WorkoutState.Resting,
-                                is WorkoutState.Countdown -> {
-                                    showExitConfirmation = true
-                                }
-                                else -> navController.navigateUp()
+                            // Show confirmation if workout is active
+                            if (workoutState is WorkoutState.Active ||
+                                workoutState is WorkoutState.Resting ||
+                                workoutState is WorkoutState.Countdown
+                            ) {
+                                showExitConfirmation = true
+                            } else {
+                                navController.navigateUp()
                             }
                         }
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
-    ) { scaffoldPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(scaffoldPadding)
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Connection status
-            if (connectionState !is ConnectionState.Connected) {
-                ConnectionStatusCard(
-                    connectionState = connectionState,
-                    isAutoConnecting = isAutoConnecting,
-                    connectionError = connectionError,
-                    onStartScanning = { viewModel.startScanning() },
-                    onDisconnect = { viewModel.disconnect() },
-                    onRetryConnection = {
-                        viewModel.ensureConnection(
-                            onConnected = { viewModel.startWorkout() },
-                            onFailed = { }
-                        )
-                    }
-                )
-            }
-
-            // Main workout content based on state
-            ActiveWorkoutContent(
-                workoutState = workoutState,
-                currentMetric = currentMetric,
-                workoutParameters = workoutParameters,
-                repCount = repCount,
-                repRanges = repRanges,
-                autoStopState = autoStopState,
-                weightUnit = weightUnit,
-                enableVideoPlayback = enableVideoPlayback,
-                loadedRoutine = loadedRoutine,
-                currentExerciseIndex = currentExerciseIndex,
-                exerciseRepository = exerciseRepository,
-                userPreferences = userPreferences,
-                formatWeight = { w, u -> viewModel.formatWeight(w, u) },
-                kgToDisplay = { w, u -> viewModel.kgToDisplay(w, u) },
-                onStopWorkout = { showExitConfirmation = true },
-                onSkipRest = { viewModel.skipRest() },
-                onProceedFromSummary = { viewModel.proceedFromSummary() },
-                onResetForNewWorkout = { viewModel.resetForNewWorkout() },
-                onAdvanceToNextExercise = { viewModel.advanceToNextExercise() },
-                onUpdateWorkoutParameters = { viewModel.updateWorkoutParameters(it) }
-            )
+    ) { padding ->
+        val heuristicStatistics = remember(workoutState) {
+            (workoutState as? WorkoutState.SetSummary)?.heuristicStatistics
         }
+        val safetyEventSummary = remember(workoutState) {
+            (workoutState as? WorkoutState.SetSummary)?.safetyEventSummary
+        }
+        WorkoutTab(
+            connectionState = connectionState,
+            workoutState = workoutState,
+            currentMetric = currentMetric,
+            workoutParameters = workoutParameters,
+            repCount = repCount,
+            repRanges = repRanges,
+            autoStopState = autoStopState,
+            weightUnit = weightUnit,
+            enableVideoPlayback = enableVideoPlayback,
+            exerciseRepository = exerciseRepository,
+            isWorkoutSetupDialogVisible = false,
+            hapticEvents = hapticEvents,
+            loadedRoutine = loadedRoutine,
+            currentExerciseIndex = currentExerciseIndex,
+            autoplayEnabled = userPreferences.autoplayEnabled,
+            kgToDisplay = viewModel::kgToDisplay,
+            displayToKg = viewModel::displayToKg,
+            formatWeight = viewModel::formatWeight,
+            onScan = { viewModel.startScanning() },
+            onDisconnect = { viewModel.disconnect() },
+            onStartWorkout = {
+                viewModel.ensureConnection(
+                    onConnected = { viewModel.startWorkout() },
+                    onFailed = { /* Error shown via StateFlow */ }
+                )
+            },
+            onStopWorkout = { showExitConfirmation = true },
+            onSkipRest = { viewModel.skipRest() },
+            onProceedFromSummary = { viewModel.proceedFromSummary() },
+            onResetForNewWorkout = { viewModel.resetForNewWorkout() },
+            onStartNextExercise = { viewModel.advanceToNextExercise() },
+            onUpdateParameters = { viewModel.updateWorkoutParameters(it) },
+            onShowWorkoutSetupDialog = { /* Not used in ActiveWorkoutScreen */ },
+            onHideWorkoutSetupDialog = { /* Not used in ActiveWorkoutScreen */ },
+            showConnectionCard = false,
+            showWorkoutSetupCard = false,
+            heuristicStatistics = heuristicStatistics,
+            safetyEventSummary = safetyEventSummary,
+            modifier = Modifier.padding(padding)
+        )
     }
 
     // Exit confirmation dialog
     if (showExitConfirmation) {
         AlertDialog(
             onDismissRequest = { showExitConfirmation = false },
-            title = { Text("End Workout?") },
-            text = { Text("Are you sure you want to end this workout? Your progress will be saved.") },
+            title = { Text("Exit Workout?") },
+            text = { Text("The workout is currently active. Are you sure you want to exit?") },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = MaterialTheme.shapes.medium,
             confirmButton = {
                 Button(
                     onClick = {
                         viewModel.stopWorkout()
-                        navController.navigateUp()
                         showExitConfirmation = false
+                        navController.navigateUp()
                     }
                 ) {
-                    Text("End Workout")
+                    Text("Exit")
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showExitConfirmation = false }) {
-                    Text("Continue")
+                    Text("Cancel")
                 }
             }
         )
     }
 
-    // PR celebration overlay
-    prCelebrationEvent?.let { event ->
-        PRCelebrationOverlay(
-            event = event,
-            onDismiss = { prCelebrationEvent = null }
+    // Auto-connect UI overlays (same as other screens)
+    if (isAutoConnecting) {
+        com.example.vitruvianredux.presentation.components.ConnectingOverlay(
+            onCancel = { viewModel.cancelAutoConnecting() }
         )
     }
-}
 
-/**
- * Builds the screen title based on routine and current exercise.
- */
-private fun buildScreenTitle(
-    loadedRoutine: Routine?,
-    currentExerciseIndex: Int
-): String {
-    return if (loadedRoutine != null) {
-        val exercise = loadedRoutine.exercises.getOrNull(currentExerciseIndex)
-        exercise?.exercise?.name ?: loadedRoutine.name
-    } else {
-        "Workout"
+    connectionError?.let { error ->
+        com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
+            message = error,
+            onDismiss = { viewModel.clearConnectionError() }
+        )
+    }
+
+    // PR Celebration Dialog
+    prCelebrationEvent?.let { event ->
+        com.example.vitruvianredux.presentation.components.PRCelebrationDialog(
+            show = true,
+            exerciseName = event.exerciseName,
+            weight = "${viewModel.formatWeight(event.weightPerCableKg, weightUnit)}/cable × ${event.reps} reps",
+            onDismiss = { prCelebrationEvent = null }
+        )
     }
 }

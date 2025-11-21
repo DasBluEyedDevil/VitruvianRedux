@@ -1,0 +1,160 @@
+================================================================================
+PHASE 4: INTERNAL CODE DEOBFUSCATION - RENAME LOG
+================================================================================
+Generated: 2025-11-19 02:43:31
+Analysis file: /home/user/VitruvianDeobfuscated/PHASE4_SETTINGS_ANALYSIS.json
+Mode: EXECUTION
+================================================================================
+
+STATISTICS
+--------------------------------------------------------------------------------
+Files processed:       121
+Files modified:        0
+Fields renamed:        0
+Methods renamed:       0
+Conflicts detected:    134
+Errors encountered:    134
+--------------------------------------------------------------------------------
+
+ERRORS AND WARNINGS
+--------------------------------------------------------------------------------
+  • Field name conflict: 'count' already exists in HealthMetricsCoroutine.java
+  • Method name conflict: 'methodE' already exists in SettingsBodyLambda.java
+  • Method name conflict: 'methodE' already exists in LicenseDetailScreen.java
+  • Method name conflict: 'methodE' already exists in PrivacyRowContentLambda.java
+  • Field name conflict: 'count' already exists in SettingsMainScreen.java
+  • Field name conflict: 'count' already exists in SettingsMainScreen.java
+  • Method name conflict: 'methodC' already exists in SettingsMainScreen.java
+  • Method name conflict: 'methodE' already exists in SettingsMainScreen.java
+  • Method name conflict: 'executeA' already exists in SettingsMainScreen.java
+  • Method name conflict: 'executeB' already exists in SettingsMainScreen.java
+  • Method name conflict: 'methodE' already exists in HealthDialogLambda.java
+  • Field name conflict: 'count' already exists in ThemeDialogCoroutine.java
+  • Field name conflict: 'count' already exists in ThemeDialogCoroutine.java
+  • Method name conflict: 'methodC' already exists in ThemeDialogCoroutine.java
+  • Method name conflict: 'methodE' already exists in ThemeDialogCoroutine.java
+  • Method name conflict: 'methodE' already exists in SettingsHealthScreen.java
+  • Method name conflict: 'executeA' already exists in SettingsHealthScreen.java
+  • Method name conflict: 'executeB' already exists in SettingsHealthScreen.java
+  • Method name conflict: 'executeC' already exists in SettingsHealthScreen.java
+  • Method name conflict: 'executeD' already exists in SettingsHealthScreen.java
+  • Method name conflict: 'executeF' already exists in SettingsHealthScreen.java
+  • Method name conflict: 'executeG' already exists in SettingsHealthScreen.java
+  • Method name conflict: 'executeH' already exists in SettingsHealthScreen.java
+  • Field name conflict: 'count' already exists in DeleteAccountInitCoroutine.java
+  • Method name conflict: 'methodE' already exists in SettingsComposable1.java
+  • Method name conflict: 'methodE' already exists in HeightSelectionLambda.java
+  • Field name conflict: 'count' already exists in PrivacyToggleCoroutine.java
+  • Field name conflict: 'count' already exists in PrivacyToggleCoroutine.java
+  • Method name conflict: 'methodE' already exists in PrivacyToggleRowLambda.java
+  • Field name conflict: 'count' already exists in PrivacyUpdateCoroutine.java
+  • Method name conflict: 'methodE' already exists in PrivacyUpdateCoroutine.java
+  • Field name conflict: 'field40942A' already exists in SettingsNavigation.java
+  • Field name conflict: 'field40943A' already exists in SettingsNavigation.java
+  • Field name conflict: 'field40944A' already exists in SettingsNavigation.java
+  • Field name conflict: 'field40945A' already exists in SettingsNavigation.java
+  • Field name conflict: 'field40946A' already exists in SettingsNavigation.java
+  • Field name conflict: 'field40947A' already exists in SettingsNavigation.java
+  • Field name conflict: 'field40948A' already exists in SettingsNavigation.java
+  • Field name conflict: 'field40949A' already exists in SettingsNavigation.java
+  • Field name conflict: 'field40950A' already exists in SettingsNavigation.java
+  • Field name conflict: 'field40560B' already exists in SettingsHealthScreenViewModel.java
+  • Method name conflict: 'methodE' already exists in SettingsHealthScreenViewModel.java
+  • Method name conflict: 'methodA' already exists in SettingsHealthScreenViewModel.java
+  • Method name conflict: 'executeF' already exists in SettingsHealthScreenViewModel.java
+  • Method name conflict: 'methodE' already exists in LicenseClickLambda.java
+  • Field name conflict: 'count' already exists in SettingsComposer2.java
+  • Field name conflict: 'count' already exists in SettingsComposer2.java
+  • Method name conflict: 'methodC' already exists in SettingsComposer2.java
+  • Method name conflict: 'methodE' already exists in SettingsComposer2.java
+  • Method name conflict: 'methodE' already exists in SettingsPrivacyScreen.java
+  • Method name conflict: 'executeA' already exists in SettingsPrivacyScreen.java
+  • Method name conflict: 'executeB' already exists in SettingsPrivacyScreen.java
+  • Method name conflict: 'methodE' already exists in HealthMetricsColumnLambda.java
+  • Field name conflict: 'isEnabled' already exists in SettingsPrivacyScreenViewModel.java
+  • Method name conflict: 'methodE' already exists in SettingsPrivacyScreenViewModel.java
+  • Method name conflict: 'executeF' already exists in SettingsPrivacyScreenViewModel.java
+  • Method name conflict: 'methodE' already exists in WeightSelectionLambda.java
+  • Method name conflict: 'methodE' already exists in BugReportRowLambda.java
+  • Field name conflict: 'count' already exists in SettingsComposer3.java
+  • Method name conflict: 'methodE' already exists in GenderSelectionLambda.java
+  • Method name conflict: 'methodE' already exists in SettingsLicensesScreen.java
+  • Method name conflict: 'executeA' already exists in SettingsLicensesScreen.java
+  • Method name conflict: 'executeB' already exists in SettingsLicensesScreen.java
+  • Field name conflict: 'field40584E' already exists in SettingsScreenViewModel.java
+  • Field name conflict: 'field40585F' already exists in SettingsScreenViewModel.java
+  • Field name conflict: 'field40586G' already exists in SettingsScreenViewModel.java
+  • Field name conflict: 'field40588I' already exists in SettingsScreenViewModel.java
+  • Method name conflict: 'methodE' already exists in SettingsScreenViewModel.java
+  • Method name conflict: 'executeG' already exists in SettingsScreenViewModel.java
+  • Method name conflict: 'methodH' already exists in SettingsScreenViewModel.java
+  • Method name conflict: 'methodE' already exists in SettingsScaffoldLambda.java
+  • Method name conflict: 'methodE' already exists in GoogleFitDialogBodyLambda.java
+  • Method name conflict: 'methodE' already exists in HealthStateProvideLambda.java
+  • Field name conflict: 'count' already exists in UnitsUpdateCoroutine.java
+  • Field name conflict: 'field40565C' already exists in SettingsLicensesScreenViewModel.java
+  • Field name conflict: 'count' already exists in SettingsLicensesScreenViewModel.java
+  • Field name conflict: 'count' already exists in SettingsLicensesScreenViewModel.java
+  • Field name conflict: 'field40573A' already exists in SettingsLicensesScreenViewModel.java
+  • Method name conflict: 'methodE' already exists in SettingsLicensesScreenViewModel.java
+  • Method name conflict: 'executeF' already exists in SettingsLicensesScreenViewModel.java
+  • Field name conflict: 'count' already exists in DeleteAccountCoroutine.java
+  • Field name conflict: 'count' already exists in GoogleFitDisconnectCoroutine.java
+  • Field name conflict: 'count' already exists in FitnessGoalRowLambda.java
+  • Field name conflict: 'field40899A' already exists in AbstractTrainingNavigation.java
+  • Method name conflict: 'methodE' already exists in TrainingDaysRowLambda.java
+  • Field name conflict: 'count' already exists in TrainingDaysErrorCoroutine.java
+  • Field name conflict: 'count' already exists in WorkoutPreferencesForcePickerLambda.java
+  • Field name conflict: 'field40835A' already exists in SettingsV2BackNavigation.java
+  • Field name conflict: 'field40835A' already exists in AbstractSettingsNavigation.java
+  • Method name conflict: 'methodE' already exists in WorkoutSoundsSettingsRowLambda.java
+  • Field name conflict: 'count' already exists in FitnessGoalItemLambda.java
+  • Field name conflict: 'count' already exists in TrainingDaysScreenLambda1.java
+  • Method name conflict: 'methodE' already exists in WorkoutPreferencesGoalsLambda.java
+  • Field name conflict: 'count' already exists in ExperienceLevelScreenLambda1.java
+  • Field name conflict: 'count' already exists in ExperienceLevelScreenLambda1.java
+  • Field name conflict: 'count' already exists in SoundPreferencesScreenLambda1.java
+  • Method name conflict: 'methodE' already exists in WorkoutPreferencesScreenKt.java
+  • Method name conflict: 'executeA' already exists in WorkoutPreferencesScreenKt.java
+  • Method name conflict: 'executeB' already exists in WorkoutPreferencesScreenKt.java
+  • Method name conflict: 'executeC' already exists in WorkoutPreferencesScreenKt.java
+  • Field name conflict: 'count' already exists in WorkoutPreferencesScreenLambda1.java
+  • Method name conflict: 'methodE' already exists in WorkoutPreferencesForceSettingsLambda.java
+  • Method name conflict: 'methodE' already exists in FitnessGoalScreenLambda1.java
+  • Method name conflict: 'executeA' already exists in FitnessGoalScreenLambda1.java
+  • Method name conflict: 'executeB' already exists in FitnessGoalScreenLambda1.java
+  • Method name conflict: 'executeC' already exists in FitnessGoalScreenLambda1.java
+  • Method name conflict: 'isD' already exists in FitnessGoalScreenLambda1.java
+  • Method name conflict: 'methodO' already exists in FitnessGoalUpdateLambda.java
+  • Field name conflict: 'field40895A' already exists in FitnessGoalClickLambda.java
+  • Field name conflict: 'field40924A' already exists in WorkoutPreferencesNavigation.java
+  • Field name conflict: 'field40925A' already exists in WorkoutPreferencesNavigation.java
+  • Field name conflict: 'field40926A' already exists in WorkoutPreferencesNavigation.java
+  • Field name conflict: 'field40927A' already exists in WorkoutPreferencesNavigation.java
+  • Field name conflict: 'field40928A' already exists in WorkoutPreferencesNavigation.java
+  • Method name conflict: 'methodE' already exists in SoundPreferencesUpdateLambda.java
+  • Method name conflict: 'methodE' already exists in TrainingDaysSettingsScreenKt.java
+  • Method name conflict: 'executeA' already exists in TrainingDaysSettingsScreenKt.java
+  • Method name conflict: 'executeB' already exists in TrainingDaysSettingsScreenKt.java
+  • Field name conflict: 'count' already exists in WorkoutPreferencesSaveForceCoroutine.java
+  • Field name conflict: 'field40859A' already exists in AbstractSoundPreferencesItem.java
+  • Method name conflict: 'methodE' already exists in WorkoutPreferencesExperienceLambda.java
+  • Method name conflict: 'methodE' already exists in WorkoutPreferencesTrainingLambda.java
+  • Field name conflict: 'count' already exists in SoundPreferencesRowLambda.java
+  • Field name conflict: 'field40784B' already exists in WorkoutPreferencesViewModel.java
+  • Field name conflict: 'field40785C' already exists in WorkoutPreferencesViewModel.java
+  • Field name conflict: 'field40786A' already exists in WorkoutPreferencesViewModel.java
+  • Method name conflict: 'methodO' already exists in WorkoutPreferencesViewModel.java
+  • Method name conflict: 'methodA' already exists in WorkoutPreferencesViewModel.java
+  • Method name conflict: 'methodB' already exists in WorkoutPreferencesViewModel.java
+  • Method name conflict: 'executeF' already exists in WorkoutPreferencesViewModel.java
+  • Method name conflict: 'methodO' already exists in ForcePickerItemLambda.java
+  • Method name conflict: 'methodE' already exists in SoundPreferencesItemLambda.java
+  • Method name conflict: 'executeA' already exists in SoundPreferencesItemLambda.java
+  • Method name conflict: 'executeB' already exists in SoundPreferencesItemLambda.java
+--------------------------------------------------------------------------------
+
+SUMMARY BY TYPE
+--------------------------------------------------------------------------------
+
+================================================================================

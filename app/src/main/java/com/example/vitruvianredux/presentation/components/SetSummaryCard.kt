@@ -1,35 +1,43 @@
 package com.example.vitruvianredux.presentation.components
 
-import android.graphics.Color as AndroidColor
+import android.graphics.Color
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.graphics.toColorInt
 import com.example.vitruvianredux.domain.model.HeuristicPhaseStatistics
+import com.example.vitruvianredux.presentation.components.SafetyEventsCard
+import com.example.vitruvianredux.presentation.components.SafetyEventSummary
 import com.example.vitruvianredux.domain.model.HeuristicStatistics
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutMetric
+import com.example.vitruvianredux.ui.theme.Spacing
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
 import com.github.mikephil.charting.data.LineData
 import com.github.mikephil.charting.data.LineDataSet
-import kotlinx.coroutines.delay
+import com.github.mikephil.charting.formatter.ValueFormatter
 
 /**
- * Summary card displayed after completing a set, showing metrics and optional countdown.
+ * Set Summary Card - Shows detailed metrics after completing a set
+ * Displays peak power, average power, rep count, and a force graph
  */
 @Composable
 fun SetSummaryCard(
@@ -46,9 +54,11 @@ fun SetSummaryCard(
     safetyEvents: SafetyEventSummary? = null,
     modifier: Modifier = Modifier
 ) {
+    // Countdown state for autoplay
     var countdownSeconds by remember { mutableIntStateOf(5) }
-
-    // Countdown timer for autoplay
+    
+    // Auto-advance if autoplay is enabled
+    // Reset countdown whenever the card is shown (when autoplay is enabled)
     LaunchedEffect(autoplayEnabled, metrics.size) {
         if (autoplayEnabled) {
             countdownSeconds = 5
@@ -56,129 +66,151 @@ fun SetSummaryCard(
                 delay(1000)
                 countdownSeconds--
             }
+            // Auto-advance after countdown
             onContinue()
         }
     }
-
     Card(
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        border = BorderStroke(
-            2.dp,
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-        )
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
+                .padding(Spacing.medium),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.medium)
         ) {
-            // Header
+            // Header with checkmark
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = "Set completed",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(32.dp)
+                )
+                Spacer(modifier = Modifier.width(Spacing.small))
                 Text(
-                    text = "Set Complete",
+                    "Set Complete!",
                     style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
                 )
-                if (configuredPerCableKg != null) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            text = formatWeight(configuredPerCableKg, weightUnit),
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Stats row
+            // Stats Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
+                // Peak Power
+                StatCard(
+                    label = "Peak load",
+                    value = formatWeight(peakPower, weightUnit),
+                    modifier = Modifier.weight(1f)
+                )
+
+                Spacer(modifier = Modifier.width(Spacing.small))
+
+                // Average Power
+                StatCard(
+                    label = "Avg load",
+                    value = formatWeight(averagePower, weightUnit),
+                    modifier = Modifier.weight(1f)
+                )
+
+                Spacer(modifier = Modifier.width(Spacing.small))
+
+                // Rep Count
                 StatCard(
                     label = "Reps",
-                    value = repCount.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                StatCard(
-                    label = "Peak Power",
-                    value = "${peakPower.toInt()} W",
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                StatCard(
-                    label = "Avg Power",
-                    value = "${averagePower.toInt()} W",
+                    value = "$repCount",
                     modifier = Modifier.weight(1f)
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            // Optional configured weight for additional clarity (e.g., Just Lift)
+            configuredPerCableKg?.let { configured ->
+                Text(
+                    text = "Configured: ${formatWeight(configured, weightUnit)}/cable",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
-            // Force graph
+            // Force Graph
             if (metrics.isNotEmpty()) {
+                Text(
+                    "Force Over Time",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
                 ForceGraph(
                     metrics = metrics,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(150.dp)
+                        .height(200.dp)
                 )
-
-                Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Phase analysis
-            if (heuristics != null) {
-                PhaseAnalysisCard(
-                    stats = heuristics,
-                    weightUnit = weightUnit,
-                    formatWeight = formatWeight
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
+            // Phase Analysis
+            heuristics?.let {
+                Spacer(modifier = Modifier.height(Spacing.medium))
+                PhaseAnalysisCard(stats = it, weightUnit = weightUnit, formatWeight = formatWeight)
             }
 
-            // Safety events
-            if (safetyEvents != null && safetyEvents.hasSafetyEvents) {
-                SafetyEventsCard(summary = safetyEvents)
-
-                Spacer(modifier = Modifier.height(16.dp))
+            // Safety Events
+            safetyEvents?.let {
+                if (it.hasSafetyEvents) {
+                    Spacer(modifier = Modifier.height(Spacing.medium))
+                    SafetyEventsCard(summary = it)
+                }
             }
 
-            // Continue button
-            Button(
-                onClick = onContinue,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                if (autoplayEnabled && countdownSeconds > 0) {
+            // Continue Button or Countdown (based on autoplay setting)
+            if (autoplayEnabled) {
+                // Show countdown when autoplay is enabled
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(Spacing.small)
+                ) {
                     Text(
-                        text = "Continue in $countdownSeconds...",
-                        style = MaterialTheme.typography.titleMedium
+                        text = "$countdownSeconds",
+                        style = MaterialTheme.typography.displayLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                } else {
                     Text(
-                        text = "Continue",
-                        style = MaterialTheme.typography.titleMedium
+                        text = "Continuing automatically...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
+                // Show continue button when autoplay is disabled
+                Button(
+                    onClick = onContinue,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Text("Continue")
+                    Spacer(modifier = Modifier.width(Spacing.small))
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Continue to next set",
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -187,7 +219,7 @@ fun SetSummaryCard(
 }
 
 /**
- * Individual stat card within the summary.
+ * Individual stat card for displaying a metric
  */
 @Composable
 private fun StatCard(
@@ -197,206 +229,201 @@ private fun StatCard(
 ) {
     Card(
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
+        ),
+        shape = RoundedCornerShape(12.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(Spacing.small),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = value,
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                value,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
             )
         }
     }
 }
 
 /**
- * Force over time graph using MPAndroidChart.
+ * Force graph showing load over time during the set
  */
 @Composable
 private fun ForceGraph(
     metrics: List<WorkoutMetric>,
     modifier: Modifier = Modifier
 ) {
-    val isDarkTheme = isSystemInDarkTheme()
-    val primaryColor = MaterialTheme.colorScheme.primary.toArgb()
-    val secondaryColor = MaterialTheme.colorScheme.secondary.toArgb()
-    val textColor = if (isDarkTheme) AndroidColor.WHITE else AndroidColor.BLACK
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val textColor = if (isDark) Color.WHITE else Color.BLACK
+    val gridColor = if (isDark) Color.DKGRAY else Color.LTGRAY
 
     AndroidView(
-        modifier = modifier,
         factory = { context ->
             LineChart(context).apply {
                 description.isEnabled = false
-                legend.textColor = textColor
-                xAxis.apply {
-                    position = XAxis.XAxisPosition.BOTTOM
-                    setDrawGridLines(false)
-                    this.textColor = textColor
-                }
-                axisLeft.apply {
-                    setDrawGridLines(true)
-                    gridColor = AndroidColor.LTGRAY
-                    this.textColor = textColor
-                }
-                axisRight.isEnabled = false
                 setTouchEnabled(true)
                 isDragEnabled = true
-                setScaleEnabled(false)
+                setScaleEnabled(true)
+                setPinchZoom(true)
+                setDrawGridBackground(false)
+                legend.isEnabled = false
+
+                // Configure X axis (time)
+                xAxis.apply {
+                    position = XAxis.XAxisPosition.BOTTOM
+                    setDrawGridLines(true)
+                    this.textColor = textColor
+                    this.gridColor = gridColor
+                    valueFormatter = object : ValueFormatter() {
+                        override fun getFormattedValue(value: Float): String {
+                            return "${value.toInt()}s"
+                        }
+                    }
+                }
+
+                // Configure Y axis (force/load)
+                axisLeft.apply {
+                    setDrawGridLines(true)
+                    this.textColor = textColor
+                    this.gridColor = gridColor
+                    axisMinimum = 0f
+                }
+
+                axisRight.isEnabled = false
+
+                setExtraOffsets(8f, 8f, 8f, 8f)
             }
         },
         update = { chart ->
-            val concentricEntries = metrics.mapIndexed { index, metric ->
-                Entry(index.toFloat(), metric.concentricForce)
-            }
-            val eccentricEntries = metrics.mapIndexed { index, metric ->
-                Entry(index.toFloat(), metric.eccentricForce)
+            if (metrics.isEmpty()) {
+                chart.clear()
+                return@AndroidView
             }
 
-            val concentricDataSet = LineDataSet(concentricEntries, "Concentric").apply {
-                color = primaryColor
-                setDrawCircles(false)
+            // Create entries for the chart (time in seconds vs total load)
+            val startTime = metrics.first().timestamp
+            val entries = metrics.map { metric ->
+                val elapsedSeconds = (metric.timestamp - startTime) / 1000f
+                Entry(elapsedSeconds, metric.totalLoad)
+            }
+
+            // Create dataset
+            val dataSet = LineDataSet(entries, "Force").apply {
+                color = "#9333EA".toColorInt() // Purple
+                setCircleColor("#9333EA".toColorInt())
                 lineWidth = 2f
-                setDrawValues(false)
+                circleRadius = 0f // No circles for cleaner look
+                setDrawCircleHole(false)
+                setDrawValues(false) // No values on points
                 mode = LineDataSet.Mode.CUBIC_BEZIER
+                setDrawFilled(true)
+                fillColor = "#9333EA".toColorInt()
+                fillAlpha = 50
             }
 
-            val eccentricDataSet = LineDataSet(eccentricEntries, "Eccentric").apply {
-                color = secondaryColor
-                setDrawCircles(false)
-                lineWidth = 2f
-                setDrawValues(false)
-                mode = LineDataSet.Mode.CUBIC_BEZIER
-            }
-
-            chart.data = LineData(listOf(concentricDataSet, eccentricDataSet))
+            chart.data = LineData(dataSet)
             chart.invalidate()
-        }
+        },
+        modifier = modifier
     )
 }
 
-/**
- * Phase analysis card showing concentric/eccentric breakdown.
- */
 @Composable
 fun PhaseAnalysisCard(
     stats: HeuristicStatistics,
     weightUnit: WeightUnit,
     formatWeight: (Float, WeightUnit) -> String
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "Phase Analysis",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
         )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "Phase Analysis",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold
-            )
+        
+        Spacer(modifier = Modifier.height(Spacing.small))
+        
+        PhaseSection(
+            title = "Concentric (Lifting)",
+            stats = stats.concentric,
+            color = MaterialTheme.colorScheme.primary,
+            weightUnit = weightUnit,
+            formatWeight = formatWeight
+        )
+        
+        Spacer(modifier = Modifier.height(Spacing.small))
+        
+        PhaseSection(
+            title = "Eccentric (Lowering)",
+            stats = stats.eccentric,
+            color = MaterialTheme.colorScheme.secondary,
+            weightUnit = weightUnit,
+            formatWeight = formatWeight
+        )
+    }
+}
 
-            Spacer(modifier = Modifier.height(12.dp))
+@Composable
+private fun PhaseSection(
+    title: String,
+    stats: com.example.vitruvianredux.domain.model.HeuristicPhaseStatistics,
+    color: androidx.compose.ui.graphics.Color,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String
+) {
+    Column {
+        Text(
+            title,
+            style = MaterialTheme.typography.labelLarge,
+            color = color,
+            fontWeight = FontWeight.SemiBold
+        )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                stats.concentric?.let { concentricStats ->
-                    PhaseSection(
-                        title = "Concentric",
-                        stats = concentricStats,
-                        color = MaterialTheme.colorScheme.primary,
-                        weightUnit = weightUnit,
-                        formatWeight = formatWeight,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+        Spacer(modifier = Modifier.height(4.dp))
 
-                stats.eccentric?.let { eccentricStats ->
-                    PhaseSection(
-                        title = "Eccentric",
-                        stats = eccentricStats,
-                        color = MaterialTheme.colorScheme.secondary,
-                        weightUnit = weightUnit,
-                        formatWeight = formatWeight,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                MetricRow("Avg Weight", formatWeight(stats.kgAvg, weightUnit))
+                MetricRow("Avg Velocity", "%.1f m/s".format(stats.velAvg))
+                MetricRow("Avg Power", "${stats.wattAvg.toInt()} W")
+            }
+
+            Column(modifier = Modifier.weight(1f)) {
+                MetricRow("Max Weight", formatWeight(stats.kgMax, weightUnit), isBold = true)
+                MetricRow("Max Velocity", "%.1f m/s".format(stats.velMax), isBold = true)
+                MetricRow("Max Power", "${stats.wattMax.toInt()} W", isBold = true)
             }
         }
     }
 }
 
-/**
- * Section displaying stats for a single phase.
- */
 @Composable
-private fun PhaseSection(
-    title: String,
-    stats: HeuristicPhaseStatistics,
-    color: Color,
-    weightUnit: WeightUnit,
-    formatWeight: (Float, WeightUnit) -> String,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier.padding(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.labelMedium,
-            color = color,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        MetricRow("Peak Force", "%.1f N".format(stats.peakForce))
-        MetricRow("Avg Force", "%.1f N".format(stats.averageForce))
-        MetricRow("Duration", "%.2f s".format(stats.duration))
-    }
-}
-
-/**
- * Row displaying a metric label and value.
- */
-@Composable
-private fun MetricRow(
-    label: String,
-    value: String,
-    isBold: Boolean = false
-) {
+private fun MetricRow(label: String, value: String, isBold: Boolean = false) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
-            text = label,
+            label,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            text = value,
+            value,
             style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
             fontWeight = if (isBold) FontWeight.Bold else FontWeight.Normal
         )
     }

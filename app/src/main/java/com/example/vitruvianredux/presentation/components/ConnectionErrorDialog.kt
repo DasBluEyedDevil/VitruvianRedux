@@ -2,120 +2,179 @@ package com.example.vitruvianredux.presentation.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BluetoothDisabled
-import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 /**
- * Dialog displayed when a connection error occurs.
- * Provides retry and dismiss options.
+ * Modern Material 3 BottomSheet for connection errors
+ * Provides better UX with swipe-to-dismiss and less intrusive presentation
  */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ConnectionErrorBottomSheet(
+    message: String,
+    onDismiss: () -> Unit,
+    onRetry: (() -> Unit)? = null,
+    sheetState: SheetState = rememberModalBottomSheetState()
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Header with icon
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = "Connection error",
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(32.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "Connection Failed",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            // Error message
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            HorizontalDivider()
+
+            // Troubleshooting tips
+            Text(
+                text = "Troubleshooting tips:",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                TroubleshootingItem("• Ensure the machine is powered on")
+                TroubleshootingItem("• Try turning Bluetooth off and on")
+                TroubleshootingItem("• Move closer to the machine")
+                TroubleshootingItem("• Check that no other device is connected")
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Action buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.End)
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text("Dismiss")
+                }
+                if (onRetry != null) {
+                    Button(onClick = {
+                        onDismiss()
+                        onRetry()
+                    }) {
+                        Text("Retry")
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Error dialog shown when auto-connect fails
+ * Includes helpful troubleshooting suggestions for users
+ *
+ * @deprecated Use [ConnectionErrorBottomSheet] for better Material 3 UX
+ */
+@Deprecated(
+    message = "Use ConnectionErrorBottomSheet for better Material 3 UX",
+    replaceWith = ReplaceWith("ConnectionErrorBottomSheet(message, onDismiss, onRetry)")
+)
 @Composable
 fun ConnectionErrorDialog(
-    isVisible: Boolean,
-    errorMessage: String,
-    onRetry: () -> Unit,
-    onDismiss: () -> Unit
+    message: String,
+    onDismiss: () -> Unit,
+    onRetry: (() -> Unit)? = null
 ) {
-    if (!isVisible) return
-
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = {
-            Icon(
-                imageVector = Icons.Default.BluetoothDisabled,
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.error
-            )
-        },
-        title = {
-            Text(
-                text = "Connection Error",
-                textAlign = TextAlign.Center
-            )
-        },
+        icon = { Icon(Icons.Default.Warning, contentDescription = "Connection error") },
+        title = { Text("Connection Failed") },
         text = {
             Column(
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = errorMessage,
-                    textAlign = TextAlign.Center,
+                    text = message,
                     style = MaterialTheme.typography.bodyMedium
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                 Text(
-                    text = "Make sure your Vitruvian device is powered on and within range.",
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "Troubleshooting tips:",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    TroubleshootingItem("• Ensure the machine is powered on")
+                    TroubleshootingItem("• Try turning Bluetooth off and on")
+                    TroubleshootingItem("• Move closer to the machine")
+                    TroubleshootingItem("• Check that no other device is connected")
+                }
             }
         },
         confirmButton = {
-            Button(onClick = onRetry) {
-                Text("Retry")
+            if (onRetry != null) {
+                TextButton(onClick = {
+                    onDismiss()
+                    onRetry()
+                }) {
+                    Text("Retry")
+                }
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text("OK")
             }
         }
     )
 }
 
-/**
- * Dialog for Bluetooth permission errors.
- */
 @Composable
-fun BluetoothPermissionErrorDialog(
-    isVisible: Boolean,
-    onOpenSettings: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    if (!isVisible) return
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = {
-            Icon(
-                imageVector = Icons.Default.Error,
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
-                tint = MaterialTheme.colorScheme.error
-            )
-        },
-        title = {
-            Text(
-                text = "Bluetooth Permission Required",
-                textAlign = TextAlign.Center
-            )
-        },
-        text = {
-            Text(
-                text = "This app needs Bluetooth permission to connect to your Vitruvian device. Please enable Bluetooth permissions in Settings.",
-                textAlign = TextAlign.Center,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        },
-        confirmButton = {
-            Button(onClick = onOpenSettings) {
-                Text("Open Settings")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
+private fun TroubleshootingItem(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
     )
 }

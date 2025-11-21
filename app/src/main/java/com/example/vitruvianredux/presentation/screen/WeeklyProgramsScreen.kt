@@ -1,6 +1,5 @@
 package com.example.vitruvianredux.presentation.screen
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -9,179 +8,221 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.example.vitruvianredux.data.local.WeeklyProgramWithDays
-import com.example.vitruvianredux.presentation.components.ConnectingOverlay
-import com.example.vitruvianredux.presentation.components.ConnectionErrorDialog
-import com.example.vitruvianredux.presentation.components.EmptyStateComponent
-import com.example.vitruvianredux.presentation.components.StandardScreenWrapper
+import com.example.vitruvianredux.presentation.components.EmptyState
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.Spacing
-import com.example.vitruvianredux.ui.theme.ThemeMode
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.TextStyle
-import java.util.Locale
+import java.util.*
 
 /**
- * Screen for viewing and managing weekly workout programs.
- * Shows active program with today's workout, and list of all programs.
+ * Weekly Programs screen - view and manage weekly workout programs.
+ * Shows active program, today's workout, and list of all programs.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WeeklyProgramsScreen(
     navController: NavController,
     viewModel: MainViewModel,
-    themeMode: ThemeMode,
-    padding: PaddingValues
+    themeMode: com.example.vitruvianredux.ui.theme.ThemeMode
 ) {
+    // Get programs from ViewModel's database StateFlows
     val programs by viewModel.weeklyPrograms.collectAsState()
     val activeProgram by viewModel.activeProgram.collectAsState()
-    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState(initial = false)
+
+    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
-    // Determine dark mode for gradient
-    val useDarkColors = when (themeMode) {
-        ThemeMode.SYSTEM -> isSystemInDarkTheme()
-        ThemeMode.LIGHT -> false
-        ThemeMode.DARK -> true
-    }
-
-    // Background gradient
-    val backgroundGradient = if (useDarkColors) {
-        Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFF0D1117),
-                Color(0xFF161B22),
-                Color(0xFF0D1B2A)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Weekly Programs") },
+                navigationIcon = {
+                    IconButton(onClick = { navController.navigateUp() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                )
             )
-        )
-    } else {
-        Brush.verticalGradient(
-            colors = listOf(
-                Color(0xFFF0F4FF),
-                Color(0xFFF8F9FE),
-                Color(0xFFEFF3FF)
-            )
-        )
-    }
+        }
+    ) { padding ->
+        // Determine actual theme (matching Theme.kt logic)
+        val useDarkColors = when (themeMode) {
+            com.example.vitruvianredux.ui.theme.ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            com.example.vitruvianredux.ui.theme.ThemeMode.LIGHT -> false
+            com.example.vitruvianredux.ui.theme.ThemeMode.DARK -> true
+        }
 
-    StandardScreenWrapper(
-        padding = padding,
-        modifier = Modifier.background(backgroundGradient)
-    ) {
-        LazyColumn(
+        val backgroundGradient = if (useDarkColors) {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFF0F172A), // slate-900
+                    Color(0xFF1E1B4B), // indigo-950
+                    Color(0xFF172554)  // blue-950
+                )
+            )
+        } else {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFFE0E7FF), // soft indigo
+                    Color(0xFFEDE9FE), // soft violet
+                    Color(0xFFDFF6FF)  // soft sky blue
+                )
+            )
+        }
+
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(Spacing.medium),
-            verticalArrangement = Arrangement.spacedBy(Spacing.medium)
+                .background(backgroundGradient)
         ) {
-            // Active program card
-            activeProgram?.let { program ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(Spacing.medium),
+                verticalArrangement = Arrangement.spacedBy(Spacing.medium)
+            ) {
+            // Active Program Card
+            if (activeProgram != null) {
                 item {
+                    val today = java.time.LocalDate.now().dayOfWeek
+                    val todayDayValue = today.value
+                    val todayRoutineId = activeProgram!!.days.find { it.dayOfWeek == todayDayValue }?.routineId
+
                     ActiveProgramCard(
-                        program = program,
+                        program = activeProgram!!,
                         onStartTodayWorkout = {
-                            startTodayWorkout(viewModel, navController, program)
+                            todayRoutineId?.let { routineId ->
+                                viewModel.ensureConnection(
+                                    onConnected = {
+                                        viewModel.loadRoutineById(routineId)
+                                        viewModel.startWorkout()
+                                    },
+                                    onFailed = { /* Error shown via StateFlow */ }
+                                )
+                            }
                         },
                         onViewProgram = {
                             navController.navigate(
-                                NavigationRoutes.ProgramBuilder.createRoute(program.program.id)
+                                NavigationRoutes.ProgramBuilder.createRoute(activeProgram!!.program.id)
                             )
                         }
                     )
                 }
-            } ?: item {
-                // No active program card
-                Card(
+            } else {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
+                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                        border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(Spacing.large),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Default.Info,
+                                contentDescription = "No programs available",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(56.dp) // Material 3 Expressive: Larger icon (was 48dp)
+                            )
+                            Spacer(modifier = Modifier.height(Spacing.small))
+                            Text(
+                                "No active program",
+                                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                "Create a program or activate an existing one",
+                                style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Programs List Header
+            item {
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                    ),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                    verticalArrangement = Arrangement.spacedBy(Spacing.medium)
                 ) {
-                    Column(
+                    Text(
+                        "All Programs",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
+                        fontWeight = FontWeight.Bold
+                    )
+                    OutlinedButton(
+                        onClick = {
+                            navController.navigate(NavigationRoutes.ProgramBuilder.createRoute())
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .height(56.dp), // Material 3 Expressive: Taller button
+                        shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.DateRange,
-                            contentDescription = null,
-                            modifier = Modifier.size(48.dp),
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Icon(Icons.Default.Add, contentDescription = "Create program", modifier = Modifier.size(24.dp)) // Material 3 Expressive: Larger icon
+                        Spacer(modifier = Modifier.width(Spacing.small))
                         Text(
-                            text = "No Active Program",
-                            style = MaterialTheme.typography.titleMedium,
+                            "Create Program",
+                            style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
                             fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "Activate a program to see today's workout",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
 
-            // Create new program button
-            item {
-                OutlinedButton(
-                    onClick = {
-                        navController.navigate(NavigationRoutes.ProgramBuilder.createRoute("new"))
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Create New Program", fontWeight = FontWeight.Bold)
-                }
-            }
-
-            // Programs list
+            // Programs List
             if (programs.isEmpty()) {
                 item {
-                    EmptyStateComponent(
+                    EmptyState(
                         icon = Icons.Default.DateRange,
                         title = "No Programs Yet",
-                        subtitle = "Create your first weekly program to get started",
-                        actionLabel = "Create Program",
+                        message = "Create your first weekly program to follow a structured training schedule",
+                        actionText = "Create Your First Program",
                         onAction = {
-                            navController.navigate(NavigationRoutes.ProgramBuilder.createRoute("new"))
-                        }
+                            navController.navigate(NavigationRoutes.ProgramBuilder.createRoute())
+                        },
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             } else {
                 items(programs) { program ->
-                    val isActive = activeProgram?.program?.id == program.program.id
                     ProgramListItem(
                         program = program,
-                        isActive = isActive,
+                        isActive = program.program.id == activeProgram?.program?.id,
                         onClick = {
                             navController.navigate(
                                 NavigationRoutes.ProgramBuilder.createRoute(program.program.id)
                             )
                         },
                         onActivate = {
-                            viewModel.setActiveProgram(program.program.id)
+                            viewModel.activateProgram(program.program.id)
                         },
                         onDelete = {
                             viewModel.deleteProgram(program.program.id)
@@ -189,51 +230,55 @@ fun WeeklyProgramsScreen(
                     )
                 }
             }
+            }
+
+            // Auto-connect UI overlays
+            if (isAutoConnecting) {
+                com.example.vitruvianredux.presentation.components.ConnectingOverlay(
+                    onCancel = { viewModel.cancelAutoConnecting() }
+                )
+            }
+
+            connectionError?.let { error ->
+                com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
+                    message = error,
+                    onDismiss = { viewModel.clearConnectionError() }
+                )
+            }
         }
-    }
-
-    // Auto-connecting overlay
-    if (isAutoConnecting) {
-        ConnectingOverlay(onCancel = { viewModel.cancelAutoConnecting() })
-    }
-
-    // Connection error dialog
-    connectionError?.let { error ->
-        ConnectionErrorDialog(
-            error = error,
-            onDismiss = { viewModel.clearConnectionError() }
-        )
     }
 }
 
 /**
- * Card showing the active program with today's workout info.
+ * Card showing the active program with today's workout.
  */
 @Composable
 fun ActiveProgramCard(
-    program: WeeklyProgramWithDays,
+    program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays,
     onStartTodayWorkout: () -> Unit,
     onViewProgram: () -> Unit
 ) {
     val today = LocalDate.now().dayOfWeek
-    val todayRoutineId = program.days.find { it.dayOfWeek == today.value }?.routineId
-    val hasTodayWorkout = todayRoutineId != null
+    // Use Java DayOfWeek.value directly (MONDAY=1, TUESDAY=2, ..., SUNDAY=7)
+    // This matches what ProgramBuilder saves: day.value
+    val todayDayValue = today.value
+
+    // Find today's routine ID from program days
+    val todayRoutineId = program.days.find { it.dayOfWeek == todayDayValue }?.routineId
+    val hasWorkoutToday = todayRoutineId != null
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), // Material 3 Expressive: Use primary container for emphasis
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(24.dp)
+                .padding(Spacing.medium)
         ) {
-            // Header row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -241,220 +286,212 @@ fun ActiveProgramCard(
             ) {
                 Column {
                     Text(
-                        text = "ACTIVE PROGRAM",
-                        style = MaterialTheme.typography.labelMedium,
+                        "Active Program",
+                        style = MaterialTheme.typography.labelLarge, // Material 3 Expressive: Larger (was labelMedium)
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                     Text(
-                        text = program.program.name,
-                        style = MaterialTheme.typography.headlineSmall,
+                        program.program.title,
+                        style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger (was titleLarge)
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
-                AssistChip(
-                    onClick = { },
-                    label = { Text("Active") },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                IconButton(onClick = onViewProgram) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "View program",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-                )
+                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.medium))
 
-            // Today info
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Today,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = today.getDisplayName(TextStyle.FULL, Locale.getDefault()),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(Spacing.medium))
 
             Text(
-                text = if (hasTodayWorkout) "Workout scheduled for today" else "Rest day",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                "Today: ${today.getDisplayName(TextStyle.FULL, Locale.getDefault())}",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.small))
 
-            // Action buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                if (hasTodayWorkout) {
-                    Button(
-                        onClick = onStartTodayWorkout,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
-                        )
-                    ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Start Workout", fontWeight = FontWeight.Bold)
-                    }
-                }
+            if (hasWorkoutToday) {
+                Text(
+                    "Workout scheduled",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
 
-                OutlinedButton(
-                    onClick = onViewProgram,
+                Spacer(modifier = Modifier.height(Spacing.medium))
+
+                Button(
+                    onClick = onStartTodayWorkout,
                     modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp),
-                    shape = RoundedCornerShape(16.dp)
+                        .fillMaxWidth()
+                        .height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 4.dp,
+                        pressedElevation = 2.dp
+                    )
                 ) {
-                    Text("View Program")
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Start program", modifier = Modifier.size(24.dp)) // Material 3 Expressive: Larger icon
+                    Spacer(modifier = Modifier.width(Spacing.small))
+                    Text(
+                        "Start Today's Workout",
+                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
+                        fontWeight = FontWeight.Bold
+                    )
                 }
+            } else {
+                Text(
+                    "Rest day",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
 }
 
 /**
- * List item for a single program in the programs list.
+ * List item for a program.
  */
 @Composable
 fun ProgramListItem(
-    program: WeeklyProgramWithDays,
+    program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays,
     isActive: Boolean,
     onClick: () -> Unit,
     onActivate: () -> Unit,
     onDelete: () -> Unit
 ) {
-    var showMenu by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
-
-    val workoutDays = program.days.size
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isActive) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                MaterialTheme.colorScheme.primaryContainer // Material 3 Expressive: Use primary container for active
             } else {
-                MaterialTheme.colorScheme.surfaceContainerHighest
+                MaterialTheme.colorScheme.surfaceContainerHighest // Material 3 Expressive: Higher contrast
             }
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        border = BorderStroke(
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = androidx.compose.foundation.BorderStroke(
             2.dp,
             if (isActive) {
                 MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
             } else {
                 MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
             }
-        )
+        ) // Material 3 Expressive: Thicker border (was 1dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(Spacing.medium),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = program.program.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (isActive) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        AssistChip(
-                            onClick = { },
-                            label = { Text("Active", style = MaterialTheme.typography.labelSmall) },
-                            colors = AssistChipDefaults.assistChipColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                            )
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "$workoutDays workout days per week",
-                    style = MaterialTheme.typography.bodyMedium,
+                    program.program.title,
+                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    "${program.days.size} workout days",
+                    style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            Box {
-                IconButton(onClick = { showMenu = !showMenu }) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.small),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Delete button
+                IconButton(onClick = { showDeleteDialog = true }) {
                     Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More options"
+                        Icons.Default.Delete,
+                        contentDescription = "Delete program",
+                        tint = MaterialTheme.colorScheme.error
                     )
                 }
-                DropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false }
-                ) {
-                    if (!isActive) {
-                        DropdownMenuItem(
-                            text = { Text("Set as Active") },
-                            onClick = {
-                                showMenu = false
-                                onActivate()
-                            },
-                            leadingIcon = {
-                                Icon(Icons.Default.CheckCircle, contentDescription = null)
-                            }
+
+                // Activate/Active status - Material 3 Expressive
+                if (!isActive) {
+                    TextButton(
+                        onClick = onActivate,
+                        modifier = Modifier.height(48.dp), // Material 3 Expressive: Taller button
+                        shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
+                    ) {
+                        Text(
+                            "Activate",
+                            style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
+                            fontWeight = FontWeight.Bold
                         )
                     }
-                    DropdownMenuItem(
-                        text = { Text("Delete") },
-                        onClick = {
-                            showMenu = false
-                            showDeleteDialog = true
-                        },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Delete,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    )
+                } else {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(12.dp) // Material 3 Expressive: More rounded (was 8dp)
+                    ) {
+                        Text(
+                            "Active",
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), // Material 3 Expressive: More padding
+                            style = MaterialTheme.typography.labelLarge, // Material 3 Expressive: Larger (was labelMedium)
+                            fontWeight = FontWeight.Bold, // Material 3 Expressive: Bolder
+                            color = MaterialTheme.colorScheme.onPrimary
+                        )
+                    }
                 }
             }
         }
     }
 
-    // Delete confirmation dialog
+    // Delete confirmation dialog - Material 3 Expressive
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Delete Program?") },
-            text = { Text("Are you sure you want to delete \"${program.program.name}\"? This action cannot be undone.") },
+            title = {
+                Text(
+                    "Delete Program",
+                    style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    "Are you sure you want to delete \"${program.program.title}\"? This action cannot be undone.",
+                    style = MaterialTheme.typography.bodyLarge // Material 3 Expressive: Larger
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showDeleteDialog = false
                         onDelete()
-                    }
+                        showDeleteDialog = false
+                    },
+                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
+                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
                 ) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                    Text("Delete")
                 }
             },
             dismissButton = {
@@ -462,31 +499,6 @@ fun ProgramListItem(
                     Text("Cancel")
                 }
             }
-        )
-    }
-}
-
-/**
- * Starts today's workout from the active program.
- */
-private fun startTodayWorkout(
-    viewModel: MainViewModel,
-    navController: NavController,
-    program: WeeklyProgramWithDays
-) {
-    val today = LocalDate.now().dayOfWeek
-    val todayRoutineId = program.days.find { it.dayOfWeek == today.value }?.routineId
-
-    todayRoutineId?.let { routineId ->
-        viewModel.loadRoutineById(routineId)
-        viewModel.ensureConnection(
-            onConnected = {
-                viewModel.startWorkout()
-                navController.navigate(NavigationRoutes.ActiveWorkout.route) {
-                    popUpTo(NavigationRoutes.Home.route)
-                }
-            },
-            onFailed = { }
         )
     }
 }

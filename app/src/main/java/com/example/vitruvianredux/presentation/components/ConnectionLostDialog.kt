@@ -1,135 +1,71 @@
 package com.example.vitruvianredux.presentation.components
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.SignalWifiOff
-import androidx.compose.material3.*
+import androidx.compose.material.icons.filled.BluetoothDisabled
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 /**
- * Dialog displayed when connection to the Vitruvian device is lost during a workout.
- * Provides options to reconnect or end the workout.
+ * Critical alert dialog shown when BLE connection is lost during an active workout.
+ * Addresses Issue #43: Connection lost during screen lock
  */
 @Composable
 fun ConnectionLostDialog(
-    isVisible: Boolean,
     onReconnect: () -> Unit,
-    onEndWorkout: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    if (!isVisible) return
-
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = {
             Icon(
-                imageVector = Icons.Default.SignalWifiOff,
-                contentDescription = null,
-                modifier = Modifier.size(48.dp),
+                Icons.Default.BluetoothDisabled,
+                contentDescription = "Bluetooth connection lost",
                 tint = MaterialTheme.colorScheme.error
             )
         },
         title = {
             Text(
-                text = "Connection Lost",
-                textAlign = TextAlign.Center
+                "Connection Lost",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
             )
         },
         text = {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
+            Column {
                 Text(
-                    text = "The connection to your Vitruvian device has been lost.",
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodyMedium
+                    "Bluetooth connection to the trainer was lost during your workout.",
+                    style = MaterialTheme.typography.bodyLarge
                 )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Your workout progress has been saved. You can try to reconnect or end the workout.",
-                    textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.bodySmall,
+                    "Rep tracking may have been interrupted. Please reconnect to continue.",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         },
         confirmButton = {
-            Button(onClick = onReconnect) {
-                Text("Reconnect")
+            TextButton(onClick = onReconnect) {
+                Text(
+                    "Reconnect",
+                    fontWeight = FontWeight.Bold
+                )
             }
         },
         dismissButton = {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                TextButton(onClick = onDismiss) {
-                    Text("Dismiss")
-                }
-                OutlinedButton(
-                    onClick = onEndWorkout,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    )
-                ) {
-                    Text("End Workout")
-                }
+            TextButton(onClick = onDismiss) {
+                Text("Dismiss")
             }
         }
     )
-}
-
-/**
- * Simple connection lost banner for non-critical connection issues.
- */
-@Composable
-fun ConnectionLostBanner(
-    isVisible: Boolean,
-    onReconnect: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    if (!isVisible) return
-
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.errorContainer
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SignalWifiOff,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onErrorContainer
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Connection lost",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onErrorContainer
-                )
-            }
-
-            TextButton(
-                onClick = onReconnect,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                )
-            ) {
-                Text("Reconnect")
-            }
-        }
-    }
 }

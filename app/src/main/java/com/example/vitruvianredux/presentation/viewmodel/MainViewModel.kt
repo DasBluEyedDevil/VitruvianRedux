@@ -1,37 +1,23 @@
 package com.example.vitruvianredux.presentation.viewmodel
 
+import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.vitruvianredux.data.ble.HandleState
-import com.example.vitruvianredux.data.ble.RepNotification
-import com.example.vitruvianredux.data.local.PersonalRecordEntity
-import com.example.vitruvianredux.data.local.WeeklyProgramWithDays
-import com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity
 import com.example.vitruvianredux.data.preferences.PreferencesManager
 import com.example.vitruvianredux.data.repository.BleRepository
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.data.repository.PersonalRecordRepository
 import com.example.vitruvianredux.data.repository.WorkoutRepository
-import com.example.vitruvianredux.domain.model.ConnectionState
-import com.example.vitruvianredux.domain.model.HapticEvent
-import com.example.vitruvianredux.domain.model.PRCelebrationEvent
-import com.example.vitruvianredux.domain.model.PersonalRecord
-import com.example.vitruvianredux.domain.model.Routine
-import com.example.vitruvianredux.domain.model.RoutineExercise
-import com.example.vitruvianredux.domain.model.UserPreferences
-import com.example.vitruvianredux.domain.model.WeightUnit
-import com.example.vitruvianredux.domain.model.WorkoutMetric
-import com.example.vitruvianredux.domain.model.WorkoutParameters
-import com.example.vitruvianredux.domain.model.WorkoutSession
-import com.example.vitruvianredux.domain.model.WorkoutState
+import com.example.vitruvianredux.domain.model.*
 import com.example.vitruvianredux.domain.usecase.RepCounterFromMachine
-import com.example.vitruvianredux.domain.usecase.RepRanges
-import com.example.vitruvianredux.domain.model.RepCount
+import com.example.vitruvianredux.presentation.components.SafetyEventSummary
+import com.example.vitruvianredux.service.WorkoutForegroundService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -39,16 +25,20 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
+import kotlin.math.ceil
 
-/**
- * Main ViewModel for the Vitruvian app.
- * Manages workout state, BLE connections, routines, and user preferences.
- */
 @HiltViewModel
 class MainViewModel @Inject constructor(
     application: Application,
@@ -60,69 +50,69 @@ class MainViewModel @Inject constructor(
     private val preferencesManager: PreferencesManager
 ) : AndroidViewModel(application) {
 
-    companion object {
-        private const val AUTO_STOP_DURATION_SECONDS = 5.0f
-    }
+    // Use application context directly instead of storing it
+    private fun getContext(): Context = getApplication<Application>().applicationContext
 
-    private val context: Context get() = getApplication()
-
-    // Connection state
     val connectionState: StateFlow<ConnectionState> = bleRepository.connectionState
 
-    // Workout state
     private val _workoutState = MutableStateFlow<WorkoutState>(WorkoutState.Idle)
     val workoutState: StateFlow<WorkoutState> = _workoutState.asStateFlow()
 
     private val _currentMetric = MutableStateFlow<WorkoutMetric?>(null)
     val currentMetric: StateFlow<WorkoutMetric?> = _currentMetric.asStateFlow()
 
-    private val _workoutParameters = MutableStateFlow<WorkoutParameters?>(null)
-    val workoutParameters: StateFlow<WorkoutParameters?> = _workoutParameters.asStateFlow()
+    private val _workoutParameters = MutableStateFlow(
+        WorkoutParameters(
+            workoutType = WorkoutType.Program(ProgramMode.OldSchool),
+            reps = 10,
+            weightPerCableKg = 10f,
+            progressionRegressionKg = 0f,
+            isJustLift = false,
+            stopAtTop = false,  // User preference - can be toggled in settings
+            warmupReps = 3
+        )
+    )
+    val workoutParameters: StateFlow<WorkoutParameters> = _workoutParameters.asStateFlow()
 
-    private val _repCount = MutableStateFlow<RepCount?>(null)
-    val repCount: StateFlow<RepCount?> = _repCount.asStateFlow()
+    private val _repCount = MutableStateFlow(RepCount())
+    val repCount: StateFlow<RepCount> = _repCount.asStateFlow()
 
-    private val _repRanges = MutableStateFlow<RepRanges?>(null)
-    val repRanges: StateFlow<RepRanges?> = _repRanges.asStateFlow()
+    private val _repRanges = MutableStateFlow<com.example.vitruvianredux.domain.usecase.RepRanges?>(null)
+    val repRanges: StateFlow<com.example.vitruvianredux.domain.usecase.RepRanges?> = _repRanges.asStateFlow()
 
-    // Auto-stop state
     private val _autoStopState = MutableStateFlow(AutoStopUiState())
     val autoStopState: StateFlow<AutoStopUiState> = _autoStopState.asStateFlow()
 
-    // Auto-start countdown
     private val _autoStartCountdown = MutableStateFlow<Int?>(null)
     val autoStartCountdown: StateFlow<Int?> = _autoStartCountdown.asStateFlow()
 
-    // Scanned devices
     private val _scannedDevices = MutableStateFlow<List<ScannedDevice>>(emptyList())
     val scannedDevices: StateFlow<List<ScannedDevice>> = _scannedDevices.asStateFlow()
 
-    // Workout history
     private val _workoutHistory = MutableStateFlow<List<WorkoutSession>>(emptyList())
     val workoutHistory: StateFlow<List<WorkoutSession>> = _workoutHistory.asStateFlow()
 
-    // PR celebration events
-    private val _prCelebrationEvent = MutableSharedFlow<PRCelebrationEvent>(
-        replay = 0,
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
+    // PR Celebration Events
+    private val _prCelebrationEvent = MutableSharedFlow<PRCelebrationEvent>()
     val prCelebrationEvent: SharedFlow<PRCelebrationEvent> = _prCelebrationEvent.asSharedFlow()
 
     // User preferences
-    val userPreferences: StateFlow<UserPreferences> = preferencesManager.userPreferences
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), UserPreferences())
+    val userPreferences: StateFlow<UserPreferences> = preferencesManager.preferencesFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, UserPreferences())
+    
+    val weightUnit: StateFlow<WeightUnit> = userPreferences
+        .map { it.weightUnit }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, WeightUnit.KG)
 
-    val weightUnit: StateFlow<WeightUnit> = preferencesManager.weightUnit
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), WeightUnit.KG)
+    val stopAtTop: StateFlow<Boolean> = userPreferences
+        .map { it.stopAtTop }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
-    val stopAtTop: StateFlow<Boolean> = preferencesManager.stopAtTop
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), false)
+    val enableVideoPlayback: StateFlow<Boolean> = userPreferences
+        .map { it.enableVideoPlayback }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
-    val enableVideoPlayback: StateFlow<Boolean> = preferencesManager.enableVideoPlayback
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), true)
-
-    // Routines
+    // Feature 4: Routine Management
     private val _routines = MutableStateFlow<List<Routine>>(emptyList())
     val routines: StateFlow<List<Routine>> = _routines.asStateFlow()
 
@@ -135,136 +125,442 @@ class MainViewModel @Inject constructor(
     private val _currentSetIndex = MutableStateFlow(0)
     val currentSetIndex: StateFlow<Int> = _currentSetIndex.asStateFlow()
 
-    // Programs
-    val weeklyPrograms: StateFlow<List<WeeklyProgramWithDays>> = workoutRepository.getAllPrograms()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
+    // Weekly Programs
+    val weeklyPrograms: StateFlow<List<com.example.vitruvianredux.data.local.WeeklyProgramWithDays>> =
+        workoutRepository.getAllPrograms()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
 
-    val activeProgram: StateFlow<WeeklyProgramWithDays?> = workoutRepository.getActiveProgram()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), null)
+    val activeProgram: StateFlow<com.example.vitruvianredux.data.local.WeeklyProgramWithDays?> =
+        workoutRepository.getActiveProgram()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = null
+            )
 
-    // Personal records
-    val personalBests: StateFlow<List<PersonalRecordEntity>> = personalRecordRepository.getAllRecords()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
+    // Personal Records
+    @Suppress("unused")
+    val personalBests: StateFlow<List<com.example.vitruvianredux.data.local.PersonalRecordEntity>> =
+        workoutRepository.getAllPersonalRecords()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
 
-    val allWorkoutSessions: StateFlow<List<WorkoutSession>> = workoutRepository.getAllSessions()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
+    // ========== Stats for HomeScreen ==========
 
-    val allPhaseStatistics: StateFlow<List<PhaseStatisticsEntity>> = workoutRepository.getAllPhaseStatistics()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
+    // All workout sessions for stats calculation
+    val allWorkoutSessions: StateFlow<List<WorkoutSession>> =
+        workoutRepository.getAllSessions()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
 
-    val groupedWorkoutHistory: StateFlow<List<HistoryItem>> = workoutRepository.getGroupedHistory()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
+    // All phase statistics for analytics
+    val allPhaseStatistics: StateFlow<List<com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity>> =
+        workoutRepository.getAllPhaseStatistics()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
 
-    val allPersonalRecords: StateFlow<List<PersonalRecord>> = personalRecordRepository.getAllPersonalRecords()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), emptyList())
+    // Grouped workout history for the History tab
+    val groupedWorkoutHistory: StateFlow<List<HistoryItem>> = allWorkoutSessions.map { sessions ->
+        Timber.d("📊 GROUPING HISTORY: Total sessions = ${sessions.size}")
+        sessions.forEach { session ->
+            Timber.d("  - Session ${session.id.take(8)}: routineSessionId=${session.routineSessionId?.take(8)}, routineName=${session.routineName}, exerciseId=${session.exerciseId}, totalReps=${session.totalReps}")
+        }
 
-    val completedWorkouts: StateFlow<Int?> = workoutRepository.getCompletedWorkoutCount()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), null)
+        val groupedByRoutine = sessions.filter { it.routineSessionId != null }
+            .groupBy { it.routineSessionId!! }
+            .map { (id, sessionList) ->
+                Timber.d("📦 GROUPED ROUTINE: routineSessionId=${id.take(8)}, sessions=${sessionList.size}, name=${sessionList.first().routineName}")
+                GroupedRoutineHistoryItem(
+                    routineSessionId = id,
+                    routineName = sessionList.first().routineName ?: "Unnamed Routine",
+                    sessions = sessionList.sortedBy { it.timestamp },
+                    totalDuration = sessionList.sumOf { it.duration },
+                    totalReps = sessionList.sumOf { it.totalReps },
+                    exerciseCount = sessionList.mapNotNull { it.exerciseId }.distinct().count(),
+                    timestamp = sessionList.minOf { it.timestamp }
+                )
+            }
+        val singleSessions = sessions.filter { it.routineSessionId == null }
+            .map {
+                Timber.d("📄 SINGLE SESSION: ${it.id.take(8)}, exerciseId=${it.exerciseId}, totalReps=${it.totalReps}")
+                SingleSessionHistoryItem(it)
+            }
 
-    val workoutStreak: StateFlow<Int?> = workoutRepository.getCurrentStreak()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), null)
+        Timber.d("📊 RESULT: ${groupedByRoutine.size} grouped routines, ${singleSessions.size} single sessions")
+        (groupedByRoutine + singleSessions).sortedByDescending { it.timestamp }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val progressPercentage: StateFlow<Int?> = workoutRepository.getWeeklyProgress()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000L), null)
+    // All personal records for analytics
+    val allPersonalRecords: StateFlow<List<PersonalRecord>> =
+        personalRecordRepository.getAllPRsGrouped()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
 
-    // Dialog visibility
+    // Total completed workouts
+    val completedWorkouts: StateFlow<Int?> = allWorkoutSessions.map { sessions ->
+        sessions.size.takeIf { it > 0 }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // Current workout streak (consecutive days)
+    val workoutStreak: StateFlow<Int?> = allWorkoutSessions.map { sessions ->
+        if (sessions.isEmpty()) {
+            return@map null
+        }
+
+        val workoutDates = sessions
+            .map { Instant.ofEpochMilli(it.timestamp).atZone(ZoneId.systemDefault()).toLocalDate() }
+            .distinct()
+            .sortedDescending()
+
+        // Check if streak is current (workout today or yesterday)
+        val today = LocalDate.now()
+        val lastWorkoutDate = workoutDates.first()
+        if (lastWorkoutDate.isBefore(today.minusDays(1))) {
+            return@map null // Streak broken
+        }
+
+        var streak = 1
+        for (i in 1 until workoutDates.size) {
+            if (workoutDates[i] == workoutDates[i-1].minusDays(1)) {
+                streak++
+            } else {
+                break // Found a gap
+            }
+        }
+        streak
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // Progress percentage (volume change between last two workouts)
+    val progressPercentage: StateFlow<Int?> = allWorkoutSessions.map { sessions ->
+        if (sessions.size < 2) {
+            return@map null
+        }
+
+        // Sessions are already sorted by timestamp DESC from repository
+        val latestSession = sessions[0]
+        val previousSession = sessions[1]
+
+        // Volume = (Total Weight) * (Total Reps). Weight is per cable, so multiply by 2.
+        val latestVolume = (latestSession.weightPerCableKg * 2) * latestSession.totalReps
+        val previousVolume = (previousSession.weightPerCableKg * 2) * previousSession.totalReps
+
+        if (previousVolume <= 0f) {
+            return@map null
+        }
+
+        val percentageChange = ((latestVolume - previousVolume) / previousVolume) * 100
+        percentageChange.toInt()
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    // Feature 1: Dialog state for workout setup
     private val _isWorkoutSetupDialogVisible = MutableStateFlow(false)
+    @Suppress("unused")
     val isWorkoutSetupDialogVisible: StateFlow<Boolean> = _isWorkoutSetupDialogVisible.asStateFlow()
 
-    // Connection state
+    // Auto-connect UI state
     private val _isAutoConnecting = MutableStateFlow(false)
     val isAutoConnecting: StateFlow<Boolean> = _isAutoConnecting.asStateFlow()
 
     private val _connectionError = MutableStateFlow<String?>(null)
     val connectionError: StateFlow<String?> = _connectionError.asStateFlow()
 
+    // Pending callback for after connection completes
     private var _pendingConnectionCallback: (() -> Unit)? = null
 
-    // Haptic events
+    // Haptic feedback events
     private val _hapticEvents = MutableSharedFlow<HapticEvent>(
-        replay = 0,
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
+        extraBufferCapacity = 10,  // Buffer events to prevent drops
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
     )
     val hapticEvents: SharedFlow<HapticEvent> = _hapticEvents.asSharedFlow()
 
-    // Connection lost during workout
+    // Connection loss detection (Issue #43)
     private val _connectionLostDuringWorkout = MutableStateFlow(false)
     val connectionLostDuringWorkout: StateFlow<Boolean> = _connectionLostDuringWorkout.asStateFlow()
 
-    // Safety event counts
-    private val _safetyEventCounts = MutableStateFlow(SafetyEventCounts())
-    val safetyEventCounts: StateFlow<SafetyEventCounts> = _safetyEventCounts.asStateFlow()
-
-    // Internal state
+    // Current workout tracking
     private var currentSessionId: String? = null
-    private var workoutStartTime: Long = 0L
+    private var workoutStartTime: Long = 0
     private val collectedMetrics = mutableListOf<WorkoutMetric>()
+
+    // Routine tracking (for grouping sets from the same routine)
     private var currentRoutineSessionId: String? = null
     private var currentRoutineName: String? = null
+
+    // Auto-stop tracking for Just Lift and AMRAP modes
     private var autoStopStartTime: Long? = null
     private val autoStopTriggered = AtomicBoolean(false)
     private val autoStopStopRequested = AtomicBoolean(false)
-    private var currentHandleState: HandleState = HandleState.UNKNOWN
+    private var currentHandleState: com.example.vitruvianredux.data.ble.HandleState =
+        com.example.vitruvianredux.data.ble.HandleState.Released
 
-    // Jobs
+    // Safety Event Tracking
+    data class SafetyEventCounts(
+        val deloadWarnings: Int = 0,
+        val romViolations: Int = 0,
+        val spotterActivations: Int = 0,
+        val allFlags: MutableSet<SampleStatus> = mutableSetOf()
+    )
+    private val _safetyEventCounts = MutableStateFlow(SafetyEventCounts())
+    val safetyEventCounts: StateFlow<SafetyEventCounts> = _safetyEventCounts.asStateFlow()
+
     private var autoStartJob: Job? = null
     private var restTimerJob: Job? = null
-    private var connectionJob: Job? = null
+    private var connectionJob: Job? = null  // Track connection attempt for cancellation
+
+    // Store collection jobs for monitor and rep event flows so they can be cancelled during stop
     private var monitorDataCollectionJob: Job? = null
     private var repEventsCollectionJob: Job? = null
-    private var bodyweightTimerJob: Job? = null
+    private var bodyweightTimerJob: Job? = null  // Timer for bodyweight exercises
 
-    // Session max values
+    // Session-level peak loads (debug/analytics)
     private var maxConcentricPerCableKgThisSession: Float = 0f
     private var maxEccentricPerCableKgThisSession: Float = 0f
 
     init {
-        loadRoutines()
-        observeConnectionState()
-        observeWorkoutMetrics()
-    }
+        Timber.d("MainViewModel initialized")
 
-    private fun loadRoutines() {
-        viewModelScope.launch {
-            workoutRepository.getAllRoutines().collect { routineList ->
-                _routines.value = routineList
-            }
-        }
-    }
+        // Set up rep event callback for haptic feedback
+        repCounter.onRepEvent = { repEvent ->
+            viewModelScope.launch {
+                // Update UI with new rep count
+                val newRepCount = repCounter.getRepCount()
+                _repCount.value = newRepCount
 
-    private fun observeConnectionState() {
-        viewModelScope.launch {
-            connectionState.collect { state ->
-                when (state) {
-                    is ConnectionState.Connected -> {
-                        _connectionError.value = null
-                        _pendingConnectionCallback?.invoke()
-                        _pendingConnectionCallback = null
-                    }
-                    is ConnectionState.Disconnected -> {
-                        if (_workoutState.value is WorkoutState.Active) {
-                            _connectionLostDuringWorkout.value = true
+                Timber.d(
+                    "Rep counters updated: warmup=${newRepCount.warmupReps}/${_workoutParameters.value.warmupReps}, " +
+                        "working=${newRepCount.workingReps}/${_workoutParameters.value.reps}"
+                )
+
+                // Debug/analytics: log approximate per-cable load at rep events and track session peaks.
+                _currentMetric.value?.let { metric ->
+                    val perCableKg = metric.totalLoad / 2f
+                    when (repEvent.type) {
+                        RepType.WORKING_COMPLETED, RepType.WARMUP_COMPLETED -> {
+                            // Near concentric peak
+                            Timber.d(
+                                "REP_LOAD_CON: warmup=${newRepCount.warmupReps}, working=${newRepCount.workingReps}, " +
+                                    "perCableKg=$perCableKg, totalKg=${metric.totalLoad}"
+                            )
+                            if (perCableKg > maxConcentricPerCableKgThisSession) {
+                                maxConcentricPerCableKgThisSession = perCableKg
+                            }
                         }
+                        RepType.WORKOUT_COMPLETE -> {
+                            // Close to end of last eccentric phase
+                            Timber.d(
+                                "REP_LOAD_ECC: warmup=${newRepCount.warmupReps}, working=${newRepCount.workingReps}, " +
+                                    "perCableKg=$perCableKg, totalKg=${metric.totalLoad}"
+                            )
+                            if (perCableKg > maxEccentricPerCableKgThisSession) {
+                                maxEccentricPerCableKgThisSession = perCableKg
+                            }
+                        }
+                        else -> { /* no-op */ }
                     }
-                    is ConnectionState.Error -> {
-                        _connectionError.value = state.message
+                }
+
+                // Emit haptic feedback
+                when (repEvent.type) {
+                    RepType.WARMUP_COMPLETED, RepType.WORKING_COMPLETED -> {
+                        Timber.d("Emitting haptic event: REP_COMPLETED")
+                        _hapticEvents.emit(HapticEvent.REP_COMPLETED)
                     }
-                    else -> {}
+                    RepType.WARMUP_COMPLETE -> {
+                        Timber.d("Emitting haptic event: WARMUP_COMPLETE")
+                        _hapticEvents.emit(HapticEvent.WARMUP_COMPLETE)
+                    }
+                    RepType.WORKOUT_COMPLETE -> {
+                        Timber.d("Emitting haptic event: WORKOUT_COMPLETE")
+                        _hapticEvents.emit(HapticEvent.WORKOUT_COMPLETE)
+                    }
+                }
+
+                // Check if workout should stop
+                if (repCounter.shouldStopWorkout()) {
+                    Timber.d("Machine indicates workout should stop - requesting stop")
+                    requestAutoStop()
                 }
             }
         }
-    }
 
-    private fun observeWorkoutMetrics() {
-        viewModelScope.launch {
+        // Collect monitor data (for position/load display only)
+        monitorDataCollectionJob = viewModelScope.launch {
+            Timber.d("Starting to collect monitor data...")
             bleRepository.monitorData.collect { metric ->
+                Timber.v("Monitor metric received in ViewModel: pos=(${metric.positionA},${metric.positionB})")
+                _currentMetric.value = metric
                 handleMonitorMetric(metric)
+
+                // Track safety events
+                metric.statusFlags.forEach { flag ->
+                    val current = _safetyEventCounts.value
+                    when (flag) {
+                        SampleStatus.DELOAD_WARN, SampleStatus.DELOAD_OCCURRED -> {
+                            if (!current.allFlags.contains(flag)) { // Only count once per flag occurrence
+                                _safetyEventCounts.value = current.copy(
+                                    deloadWarnings = current.deloadWarnings + 1,
+                                    allFlags = current.allFlags.apply { add(flag) }
+                                )
+                            }
+                        }
+                        SampleStatus.ROM_OUTSIDE_HIGH, SampleStatus.ROM_OUTSIDE_LOW -> {
+                            if (!current.allFlags.contains(flag)) {
+                                _safetyEventCounts.value = current.copy(
+                                    romViolations = current.romViolations + 1,
+                                    allFlags = current.allFlags.apply { add(flag) }
+                                )
+                            }
+                        }
+                        SampleStatus.SPOTTER_ACTIVE -> {
+                            if (!current.allFlags.contains(flag)) {
+                                _safetyEventCounts.value = current.copy(
+                                    spotterActivations = current.spotterActivations + 1,
+                                    allFlags = current.allFlags.apply { add(flag) }
+                                )
+                            }
+                        }
+                        else -> {
+                            // Other flags (REP_TOP_READY, REP_BOTTOM_READY, ROM_UNLOAD_ACTIVE)
+                            // We track them in allFlags but don't increment a dedicated counter
+                            if (!current.allFlags.contains(flag)) {
+                                _safetyEventCounts.value = current.copy(
+                                    allFlags = current.allFlags.apply { add(flag) }
+                                )
+                            }
+                        }
+                    }
+                }
             }
+        }
+
+        // Collect rep notifications from machine (the CORRECT way to count reps!)
+        repEventsCollectionJob = viewModelScope.launch {
+            Timber.d("Starting to collect rep notifications...")
+            bleRepository.repEvents.collect { repNotification ->
+                val state = _workoutState.value
+                Timber.d("Rep notification received: up=${repNotification.up}, down=${repNotification.down}, ROM=${repNotification.repsRomCount}/${repNotification.repsRomTotal}, Set=${repNotification.repsSetCount}/${repNotification.repsSetTotal}, state=$state")
+
+                if (state is WorkoutState.Active) {
+                    handleRepNotification(repNotification)
+                } else {
+                    Timber.w("Rep notification ignored - workout not active (state=$state)")
+                }
+            }
+        }
+
+        // Load recent workout history
+        viewModelScope.launch {
+            workoutRepository.getRecentSessions(20).collect { sessions ->
+                _workoutHistory.value = sessions
+            }
+        }
+
+        // Load routines
+        viewModelScope.launch {
+            workoutRepository.getAllRoutines().collect { routinesList ->
+                _routines.value = routinesList
+            }
+        }
+
+        // Collect scanned devices
+        viewModelScope.launch {
+            bleRepository.scannedDevices.collect { scanResult ->
+                Timber.d("ViewModel received scan result: ${scanResult.device.address}")
+                val currentDevices = _scannedDevices.value.toMutableList()
+                val existingDevice = currentDevices.find { it.address == scanResult.device.address }
+                if (existingDevice == null) {
+                    @SuppressLint("MissingPermission")
+                    val scannedDevice = ScannedDevice(
+                        name = scanResult.device.name ?: "Unknown",
+                        address = scanResult.device.address,
+                        rssi = scanResult.rssi
+                    )
+                    currentDevices.add(scannedDevice)
+                    _scannedDevices.value = currentDevices
+                    Timber.d("Added device to list: ${scannedDevice.name} (${scannedDevice.address}) - Total devices: ${currentDevices.size}")
+                } else {
+                    Timber.d("Device already in list, skipping: ${scanResult.device.address}")
+                }
+            }
+        }
+
+        // Collect handle state for auto-start/stop
+        viewModelScope.launch {
+            bleRepository.handleState.collect { state ->
+                // Track current handle state for auto-stop logic
+                currentHandleState = state
+
+                Timber.d("Handle state received in ViewModel: $state, useAutoStart=${workoutParameters.value.useAutoStart}, workoutState=${workoutState.value}")
+                if (workoutParameters.value.useAutoStart && workoutState.value is WorkoutState.Idle) {
+                    when (state) {
+                        com.example.vitruvianredux.data.ble.HandleState.Grabbed -> {
+                            Timber.d("Handles grabbed! Starting auto-start timer")
+                            startAutoStartTimer()
+                        }
+                        com.example.vitruvianredux.data.ble.HandleState.Released -> {
+                            Timber.d("Handles released! Canceling auto-start timer")
+                            cancelAutoStartTimer()
+                        }
+                        else -> { /* Do nothing */ }
+                    }
+                }
+            }
+        }
+
+        // Monitor connection state for loss detection during workouts (Issue #43)
+        viewModelScope.launch {
+            connectionState.collect { connState ->
+                val currentWorkoutState = _workoutState.value
+
+                // Check if we lost connection during an active workout
+                val isWorkoutActive = currentWorkoutState is WorkoutState.Active ||
+                        currentWorkoutState is WorkoutState.Countdown ||
+                        currentWorkoutState is WorkoutState.Resting ||
+                        currentWorkoutState is WorkoutState.Initializing
+
+                val isDisconnected = connState is ConnectionState.Disconnected ||
+                        connState is ConnectionState.Error
+
+                if (isWorkoutActive && isDisconnected) {
+                    Timber.e("⚠️ CONNECTION LOST DURING WORKOUT! State: $currentWorkoutState, Connection: $connState")
+                    _connectionLostDuringWorkout.value = true
+
+                    // Emit haptic alert for connection loss
+                    _hapticEvents.emit(HapticEvent.ERROR)
+                } else if (!isWorkoutActive && _connectionLostDuringWorkout.value) {
+                    // Reset the flag when workout ends
+                    _connectionLostDuringWorkout.value = false
+                }
+            }
+        }
+
+        // Observe strict validation preference
+        viewModelScope.launch {
+            userPreferences
+                .map { it.strictValidationEnabled }
+                .collect { enabled ->
+                    bleRepository.setStrictValidationEnabled(enabled)
+                }
         }
     }
 
-    // Auto-start timer functions
     private fun cancelAutoStartTimer() {
         autoStartJob?.cancel()
         autoStartJob = null
@@ -272,81 +568,213 @@ class MainViewModel @Inject constructor(
     }
 
     private fun startAutoStartTimer() {
-        cancelAutoStartTimer()
+        if (autoStartJob != null || workoutState.value !is WorkoutState.Idle) {
+            Timber.d("Auto-start timer NOT started: autoStartJob=$autoStartJob, workoutState=${workoutState.value}")
+            return
+        }
+
+        Timber.d("Auto-start timer STARTING! (5 seconds) at ${System.currentTimeMillis()}")
         autoStartJob = viewModelScope.launch {
-            for (countdown in 3 downTo 1) {
-                _autoStartCountdown.value = countdown
-                kotlinx.coroutines.delay(1000L)
-            }
+            // User preference: 5 second hold timer with visible countdown
+            _autoStartCountdown.value = 5
+            delay(1000)
+            _autoStartCountdown.value = 4
+            delay(1000)
+            _autoStartCountdown.value = 3
+            delay(1000)
+            _autoStartCountdown.value = 2
+            delay(1000)
+            _autoStartCountdown.value = 1
+            delay(1000)
             _autoStartCountdown.value = null
-            startWorkout()
+            Timber.d("Auto-start hold complete (5s)! Starting workout at ${System.currentTimeMillis()}")
+            // Just Lift mode: Pass isJustLiftMode=true to ensure flag is preserved
+            startWorkout(isJustLiftMode = true)
         }
     }
 
-    // Metric handling
     private fun handleMonitorMetric(metric: WorkoutMetric) {
-        _currentMetric.value = metric
         if (_workoutState.value is WorkoutState.Active) {
             collectMetricForHistory(metric)
-            checkAutoStop(metric)
+            val params = _workoutParameters.value
+            // AMRAP also uses autostop like Just Lift mode
+            if (params.isJustLift || params.isAMRAP) {
+                if (params.isAMRAP && autoStopStartTime == null) {
+                    // Log once per AMRAP set to confirm we're checking auto-stop
+                    Timber.v("✓ AMRAP set: checkAutoStop will be called (isAMRAP=true)")
+                }
+                checkAutoStop(metric)
+            } else {
+                resetAutoStopTimer()
+            }
+        } else {
+            resetAutoStopTimer()
         }
     }
 
-    private fun handleRepNotification(notification: RepNotification) {
-        viewModelScope.launch {
-            _hapticEvents.emit(HapticEvent.RepCompleted)
-        }
+    /**
+     * Handle rep notifications provided by the machine.
+     * Uses machine's ROM and Set counters directly to eliminate "getting ready" pull offset.
+     */
+    private fun handleRepNotification(notification: com.example.vitruvianredux.data.ble.RepNotification) {
+        val currentPositions = _currentMetric.value
+        repCounter.process(
+            repsRomCount = notification.repsRomCount?.toInt() ?: 0,
+            repsSetCount = notification.repsSetCount?.toInt() ?: 0,
+            up = notification.up,
+            down = notification.down,
+            posA = currentPositions?.positionA ?: 0,
+            posB = currentPositions?.positionB ?: 0
+        )
+        // Update rep ranges for position bars visualization
+        _repRanges.value = repCounter.getRepRanges()
+        // All other logic (UI update, haptics, auto-stop) handled in onRepEvent callback
     }
 
-    // Auto-stop functions
     private fun requestAutoStop() {
-        autoStopStopRequested.set(true)
+        if (autoStopStopRequested.getAndSet(true)) return
+        triggerAutoStop()
     }
 
     private fun triggerAutoStop() {
-        if (autoStopTriggered.compareAndSet(false, true)) {
-            stopWorkout()
+        autoStopTriggered.set(true)
+        if (_workoutParameters.value.isJustLift) {
+            _autoStopState.value = _autoStopState.value.copy(progress = 1f, secondsRemaining = 0, isActive = true)
+        } else {
+            _autoStopState.value = AutoStopUiState()
         }
+        handleSetCompletion()
     }
 
     private fun checkAutoStop(metric: WorkoutMetric) {
-        // Implementation based on handle position and velocity
+        val hasMeaningful = repCounter.hasMeaningfulRange()
+        val params = _workoutParameters.value
+
+        // Diagnostic: Log when checkAutoStop is called for Just Lift mode
+        if (params.isJustLift && autoStopStartTime == null) {
+            Timber.d("🎯 Just Lift auto-stop check: hasMeaningful=$hasMeaningful, posA=${metric.positionA}, posB=${metric.positionB}")
+        }
+
+        if (!hasMeaningful) {
+            if (params.isAMRAP || params.isJustLift) {
+                Timber.d("⚠️ ${if (params.isJustLift) "Just Lift" else "AMRAP"} auto-stop blocked: NO meaningful range yet")
+            }
+            resetAutoStopTimer()
+            return
+        }
+
+        val inDangerZone = repCounter.isInDangerZone(metric.positionA, metric.positionB)
+
+        val repRanges = repCounter.getRepRanges()
+        if (params.isAMRAP) {
+            Timber.v("AMRAP auto-stop check: inDangerZone=$inDangerZone, rangeA=${repRanges.maxPosA?.let { max -> repRanges.minPosA?.let { min -> max - min } }}, rangeB=${repRanges.maxPosB?.let { max -> repRanges.minPosB?.let { min -> max - min } }}")
+        }
+
+        // Diagnostic: Log danger zone status for Just Lift
+        if (params.isJustLift && autoStopStartTime == null) {
+            Timber.d("🎯 Just Lift danger zone check: inDangerZone=$inDangerZone, rangeA=${repRanges.maxPosA?.let { max -> repRanges.minPosA?.let { min -> max - min } }}, rangeB=${repRanges.maxPosB?.let { max -> repRanges.minPosB?.let { min -> max - min } }}")
+        }
+
+        // For Just Lift and AMRAP modes, check if the cable(s) in danger zone are released
+        // This supports both single-cable (left OR right) and double-cable exercises
+        val HANDLE_REST_THRESHOLD = 2.5  // Position < 2.5 = handle at rest (matches VitruvianBleManager)
+
+        var cableInDangerAndReleased = false
+
+        // Check cable A: is it in danger zone AND released?
+        if (repRanges.minPosA != null && repRanges.maxPosA != null) {
+            val rangeA = repRanges.maxPosA!! - repRanges.minPosA!!
+            if (rangeA > 50) {  // minRangeThreshold
+                val thresholdA = repRanges.minPosA!! + (rangeA * 0.05f).toInt()
+                val cableAInDanger = metric.positionA <= thresholdA
+                // Check if cable A is released: position is very low (at rest) or near minimum position
+                // Use HANDLE_REST_THRESHOLD for absolute check, or check if very close to minPosA
+                val cableAReleased = metric.positionA.toDouble() < HANDLE_REST_THRESHOLD ||
+                                     (metric.positionA - repRanges.minPosA!!) < 10
+                if (cableAInDanger && cableAReleased) {
+                    cableInDangerAndReleased = true
+                    Timber.d("Cable A in danger zone and released: posA=${metric.positionA}, thresholdA=$thresholdA, minPosA=${repRanges.minPosA}")
+                }
+            }
+        }
+
+        // Check cable B: is it in danger zone AND released?
+        if (repRanges.minPosB != null && repRanges.maxPosB != null) {
+            val rangeB = repRanges.maxPosB!! - repRanges.minPosB!!
+            if (rangeB > 50) {  // minRangeThreshold
+                val thresholdB = repRanges.minPosB!! + (rangeB * 0.05f).toInt()
+                val cableBInDanger = metric.positionB <= thresholdB
+                // Check if cable B is released: position is very low (at rest) or near minimum position
+                // Use HANDLE_REST_THRESHOLD for absolute check, or check if very close to minPosB
+                val cableBReleased = metric.positionB.toDouble() < HANDLE_REST_THRESHOLD ||
+                                    (metric.positionB - repRanges.minPosB!!) < 10
+                if (cableBInDanger && cableBReleased) {
+                    cableInDangerAndReleased = true
+                    Timber.d("Cable B in danger zone and released: posB=${metric.positionB}, thresholdB=$thresholdB, minPosB=${repRanges.minPosB}")
+                }
+            }
+        }
+
+        // Diagnostic: Log cable release detection for Just Lift
+        if (params.isJustLift && autoStopStartTime == null) {
+            Timber.d("🎯 Just Lift cable check: inDangerZone=$inDangerZone, cableInDangerAndReleased=$cableInDangerAndReleased")
+        }
+
+        // Auto-stop should only trigger when BOTH conditions are met:
+        // 1. Position is in danger zone (near bottom)
+        // 2. The cable(s) in danger zone are actually released (not during eccentric phase)
+        // This works for both single-cable (left OR right) and double-cable exercises
+        if (inDangerZone && cableInDangerAndReleased) {
+            val startTime = autoStopStartTime ?: run {
+                autoStopStartTime = System.currentTimeMillis()
+                Timber.d("🔴 Auto-stop timer STARTED (${if (params.isJustLift) "Just Lift" else "AMRAP"}) - handles at rest")
+                System.currentTimeMillis()
+            }
+
+            val elapsed = (System.currentTimeMillis() - startTime) / 1000f
+            val progress = (elapsed / AUTO_STOP_DURATION_SECONDS).coerceIn(0f, 1f)
+            val remaining = (AUTO_STOP_DURATION_SECONDS - elapsed).coerceAtLeast(0f)
+
+            _autoStopState.value = AutoStopUiState(
+                isActive = true,
+                progress = progress,
+                secondsRemaining = ceil(remaining).toInt()
+            )
+
+            if (elapsed >= AUTO_STOP_DURATION_SECONDS) {
+                Timber.d("⏹️ Auto-stop TRIGGERED - ${AUTO_STOP_DURATION_SECONDS}s elapsed")
+                triggerAutoStop()
+            }
+        } else {
+            if (autoStopStartTime != null) {
+                Timber.d("🟢 Auto-stop timer RESET (inDangerZone=$inDangerZone, cableReleased=$cableInDangerAndReleased)")
+            }
+            resetAutoStopTimer()
+        }
     }
 
     private fun resetAutoStopTimer() {
         autoStopStartTime = null
-        _autoStopState.value = AutoStopUiState()
+        if (!autoStopTriggered.get()) {
+            _autoStopState.value = AutoStopUiState()
+        }
     }
 
     private fun collectMetricForHistory(metric: WorkoutMetric) {
         collectedMetrics.add(metric)
-        maxConcentricPerCableKgThisSession = maxOf(maxConcentricPerCableKgThisSession, metric.loadA)
-        maxEccentricPerCableKgThisSession = maxOf(maxEccentricPerCableKgThisSession, metric.loadB)
     }
 
-    // Scanning functions
     fun startScanning() {
+        Timber.d("MainViewModel.startScanning() called")
         viewModelScope.launch {
-            // Start collecting scan results
-            launch {
-                bleRepository.scannedDevices.collect { result ->
-                    val device = ScannedDevice(
-                        name = result.device.name ?: "Unknown",
-                        address = result.device.address,
-                        rssi = result.rssi
-                    )
-                    val currentDevices = _scannedDevices.value.toMutableList()
-                    val existingIndex = currentDevices.indexOfFirst { it.address == device.address }
-                    if (existingIndex >= 0) {
-                        currentDevices[existingIndex] = device
-                    } else {
-                        currentDevices.add(device)
-                    }
-                    _scannedDevices.value = currentDevices.sortedByDescending { it.rssi }
-                }
+            _scannedDevices.value = emptyList()
+            Timber.d("Cleared previous scan results, calling bleRepository.startScanning()")
+            val result = bleRepository.startScanning()
+            if (result.isSuccess) {
+                Timber.d("Scan started successfully")
+            } else {
+                Timber.e("Scan failed: ${result.exceptionOrNull()?.message}")
             }
-            // Start the scan
-            bleRepository.startScanning()
         }
     }
 
@@ -356,26 +784,117 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    fun connectToDevice(deviceAddress: ScannedDevice) {
+    fun connectToDevice(deviceAddress: String) {
         viewModelScope.launch {
-            _isAutoConnecting.value = true
-            try {
-                bleRepository.connectToDevice(deviceAddress.address)
-            } catch (e: Exception) {
-                Timber.e(e, "Failed to connect to device")
-                _connectionError.value = e.message
-            } finally {
-                _isAutoConnecting.value = false
+            val result = bleRepository.connectToDevice(deviceAddress)
+            if (result.isFailure) {
+                Timber.e("Failed to connect: ${result.exceptionOrNull()?.message}")
+            } else {
+                // Wait for connection to be established
+                connectionState
+                    .filter { it is ConnectionState.Connected }
+                    .take(1)
+                    .collect {
+                        // Connection succeeded - dismiss connecting overlay immediately
+                        _isAutoConnecting.value = false
+                        // Call pending callback if any
+                        _pendingConnectionCallback?.invoke()
+                        _pendingConnectionCallback = null
+                    }
             }
         }
     }
 
+    /**
+     * Ensures BLE connection before proceeding with callback.
+     * If already connected, immediately calls onConnected.
+     * If not connected, starts scan and shows device selection dialog.
+     */
     fun ensureConnection(onConnected: () -> Unit, onFailed: () -> Unit = {}) {
-        when (connectionState.value) {
-            is ConnectionState.Connected -> onConnected()
-            else -> {
-                _pendingConnectionCallback = onConnected
-                _connectionError.value = "Not connected to device"
+        // Cancel any existing connection attempt before starting a new one
+        connectionJob?.cancel()
+        connectionJob = null
+
+        connectionJob = viewModelScope.launch {
+            try {
+                when (connectionState.value) {
+                    is ConnectionState.Connected -> {
+                        onConnected()
+                    }
+                    else -> {
+                        _isAutoConnecting.value = true
+                        _connectionError.value = null
+
+                        // Start scanning
+                        startScanning()
+
+                        // Wait for first discovered device (with timeout)
+                        val found = withTimeoutOrNull(30000) {
+                            scannedDevices
+                                .filter { it.isNotEmpty() }
+                                .take(1)
+                                .collect { devices ->
+                                    stopScanning()
+                                    val device = devices.firstOrNull()
+                                    if (device != null) {
+                                        _pendingConnectionCallback = onConnected
+                                        connectToDevice(device.address)
+
+                                        // Wait for Connected state with timeout (15 seconds)
+                                        val connected = withTimeoutOrNull(15000) {
+                                            connectionState
+                                                .filter { it is ConnectionState.Connected }
+                                                .take(1)
+                                                .collect { }
+                                            true // Return true if we got Connected
+                                        }
+
+                                        _isAutoConnecting.value = false
+                                        if (connected == true) {
+                                            onConnected()
+                                        } else {
+                                            // Connection timeout or failure - clean up BLE connection
+                                            Timber.d("Connection timeout or failure - cleaning up")
+                                            bleRepository.cancelConnection()
+                                            _pendingConnectionCallback = null  // Clear callback on failure
+                                            _connectionError.value = "Connection timeout"
+                                            onFailed()
+                                        }
+                                    } else {
+                                        _pendingConnectionCallback = null  // Clear callback on failure
+                                        _isAutoConnecting.value = false
+                                        _connectionError.value = "No device found"
+                                        onFailed()
+                                    }
+                                }
+                        }
+
+                        if (found == null) {
+                            // Scan timeout - clean up properly
+                            Timber.d("Scan timeout reached - cleaning up")
+                            _pendingConnectionCallback = null  // Clear callback on timeout
+                            stopScanning()
+                            bleRepository.cancelConnection()  // Cancel any in-progress connection
+                            _isAutoConnecting.value = false
+                            _connectionError.value = "Scan timeout - no device found"
+                            onFailed()
+                        }
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // User explicitly cancelled - clean up without showing errors
+                Timber.d("🔴 CancellationException caught - User cancelled connection")
+                Timber.d("🔴 Cleaning up: stopping scan, cancelling BLE, clearing state")
+                stopScanning()
+                bleRepository.cancelConnection()  // Cancel any in-progress connection
+                _isAutoConnecting.value = false
+                _pendingConnectionCallback = null
+                Timber.d("🔴 Cleanup complete, _isAutoConnecting set to false")
+                // Don't show error or call onFailed() - user cancelled intentionally
+                throw e  // Re-throw to properly cancel the coroutine
+            } finally {
+                // Always clear job reference when coroutine completes (success, failure, or cancellation)
+                connectionJob = null
             }
         }
     }
@@ -384,137 +903,807 @@ class MainViewModel @Inject constructor(
         _connectionError.value = null
     }
 
+    /**
+     * Cancel the auto-connection process.
+     * Cancels the connection coroutine, which triggers cleanup in the exception handler.
+     */
     fun cancelAutoConnecting() {
+        Timber.d("🔴 cancelAutoConnecting() called - User cancelled connection")
+        Timber.d("🔴 connectionJob exists: ${connectionJob != null}, isActive: ${connectionJob?.isActive}")
+
+        // Immediately clear the connecting state to dismiss the overlay
+        // This must happen synchronously, not in the exception handler
         _isAutoConnecting.value = false
+        _pendingConnectionCallback = null
+
+        // Cancel the connection coroutine
         connectionJob?.cancel()
+        connectionJob = null
+
+        // Clean up BLE (must be done in coroutine since it's a suspend function)
+        viewModelScope.launch {
+            stopScanning()
+            bleRepository.cancelConnection()
+            Timber.d("🔴 BLE cleanup complete")
+        }
+
+        Timber.d("🔴 Connection cancelled, overlay dismissed")
     }
 
     fun dismissConnectionLostAlert() {
         _connectionLostDuringWorkout.value = false
     }
 
+    // Device selection dialog removed in favor of auto-connect flow
+
     fun disconnect() {
         viewModelScope.launch {
             bleRepository.disconnect()
+            _workoutState.value = WorkoutState.Idle
+            _currentMetric.value = null
+            repCounter.reset()
+            resetAutoStopState()
         }
     }
 
-    // Workout control functions
     fun updateWorkoutParameters(params: WorkoutParameters) {
+        Timber.d("⚖️ updateWorkoutParameters: weight=${params.weightPerCableKg} kg (${params.weightPerCableKg * 2.20462f} lbs)")
         _workoutParameters.value = params
     }
 
     fun enableHandleDetection() {
+        Timber.d("MainViewModel: Enabling handle detection for auto-start")
         bleRepository.enableHandleDetection()
     }
 
+    /**
+     * Prepare the ViewModel for Just Lift mode.
+     * If a previous workout was in any non-Idle state, reset to Idle so Just Lift can work.
+     * This is called when entering the JustLiftScreen.
+     */
     fun prepareForJustLift() {
-        bleRepository.enableJustLiftWaitingMode()
+        viewModelScope.launch {
+            val currentState = _workoutState.value
+            val currentWeight = _workoutParameters.value.weightPerCableKg
+            Timber.d("⚖️ prepareForJustLift: BEFORE - weight=$currentWeight kg (${currentWeight * 2.20462f} lbs)")
+
+            if (currentState !is WorkoutState.Idle) {
+                Timber.d("Preparing for Just Lift: Resetting from ${currentState::class.simpleName} to Idle")
+                resetForNewWorkout()
+                _workoutState.value = WorkoutState.Idle
+            } else {
+                Timber.d("Just Lift already in Idle state, ensuring auto-start is enabled")
+            }
+
+            enableHandleDetection()
+            _workoutParameters.value = _workoutParameters.value.copy(
+                isJustLift = true,
+                useAutoStart = true,
+                selectedExerciseId = null
+            )
+            val newWeight = _workoutParameters.value.weightPerCableKg
+            Timber.d("⚖️ prepareForJustLift: AFTER - weight=$newWeight kg (${newWeight * 2.20462f} lbs)")
+            Timber.d("Just Lift ready: State=Idle, AutoStart=enabled")
+        }
     }
 
     fun startWorkout(skipCountdown: Boolean = false, isJustLiftMode: Boolean = false) {
-        if (!skipCountdown && autoStartJob == null) {
-            startAutoStartTimer()
-            return
-        }
-        cancelAutoStartTimer()
+        Timber.d("$$ startWorkout() CALLED! skipCountdown=$skipCountdown, isJustLiftMode=$isJustLiftMode $$")
+
+        // CRITICAL: Re-set rep event callback to ensure it's active for this workout
+        // This fixes the issue where callback set in init block may not persist
+
+        // Reset safety event tracking
+        _safetyEventCounts.value = SafetyEventCounts()
 
         viewModelScope.launch {
+            // Reset per-session peak tracking
+            maxConcentricPerCableKgThisSession = 0f
+            maxEccentricPerCableKgThisSession = 0f
+            // Forcefully apply the isJustLift flag to ensure it's correct
+            val beforeWeight = _workoutParameters.value.weightPerCableKg
+            Timber.d("⚖️ startWorkout: BEFORE copy - weight=$beforeWeight kg (${beforeWeight * 2.20462f} lbs)")
+
+            val params = _workoutParameters.value.copy(
+                isJustLift = isJustLiftMode,
+                useAutoStart = if (isJustLiftMode) true else _workoutParameters.value.useAutoStart
+            )
+            Timber.d("⚖️ startWorkout: AFTER copy - weight=${params.weightPerCableKg} kg (${params.weightPerCableKg * 2.20462f} lbs)")
+
+            // Update the state flow so the rest of the app is consistent
+            _workoutParameters.value = params
+
+            // Check if current exercise is bodyweight with duration mode
+            val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
+            val isBodyweightDuration = isBodyweightExercise(currentExercise)
+
+            val workingTarget = if (params.isJustLift) 0 else params.reps
+            repCounter.reset()
+            repCounter.configure(
+                warmupTarget = if (isBodyweightDuration) 0 else params.warmupReps, // Skip warmup for bodyweight
+                workingTarget = workingTarget,
+                isJustLift = params.isJustLift,
+                stopAtTop = params.stopAtTop,
+                isAMRAP = params.isAMRAP
+            )
+            _repCount.value = repCounter.getRepCount()
+            resetAutoStopState()
+            autoStopStopRequested.set(false)
+
             currentSessionId = java.util.UUID.randomUUID().toString()
             workoutStartTime = System.currentTimeMillis()
             collectedMetrics.clear()
-            maxConcentricPerCableKgThisSession = 0f
-            maxEccentricPerCableKgThisSession = 0f
-            autoStopTriggered.set(false)
-            autoStopStopRequested.set(false)
 
-            _workoutState.value = WorkoutState.Active
-            val params = _workoutParameters.value ?: return@launch
-            bleRepository.startWorkout(params)
+            // Countdown (optional) - Skip countdown for Just Lift mode or if explicitly requested
+            if (!skipCountdown && !params.isJustLift) {
+                Timber.d("")
+                Timber.d(" STARTING COUNTDOWN")
+                Timber.d(" Mode: ${params.workoutType.displayName}")
+                Timber.d(" Target: ${params.warmupReps} warmup + ${params.reps} working reps")
+                Timber.d("")
+
+                for (i in 5 downTo 1) {
+                    _workoutState.value = WorkoutState.Countdown(i)
+                    delay(1000)
+                }
+            } else {
+                Timber.d(" SKIPPING COUNTDOWN - ${if (params.isJustLift) "Just Lift mode" else "Auto-advancing"}")
+            }
+
+            Timber.d("")
+            Timber.d(" COUNTDOWN COMPLETE")
+            Timber.d("")
+
+            // For bodyweight exercises with duration, skip BLE commands and use timer
+            if (isBodyweightDuration) {
+                val duration = currentExercise?.duration ?: 30
+                Timber.d("BODYWEIGHT EXERCISE DETECTED - Starting ${duration}s timer (no BLE commands)")
+
+                _workoutState.value = WorkoutState.Active
+
+                WorkoutForegroundService.startWorkoutService(
+                    getContext(),
+                    "Bodyweight - ${currentExercise?.exercise?.displayName ?: "Exercise"}",
+                    0 // No rep count for bodyweight
+                )
+
+                // Emit haptic feedback for workout start
+                _hapticEvents.emit(HapticEvent.WORKOUT_START)
+
+                // Start a cancellable timer for bodyweight exercise
+                // Note: Metrics (timestamp, duration, exerciseId) are still collected via saveWorkoutSession()
+                // even though no cable load/rep data is gathered. workingReps will be 0 (expected for bodyweight).
+                bodyweightTimerJob?.cancel()  // Cancel any existing timer
+                bodyweightTimerJob = viewModelScope.launch {
+                    delay(duration * 1000L)
+                    Timber.d("BODYWEIGHT EXERCISE TIMER COMPLETE (${duration}s) - Auto-completing set")
+                    handleSetCompletion()
+                }
+            } else {
+                // Normal cable-based exercise - send BLE commands
+                Timber.d(" SENDING WORKOUT COMMAND TO CABLES")
+                Timber.d("?? TIMING: About to call bleRepository.startWorkout() at ${System.currentTimeMillis()}ms")
+                val startTime = System.currentTimeMillis()
+
+                // Set initial baseline position for position bars calibration
+                // This ensures bars start at 0% relative to the starting rope position
+                _currentMetric.value?.let { metric ->
+                    repCounter.setInitialBaseline(metric.positionA, metric.positionB)
+                    _repRanges.value = repCounter.getRepRanges()
+                    Timber.d("?? POSITION BASELINE: Set initial baseline to posA=${metric.positionA}, posB=${metric.positionB}")
+                }
+
+                val result = bleRepository.startWorkout(params)
+
+                val commandLatency = System.currentTimeMillis() - startTime
+                Timber.d("?? TIMING: bleRepository.startWorkout() completed in ${commandLatency}ms")
+
+                if (result.isFailure) {
+                    _workoutState.value = WorkoutState.Error(
+                        result.exceptionOrNull()?.message ?: "Unknown error"
+                    )
+                    Timber.e("Failed to start workout: ${result.exceptionOrNull()?.message}")
+                    return@launch
+                }
+
+                // Only mark the workout as Active after the START command has succeeded
+                val activeStateTime = System.currentTimeMillis()
+                _workoutState.value = WorkoutState.Active
+                Timber.d("?? TIMING: State set to Active at ${activeStateTime}ms (${activeStateTime - startTime}ms after command)")
+
+                WorkoutForegroundService.startWorkoutService(
+                    getContext(),
+                    params.workoutType.displayName,
+                    params.reps
+                )
+
+                Timber.d("Workout command sent successfully! Tracking reps now. Session: $currentSessionId")
+
+                // Emit haptic feedback for workout start
+                _hapticEvents.emit(HapticEvent.WORKOUT_START)
+            }
         }
     }
 
     fun stopWorkout() {
-        cancelAutoStartTimer()
         viewModelScope.launch {
-            bleRepository.stopWorkout()
-            _workoutState.value = WorkoutState.Summary
+            val isJustLift = _workoutParameters.value.isJustLift
+
+            // Cancel any running timers to prevent auto-restart
+            restTimerJob?.cancel()
+            restTimerJob = null
+            bodyweightTimerJob?.cancel()
+            bodyweightTimerJob = null
+
+            // Check if current exercise is bodyweight (skip BLE calls if so)
+            val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
+            val isBodyweight = isBodyweightExercise(currentExercise)
+
+            // CRITICAL SAFETY: Stop all active polling and data collection
+            // This ensures the machine fully exits workout mode
+            // Only send stop command to cables if not bodyweight exercise
+            if (!isBodyweight) {
+                bleRepository.stopWorkout()
+            } else {
+                Timber.d("Bodyweight exercise - skipping BLE stop command")
+            }
+
+            // Stop foreground service
+            WorkoutForegroundService.stopWorkoutService(getApplication())
+            _hapticEvents.emit(HapticEvent.WORKOUT_END)
+
+            // Save current progress
             saveWorkoutSession()
+
+            // Reset state
+            repCounter.reset()
+            resetAutoStopState()
+
+            // Just Lift mode: Reset to Idle and re-enable auto-start for next set
+            // Issue #121: Manual finish must behave the same as auto-stop
+            if (isJustLift) {
+                Timber.d("Just Lift mode: Manual finish - resetting to Idle for next set")
+                resetForNewWorkout()
+                _workoutState.value = WorkoutState.Idle  // Back to Idle, ready for next set
+                Timber.d("Just Lift mode: Re-enabling handle detection for next auto-start")
+                enableHandleDetection() // Re-enable for next auto-start
+
+                // Enable velocity-based wake-up detection for next exercise
+                bleRepository.enableJustLiftWaitingMode()
+                Timber.d("Just Lift mode: Velocity wake-up detection enabled - ready for next set")
+            } else {
+                // Normal mode: Mark as completed
+                _workoutState.value = WorkoutState.Completed
+            }
         }
     }
 
+    /**
+     * Test official app protocol - systematically try 9-byte commands on all characteristics
+     * This is a diagnostic function to identify which characteristic triggers workout start
+     */
+    @Suppress("unused")
     fun testOfficialAppProtocol() {
         viewModelScope.launch {
-            bleRepository.testOfficialAppProtocol()
+            try {
+                Timber.d("ViewModel: Starting official app protocol test")
+                bleRepository.testOfficialAppProtocol()
+                Timber.d("ViewModel: Test complete - check logs for results")
+            } catch (e: Exception) {
+                Timber.e(e, "ViewModel: Test failed")
+            }
         }
     }
 
+    /**
+     * Handle automatic set completion (when rep target is reached via auto-stop)
+     * This is DIFFERENT from user manually stopping
+     */
     private fun handleSetCompletion() {
-        val routine = _loadedRoutine.value ?: return
-        val exercise = routine.exercises.getOrNull(_currentExerciseIndex.value) ?: return
+        viewModelScope.launch {
+            val completionStartTime = System.currentTimeMillis()
+            Timber.d("???????????????????????????????????????????????????")
+            Timber.d("HANDLE SET COMPLETION CALLED at $completionStartTime")
+            Timber.d("???????????????????????????????????????????????????")
 
-        if (_currentSetIndex.value < exercise.setReps.size - 1) {
-            _currentSetIndex.value++
-            startRestTimer()
-        } else {
-            advanceToNextExercise()
+            val params = _workoutParameters.value
+            val isJustLift = params.isJustLift
+
+            // Stop hardware
+            Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Sending STOP command to machine...")
+            bleRepository.stopWorkout()
+            Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] STOP command sent")
+
+            // Just Lift mode: Don't stop foreground service, keep it running for next set
+            if (!isJustLift) {
+                WorkoutForegroundService.stopWorkoutService(getApplication())
+            }
+
+            _hapticEvents.emit(HapticEvent.WORKOUT_END)
+
+            // Save progress
+            saveWorkoutSession()
+
+            // Calculate metrics for summary (per-cable load, not total load across both cables)
+            val peakPerCableKg = if (collectedMetrics.isNotEmpty()) {
+                collectedMetrics.maxOf { it.totalLoad } / 2f
+            } else {
+                params.weightPerCableKg
+            }
+
+            val averagePerCableKg = if (collectedMetrics.isNotEmpty()) {
+                collectedMetrics.map { it.totalLoad / 2f }.average().toFloat()
+            } else {
+                params.weightPerCableKg
+            }
+
+            val completedReps = _repCount.value.workingReps
+
+            // Show set summary for all modes
+            val heuristics = bleRepository.heuristicData.value
+            val safetyEvents = SafetyEventSummary(
+                deloadWarnings = _safetyEventCounts.value.deloadWarnings,
+                romViolations = _safetyEventCounts.value.romViolations,
+                spotterActivations = _safetyEventCounts.value.spotterActivations
+            )
+            
+            _workoutState.value = WorkoutState.SetSummary(
+                metrics = collectedMetrics.toList(),
+                peakPower = peakPerCableKg,
+                averagePower = averagePerCableKg,
+                repCount = completedReps,
+                heuristicStatistics = heuristics,
+                safetyEventSummary = safetyEvents
+            )
+
+            Timber.d("Set summary: peakPerCableKg=$peakPerCableKg, avgPerCableKg=$averagePerCableKg, reps=$completedReps, metrics=${collectedMetrics.size}, hasHeuristics=${heuristics != null}, hasSafetyEvents=${safetyEvents.hasSafetyEvents}")
+
+            // Just Lift mode: Auto-advance to next set after showing summary
+            if (isJustLift) {
+                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Showing summary for 5 seconds")
+                delay(5000) // Show summary for 5 seconds
+
+                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Resetting to Idle")
+                repCounter.reset()
+                resetAutoStopState()
+                resetForNewWorkout()
+                _workoutState.value = WorkoutState.Idle  // Back to Idle, ready for next set
+                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Re-enabling handle detection")
+                enableHandleDetection() // Re-enable for next auto-start
+
+                // Enable velocity-based wake-up detection for next exercise
+                bleRepository.enableJustLiftWaitingMode()
+                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] Just Lift: Ready for next set - grab handles to auto-start")
+            } else if (params.isAMRAP) {
+                // AMRAP mode: Restart monitor polling to clear danger zone alarm on machine
+                // This ensures the machine exits danger zone state just like Just Lift mode
+                // Note: We use restartMonitorPolling() instead of enableHandleDetection() to be
+                // explicit that we're NOT enabling auto-start behavior for AMRAP mode
+                Timber.d("⏱️ [${System.currentTimeMillis() - completionStartTime}ms] AMRAP: Restarting monitor polling to clear danger zone")
+                bleRepository.restartMonitorPolling()
+            }
+            // Normal mode or Routine: Wait for user to click "Continue"
+
+            Timber.d("???????????????????????????????????????????????????")
         }
     }
 
-    private fun isBodyweightExercise(exercise: RoutineExercise): Boolean {
-        return exercise.exercise.equipment.equals("bodyweight", ignoreCase = true)
+    /**
+     * Check if current workout is in single exercise mode.
+     * Single exercise mode is when:
+     * 1. No routine is loaded (legacy single exercise), OR
+     * 2. A temporary routine created by SingleExerciseScreen is loaded
+     *    (ID starts with "temp_single_exercise_")
+     */
+    private fun isSingleExerciseMode(): Boolean {
+        val routine = _loadedRoutine.value
+        return routine == null || routine.id.startsWith("temp_single_exercise_")
     }
 
+    /**
+     * Check if the given exercise is a bodyweight exercise with duration mode.
+     * Bodyweight exercises are identified by empty equipment field and must have duration set.
+     *
+     * @param exercise The routine exercise to check, or null
+     * @return true if this is a bodyweight exercise with duration, false otherwise
+     */
+    private fun isBodyweightExercise(exercise: RoutineExercise?): Boolean {
+        return exercise?.let {
+            it.exercise.equipment.isEmpty() && it.duration != null
+        } ?: false
+    }
+
+    /**
+     * Proceed from set summary to rest timer or completion
+     * Called when user clicks "Continue" button on set summary screen
+     */
     fun proceedFromSummary() {
-        _workoutState.value = WorkoutState.Idle
-        resetForNewWorkout()
+        viewModelScope.launch {
+            val routine = _loadedRoutine.value
+            val isJustLift = workoutParameters.value.isJustLift
+
+            Timber.d("Current state:")
+            Timber.d("  _loadedRoutine.value = ${routine?.name ?: "NULL"}")
+            Timber.d("  routine.id = ${routine?.id}")
+            Timber.d("  isJustLift = $isJustLift")
+            Timber.d("  _currentExerciseIndex = ${_currentExerciseIndex.value}")
+            Timber.d("  _currentSetIndex = ${_currentSetIndex.value}")
+
+            if (routine != null) {
+                val currentExercise = routine.exercises.getOrNull(_currentExerciseIndex.value)
+                Timber.d("  Current exercise: ${currentExercise?.exercise?.displayName ?: "NULL"}")
+                Timber.d("  Exercise setReps.size = ${currentExercise?.setReps?.size}")
+                Timber.d("  Exercise setReps = ${currentExercise?.setReps}")
+                Timber.d("  Total exercises in routine = ${routine.exercises.size}")
+            }
+
+            // Check if there are more sets or exercises remaining
+            val hasMoreSets = routine?.let {
+                val currentExercise = it.exercises.getOrNull(_currentExerciseIndex.value)
+                // For AMRAP exercises (empty setReps), allow infinite sets - user manually advances
+                val isAMRAPExercise = currentExercise?.isAMRAP == true
+                val result = if (isAMRAPExercise) {
+                    true // AMRAP always has "more sets" - user decides when to move on
+                } else {
+                    currentExercise != null && _currentSetIndex.value < currentExercise.setReps.size - 1
+                }
+                Timber.d("  hasMoreSets calculation: currentExercise=$currentExercise, isAMRAP=$isAMRAPExercise, currentSetIndex=${_currentSetIndex.value}, setReps.size=${currentExercise?.setReps?.size}, result=$result")
+                result
+            } ?: false
+
+            val hasMoreExercises = routine?.let {
+                val result = _currentExerciseIndex.value < it.exercises.size - 1
+                Timber.d("  hasMoreExercises calculation: currentExerciseIndex=${_currentExerciseIndex.value}, exercises.size=${it.exercises.size}, result=$result")
+                result
+            } ?: false
+
+            // 2. Single Exercise mode (not Just Lift, includes temp routines from SingleExerciseScreen)
+            val isSingleExercise = isSingleExerciseMode() && !isJustLift
+            // Only show rest timer if there are actually more sets/exercises remaining
+            val shouldShowRestTimer = (hasMoreSets || hasMoreExercises) && !isJustLift
+
+            Timber.d("Decision:")
+            Timber.d("  hasMoreSets = $hasMoreSets")
+            Timber.d("  hasMoreExercises = $hasMoreExercises")
+            Timber.d("  isSingleExercise = $isSingleExercise")
+            Timber.d("  shouldShowRestTimer = $shouldShowRestTimer")
+            Timber.d("???????????????????????????????????????????????????")
+
+            // Show rest timer if there are more sets/exercises OR in single exercise mode
+            // (regardless of autoplay preference)
+            // Autoplay preference only controls whether we auto-advance after rest
+            if (shouldShowRestTimer) {
+                Timber.d("? Starting rest timer...")
+                startRestTimer()
+            } else {
+                Timber.d("? No rest timer - marking as completed")
+                repCounter.reset()
+                resetAutoStopState()
+
+                // Auto-reset for Just Lift mode to enable immediate restart
+                if (isJustLift) {
+                    Timber.d("Just Lift mode: Auto-resetting to Idle (no completion state)")
+                    resetForNewWorkout()
+                    _workoutState.value = WorkoutState.Idle  // Explicitly set to Idle for Just Lift
+                    Timber.d("Just Lift mode: Re-enabling handle detection for next auto-start (useAutoStart=${_workoutParameters.value.useAutoStart})")
+                    enableHandleDetection() // Re-enable for next auto-start
+
+                    // Enable velocity-based wake-up detection for next exercise
+                    bleRepository.enableJustLiftWaitingMode()
+                    Timber.d("Just Lift mode: Velocity wake-up detection enabled - ready for next exercise")
+                } else {
+                    _workoutState.value = WorkoutState.Completed
+                }
+            }
+        }
     }
 
+    /**
+     * Cancel routine - stops everything with no autoplay
+     * Use this when user explicitly wants to end the routine during rest
+     */
     fun cancelRoutine() {
-        _loadedRoutine.value = null
-        _currentExerciseIndex.value = 0
-        _currentSetIndex.value = 0
-        currentRoutineSessionId = null
-        currentRoutineName = null
+        viewModelScope.launch {
+            // Stop everything, no autoplay
+            bleRepository.stopWorkout()
+            WorkoutForegroundService.stopWorkoutService(getApplication())
+            _hapticEvents.emit(HapticEvent.WORKOUT_END)
+            
+            _workoutState.value = WorkoutState.Completed
+            _loadedRoutine.value = null  // Clear routine
+            
+            // Save if there was any progress
+            saveWorkoutSession()
+            
+            repCounter.reset()
+            resetAutoStopState()
+            Timber.d("Routine cancelled by user")
+        }
     }
 
     private fun startRestTimer() {
-        val routine = _loadedRoutine.value ?: return
-        val exercise = routine.exercises.getOrNull(_currentExerciseIndex.value) ?: return
-        val restDuration = exercise.setRestSeconds.getOrNull(_currentSetIndex.value) ?: 60
-
-        _workoutState.value = WorkoutState.Rest(restDuration)
-
+        // Cancel any existing rest timer
         restTimerJob?.cancel()
+
         restTimerJob = viewModelScope.launch {
-            for (remaining in restDuration downTo 0) {
-                _workoutState.value = WorkoutState.Rest(remaining)
-                kotlinx.coroutines.delay(1000L)
+            val routine = _loadedRoutine.value
+            val currentExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value)
+
+            // Determine rest duration and autoplay
+            // Use per-set rest time for the set that was just completed
+            val completedSetIndex = _currentSetIndex.value
+            val restDuration = currentExercise?.getRestForSet(completedSetIndex)?.takeIf { it > 0 } ?: 90
+            val autoplay = userPreferences.value.autoplayEnabled
+
+            // For single exercise mode (no routine or temp routine), we always "continue" the same exercise
+            val isSingleExercise = isSingleExerciseMode()
+
+            Timber.d("???????????????????????????????????????????????????")
+            Timber.d("REST TIMER STARTING")
+            if (isSingleExercise) {
+                Timber.d("  Mode: Single Exercise")
+            } else {
+                Timber.d("  Exercise: ${currentExercise?.exercise?.displayName}")
+                Timber.d("  Current set: ${_currentSetIndex.value + 1}/${currentExercise?.setReps?.size}")
             }
-            startNextSetOrExercise()
+            Timber.d("  Rest duration: ${restDuration}s")
+            Timber.d("  Autoplay enabled: $autoplay")
+            Timber.d("???????????????????????????????????????????????????")
+
+            for (i in restDuration downTo 1) {
+                val nextName = if (isSingleExercise) {
+                    "Next Set"
+                } else {
+                    val isLastSet = _currentSetIndex.value >= (currentExercise?.setReps?.size ?: 0) - 1
+                    val nextExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value + 1)
+                    if (isLastSet) {
+                        nextExercise?.exercise?.name ?: "Workout Complete"
+                    } else {
+                        "Set ${_currentSetIndex.value + 2} of ${currentExercise?.exercise?.name}"
+                    }
+                }
+
+                _workoutState.value = if (isSingleExercise) {
+                    // For single exercise temp routines, show proper set count
+                    WorkoutState.Resting(
+                        restSecondsRemaining = i,
+                        nextExerciseName = nextName,
+                        isLastExercise = false,
+                        currentSet = _currentSetIndex.value + 1,
+                        totalSets = currentExercise?.setReps?.size ?: 0
+                    )
+                } else {
+                    val isLastSet = _currentSetIndex.value >= (currentExercise?.setReps?.size ?: 0) - 1
+                    val nextExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value + 1)
+                    WorkoutState.Resting(
+                        restSecondsRemaining = i,
+                        nextExerciseName = nextName,
+                        isLastExercise = isLastSet && nextExercise == null,
+                        currentSet = _currentSetIndex.value + 1,
+                        totalSets = currentExercise?.setReps?.size ?: 0
+                    )
+                }
+                delay(1000)
+            }
+
+            // Only auto-advance if autoplay is enabled
+            // If autoplay is disabled, user must manually start next set via skipRest()
+            if (autoplay) {
+                Timber.d("Autoplay enabled - starting next set/exercise")
+                if (isSingleExercise) {
+                    // For single exercise, only restart if there are more sets remaining
+                    // Otherwise this creates an infinite loop
+                    val currentExerciseSets = routine?.exercises?.getOrNull(_currentExerciseIndex.value)
+                    if (currentExerciseSets != null && _currentSetIndex.value < currentExerciseSets.setReps.size - 1) {
+                        _currentSetIndex.value++
+                        // Update workout parameters for the new set (reps, weight, isAMRAP)
+                        val targetReps = currentExerciseSets.setReps[_currentSetIndex.value]
+                        val setWeight = currentExerciseSets.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
+                            ?: currentExerciseSets.weightPerCableKg
+                        _workoutParameters.value = _workoutParameters.value.copy(
+                            reps = targetReps ?: 0, // AMRAP sets have null reps
+                            weightPerCableKg = setWeight,
+                            isAMRAP = targetReps == null // This SET is AMRAP if its reps is null
+                        )
+                        Timber.d("  Updated params for set ${_currentSetIndex.value + 1}: reps=$targetReps, weight=$setWeight kg, isAMRAP=${targetReps == null}")
+                        startWorkout(skipCountdown = true)
+                    } else {
+                        Timber.d("Single exercise complete - no more sets remaining")
+                        _workoutState.value = WorkoutState.Completed
+                    }
+                } else {
+                    startNextSetOrExercise()
+                }
+            } else {
+                // Stay in resting state with 0 seconds remaining
+                // User will see "Start Next Set" button in UI
+                Timber.d("Autoplay disabled - staying in resting state")
+
+                // Recalculate next exercise info after loop ends
+                val nextNameFinal = if (isSingleExercise) {
+                    "Next Set"
+                } else {
+                    val isLastSet = _currentSetIndex.value >= (currentExercise?.setReps?.size ?: 0) - 1
+                    val nextExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value + 1)
+                    if (isLastSet) {
+                        nextExercise?.exercise?.name ?: "Workout Complete"
+                    } else {
+                        "Set ${_currentSetIndex.value + 2} of ${currentExercise?.exercise?.name}"
+                    }
+                }
+
+                _workoutState.value = if (isSingleExercise) {
+                    WorkoutState.Resting(
+                        restSecondsRemaining = 0,
+                        nextExerciseName = nextNameFinal,
+                        isLastExercise = false,
+                        currentSet = 0,
+                        totalSets = 0
+                    )
+                } else {
+                    val isLastSet = _currentSetIndex.value >= (currentExercise?.setReps?.size ?: 0) - 1
+                    val nextExercise = routine?.exercises?.getOrNull(_currentExerciseIndex.value + 1)
+                    WorkoutState.Resting(
+                        restSecondsRemaining = 0,
+                        nextExerciseName = nextNameFinal,
+                        isLastExercise = isLastSet && nextExercise == null,
+                        currentSet = _currentSetIndex.value + 1,
+                        totalSets = currentExercise?.setReps?.size ?: 0
+                    )
+                }
+            }
         }
     }
 
     private fun startNextSetOrExercise() {
-        _workoutState.value = WorkoutState.Idle
-        startWorkout(skipCountdown = true)
+        // Enhanced state guard: Prevent race conditions by checking valid transition states
+        val currentState = _workoutState.value
+        if (currentState is WorkoutState.Completed) {
+            Timber.w("startNextSetOrExercise called but workout already completed - ignoring")
+            return
+        }
+        // Only allow transition from Resting state - prevents race conditions if called multiple times
+        if (currentState !is WorkoutState.Resting) {
+            Timber.w("startNextSetOrExercise called in invalid state: $currentState - ignoring (expected Resting)")
+            return
+        }
+
+        val routine = _loadedRoutine.value ?: run {
+            Timber.e("startNextSetOrExercise: No routine loaded!")
+            return
+        }
+        val currentExercise = routine.exercises.getOrNull(_currentExerciseIndex.value) ?: run {
+            Timber.e("startNextSetOrExercise: No exercise at index ${_currentExerciseIndex.value}")
+            return
+        }
+
+        Timber.d("???????????????????????????????????????????????????")
+        Timber.d("START NEXT SET OR EXERCISE")
+        Timber.d("  Current exercise: ${currentExercise.exercise.displayName}")
+        Timber.d("  Current set index: ${_currentSetIndex.value}")
+        Timber.d("  Total sets: ${currentExercise.setReps.size}")
+        Timber.d("  Current exercise index: ${_currentExerciseIndex.value}")
+        Timber.d("  Total exercises: ${routine.exercises.size}")
+
+        if (_currentSetIndex.value < currentExercise.setReps.size - 1) {
+            // More sets in current exercise
+            Timber.d("  ? Moving to next set")
+            _currentSetIndex.value++
+            val targetReps = currentExercise.setReps[_currentSetIndex.value]
+            // Get per-set weight if available, otherwise use exercise default
+            val setWeight = currentExercise.setWeightsPerCableKg.getOrNull(_currentSetIndex.value)
+                ?: currentExercise.weightPerCableKg
+            Timber.d("  New set index: ${_currentSetIndex.value}")
+            Timber.d("  Target reps: $targetReps")
+            Timber.d("  Set weight: $setWeight kg")
+            _workoutParameters.value = workoutParameters.value.copy(
+                reps = targetReps ?: 0, // AMRAP sets have null reps
+                weightPerCableKg = setWeight, // FIXED: Use per-set weight, not previous set's weight
+                // Preserve all other parameters from current exercise
+                progressionRegressionKg = workoutParameters.value.progressionRegressionKg,
+                workoutType = workoutParameters.value.workoutType,
+                selectedExerciseId = workoutParameters.value.selectedExerciseId,
+                isAMRAP = targetReps == null // This SET is AMRAP if its reps is null
+            )
+            Timber.d("  AFTER UPDATE - isAMRAP set to: ${_workoutParameters.value.isAMRAP} (targetReps was: $targetReps)")
+            Timber.d("  AFTER UPDATE - reps set to: ${_workoutParameters.value.reps}")
+            Timber.d("???????????????????????????????????????????????????")
+            startWorkout(skipCountdown = true)
+        } else {
+            // Move to next exercise
+            Timber.d("  No more sets in current exercise")
+            if (_currentExerciseIndex.value < routine.exercises.size - 1) {
+                Timber.d("  ? Moving to next exercise")
+                _currentExerciseIndex.value++
+                _currentSetIndex.value = 0
+                // Update workout parameters for new exercise
+                val nextExercise = routine.exercises[_currentExerciseIndex.value]
+                val nextSetReps = nextExercise.setReps[0]
+                Timber.d("  New exercise index: ${_currentExerciseIndex.value}")
+                Timber.d("  Next exercise: ${nextExercise.exercise.displayName}")
+                _workoutParameters.value = workoutParameters.value.copy(
+                    weightPerCableKg = nextExercise.weightPerCableKg,
+                    reps = nextSetReps ?: 0, // AMRAP sets have null reps
+                    workoutType = nextExercise.workoutType,
+                    progressionRegressionKg = nextExercise.progressionKg,
+                    selectedExerciseId = nextExercise.exercise.id,
+                    isAMRAP = nextSetReps == null // First SET is AMRAP if its reps is null
+                )
+                Timber.d("???????????????????????????????????????????????????")
+                startWorkout(skipCountdown = true)
+            } else {
+                // Routine complete - clear routine to prevent auto-restart
+                Timber.d("  ? ROUTINE COMPLETE!")
+                Timber.d("  Clearing routine and resetting indices")
+                _workoutState.value = WorkoutState.Completed
+                _loadedRoutine.value = null  // CRITICAL: Clear routine to prevent infinite loop
+                _currentSetIndex.value = 0
+                _currentExerciseIndex.value = 0
+                currentRoutineSessionId = null
+                currentRoutineName = null
+                repCounter.reset()
+                resetAutoStopState()
+                Timber.d("???????????????????????????????????????????????????")
+                Timber.d("Routine completed successfully")
+            }
+        }
     }
 
     fun skipRest() {
-        restTimerJob?.cancel()
-        startNextSetOrExercise()
+        Timber.d("???????????????????????????????????????????????????")
+        Timber.d("SKIP REST CALLED")
+        Timber.d("  Current state: ${_workoutState.value}")
+        Timber.d("  Current exercise index: ${_currentExerciseIndex.value}")
+        Timber.d("  Current set index: ${_currentSetIndex.value}")
+        Timber.d("  Loaded routine: ${_loadedRoutine.value?.name ?: "None (single exercise mode)"}")
+        Timber.d("???????????????????????????????????????????????????")
+
+        if (_workoutState.value is WorkoutState.Resting) {
+            // Cancel the rest timer
+            restTimerJob?.cancel()
+            restTimerJob = null
+
+            Timber.d("Rest timer cancelled, starting next set/exercise")
+
+            // Check if this is single exercise mode (no routine or temp routine from SingleExerciseScreen)
+            val isSingleExercise = isSingleExerciseMode() && !_workoutParameters.value.isJustLift
+            if (isSingleExercise) {
+                // For single exercise, restart with same parameters
+                startWorkout(skipCountdown = true)
+            } else {
+                startNextSetOrExercise()
+            }
+        } else {
+            Timber.w("skipRest called but state is not Resting: ${_workoutState.value}")
+        }
     }
 
-    private fun advanceToNextExercise() {
+    /**
+     * Manually advance to the next exercise in a routine.
+     * Called when user clicks "Start Next Exercise" button after completing an exercise.
+     */
+    fun advanceToNextExercise() {
         val routine = _loadedRoutine.value ?: return
 
+        // Move to next exercise
         if (_currentExerciseIndex.value < routine.exercises.size - 1) {
             _currentExerciseIndex.value++
             _currentSetIndex.value = 0
-            startRestTimer()
-        } else {
-            // Routine complete
-            _workoutState.value = WorkoutState.Summary
+
+            // Update workout parameters for new exercise
+            val nextExercise = routine.exercises[_currentExerciseIndex.value]
+            val nextSetReps = nextExercise.setReps[0]
+            _workoutParameters.value = workoutParameters.value.copy(
+                weightPerCableKg = nextExercise.weightPerCableKg,
+                reps = nextSetReps ?: 0, // AMRAP sets have null reps
+                workoutType = nextExercise.workoutType,
+                progressionRegressionKg = nextExercise.progressionKg,
+                selectedExerciseId = nextExercise.exercise.id,
+                isAMRAP = nextSetReps == null // First SET is AMRAP if its reps is null
+            )
+
+            // Start the next exercise
+            startWorkout(skipCountdown = true)
         }
     }
 
@@ -527,49 +1716,153 @@ class MainViewModel @Inject constructor(
 
     private suspend fun saveWorkoutSession() {
         val sessionId = currentSessionId ?: return
-        val parameters = _workoutParameters.value ?: return
+        val params = _workoutParameters.value
+        val warmup = _repCount.value.warmupReps
+        val working = _repCount.value.workingReps
+        val duration = System.currentTimeMillis() - workoutStartTime
+
+        // Store per-cable weight for history/PRs.
+        // measuredPerCableKg is derived from device output (totalLoad / 2).
+        val measuredPerCableKg = if (collectedMetrics.isNotEmpty()) {
+            collectedMetrics.maxOf { it.totalLoad } / 2f
+        } else {
+            params.weightPerCableKg // Fallback to configured if no metrics
+        }
+
+        // For history display, we want to preserve the configured weight per cable so it matches
+        // what the user selected, while still using measuredPerCableKg for PR/analytics logic.
+        val effectivePerCableKg = params.weightPerCableKg
+
+        val (eccentricLoad, echoLevel) = when (val wt = params.workoutType) {
+            is WorkoutType.Echo -> wt.eccentricLoad.percentage to wt.level.levelValue
+            is WorkoutType.Program -> 100 to 2 // Defaults for program modes
+        }
+
+        // Get exercise name for history display (avoids DB lookups later)
+        val exerciseName = if (params.isJustLift) {
+            null // Just Lift mode doesn't have an exercise name
+        } else {
+            // Try to get from loaded routine first
+            _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)?.exercise?.name
+                // Fallback: lookup by ID from exercise repository
+                ?: params.selectedExerciseId?.let { exerciseRepository.getExerciseById(it)?.name }
+        }
 
         val session = WorkoutSession(
             id = sessionId,
-            exerciseId = parameters.exerciseId,
-            exerciseName = parameters.exerciseName,
             timestamp = workoutStartTime,
-            duration = System.currentTimeMillis() - workoutStartTime,
-            reps = _repCount.value?.count ?: 0,
-            maxConcentricLoad = maxConcentricPerCableKgThisSession,
-            maxEccentricLoad = maxEccentricPerCableKgThisSession,
-            metrics = collectedMetrics.toList(),
+            mode = params.workoutType.displayName,
+            reps = params.reps,
+            weightPerCableKg = effectivePerCableKg, // Store per-cable weight used for history
+            progressionKg = params.progressionRegressionKg,
+            duration = duration,
+            totalReps = working,  // Exclude warm-up reps from total count
+            warmupReps = warmup,
+            workingReps = working,
+            isJustLift = params.isJustLift,
+            stopAtTop = params.stopAtTop,
+            eccentricLoad = eccentricLoad,
+            echoLevel = echoLevel,
+            exerciseId = params.selectedExerciseId,
+            exerciseName = exerciseName,
             routineSessionId = currentRoutineSessionId,
-            routineName = currentRoutineName
+            routineName = currentRoutineName,
+            safetyFlags = _safetyEventCounts.value.allFlags
+                .fold(0) { acc, flag -> acc or flag.mask },
+            deloadWarningCount = _safetyEventCounts.value.deloadWarnings,
+            romViolationCount = _safetyEventCounts.value.romViolations,
+            spotterActivations = _safetyEventCounts.value.spotterActivations
         )
+
+        // Check if this is a bodyweight exercise (for logging purposes)
+        val currentExercise = _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
+        val isBodyweight = isBodyweightExercise(currentExercise)
+
+        Timber.d("💾 SAVING WORKOUT SESSION:")
+        Timber.d("  sessionId: $sessionId")
+        Timber.d("  mode: ${params.workoutType.displayName}")
+        Timber.d("  reps (target): ${params.reps}")
+        Timber.d("  totalReps (actual): $working")
+        Timber.d("  isAMRAP: ${params.isAMRAP}")
+        Timber.d("  isBodyweight: $isBodyweight")
+        Timber.d("  exerciseId: ${params.selectedExerciseId}")
+        Timber.d("  routineSessionId: $currentRoutineSessionId")
+        Timber.d("  routineName: $currentRoutineName")
+        Timber.d("  _loadedRoutine.value: ${_loadedRoutine.value?.name}")
+        Timber.d("  _loadedRoutine.value.id: ${_loadedRoutine.value?.id}")
+        Timber.d("  maxConcentricPerCableKgThisSession=$maxConcentricPerCableKgThisSession, maxEccentricPerCableKgThisSession=$maxEccentricPerCableKgThisSession")
+        if (isBodyweight) {
+            Timber.d("  Note: Bodyweight exercise - working reps is 0 (expected), duration tracked instead")
+        }
 
         workoutRepository.saveSession(session)
 
-        // Check for PRs
-        personalRecordRepository.checkAndUpdateRecords(session)?.let { prEvent ->
-            _prCelebrationEvent.emit(prEvent)
+        if (collectedMetrics.isNotEmpty()) {
+            workoutRepository.saveMetrics(sessionId, collectedMetrics)
         }
+
+        // Save phase statistics if available
+        val heuristics = bleRepository.heuristicData.value
+        if (heuristics != null) {
+            workoutRepository.savePhaseStatistics(sessionId, heuristics)
+        }
+
+        // Track personal record if exercise is selected
+        params.selectedExerciseId?.let { exerciseId ->
+            // Only track PRs for completed working sets (not warmups, not just lift, not echo mode)
+            // Echo mode is excluded because it uses adaptive weight (machine calculates)
+            val isEchoMode = params.workoutType is WorkoutType.Echo
+            if (working > 0 && !params.isJustLift && !isEchoMode) {
+                val isNewPR = workoutRepository.updatePersonalRecordIfNeeded(
+                    exerciseId = exerciseId,
+                    weightPerCableKg = measuredPerCableKg,
+                    reps = working,
+                    workoutMode = params.workoutType.displayName
+                )
+                if (isNewPR) {
+                    Timber.d("NEW PERSONAL RECORD! Exercise: $exerciseId, Weight: ${measuredPerCableKg}kg, Reps: $working")
+                    // Trigger PR celebration
+                    viewModelScope.launch {
+                        try {
+                            val exercise = exerciseRepository.getExerciseById(exerciseId)
+                            _prCelebrationEvent.emit(
+                                PRCelebrationEvent(
+                                    exerciseName = exercise?.name ?: "Unknown Exercise",
+                                    weightPerCableKg = measuredPerCableKg,
+                                    reps = working,
+                                    workoutMode = params.workoutType.displayName
+                                )
+                            )
+                        } catch (e: Exception) {
+                            Timber.e(e, "Failed to trigger PR celebration")
+                        }
+                    }
+                }
+            }
+        }
+
+        Timber.d("Saved workout session: $sessionId with ${collectedMetrics.size} metrics")
     }
 
-    // Preference functions
     fun setColorScheme(schemeIndex: Int) {
         viewModelScope.launch {
-            preferencesManager.setColorScheme(schemeIndex)
+            bleRepository.setColorScheme(schemeIndex)
         }
     }
 
     fun deleteWorkout(sessionId: String) {
         viewModelScope.launch {
-            workoutRepository.deleteSession(sessionId)
+            workoutRepository.deleteWorkout(sessionId)
         }
     }
 
     fun deleteAllWorkouts() {
         viewModelScope.launch {
-            workoutRepository.deleteAllSessions()
+            workoutRepository.deleteAllWorkouts()
         }
     }
 
+    // Feature 2: Weight Unit Management
     fun setWeightUnit(unit: WeightUnit) {
         viewModelScope.launch {
             preferencesManager.setWeightUnit(unit)
@@ -596,150 +1889,341 @@ class MainViewModel @Inject constructor(
 
     fun setStrictValidationEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            preferencesManager.setStrictValidation(enabled)
+            preferencesManager.setStrictValidationEnabled(enabled)
+            bleRepository.setStrictValidationEnabled(enabled)
         }
     }
 
-    // Weight conversion functions
-    fun kgToDisplay(kg: Float, unit: WeightUnit): Float {
-        return when (unit) {
-            WeightUnit.KG -> kg
-            WeightUnit.LBS -> kg * 2.20462f
-        }
-    }
+    /**
+     * Convert weight from KG to display unit
+     */
+    fun kgToDisplay(kg: Float, unit: WeightUnit): Float =
+        if (unit == WeightUnit.LB) kg * 2.20462f else kg
 
-    fun displayToKg(display: Float, unit: WeightUnit): Float {
-        return when (unit) {
-            WeightUnit.KG -> display
-            WeightUnit.LBS -> display / 2.20462f
-        }
-    }
+    /**
+     * Convert weight from display unit to KG
+     */
+    fun displayToKg(display: Float, unit: WeightUnit): Float =
+        if (unit == WeightUnit.LB) display / 2.20462f else display
 
+    /**
+     * Format weight for display with unit suffix
+     */
     fun formatWeight(kg: Float, unit: WeightUnit): String {
-        val value = kgToDisplay(kg, unit)
-        val unitStr = when (unit) {
-            WeightUnit.KG -> "kg"
-            WeightUnit.LBS -> "lbs"
-        }
-        return "%.1f %s".format(value, unitStr)
+        val displayValue = kgToDisplay(kg, unit)
+        return "%.1f %s".format(displayValue, unit.name.lowercase())
     }
 
-    // Routine functions
+    // Feature 3: Reset for New Workout
+    /**
+     * Reset the workout state to Idle to allow starting a new workout
+     * without disconnecting from the device
+     */
     fun resetForNewWorkout() {
-        currentSessionId = null
-        workoutStartTime = 0L
-        collectedMetrics.clear()
-        _repCount.value = null
-        _currentMetric.value = null
+        _workoutState.value = WorkoutState.Idle
+        _repCount.value = RepCount()
+        _repRanges.value = null
+        _currentSetIndex.value = 0
         resetAutoStopState()
+        Timber.d("Reset for new workout - state returned to Idle")
     }
 
+    // Feature 1: Dialog Management
+    /**
+     * Show the workout setup dialog
+     */
+    @Suppress("unused")
     fun showWorkoutSetupDialog() {
         _isWorkoutSetupDialogVisible.value = true
     }
 
+    /**
+     * Hide the workout setup dialog
+     */
+    @Suppress("unused")
     fun hideWorkoutSetupDialog() {
         _isWorkoutSetupDialogVisible.value = false
     }
 
+    // Feature 4: Routine Management Methods
+
+    /**
+     * Save a new routine or update an existing one
+     */
     fun saveRoutine(routine: Routine) {
         viewModelScope.launch {
-            workoutRepository.saveRoutine(routine)
+            val result = workoutRepository.saveRoutine(routine)
+            if (result.isSuccess) {
+                Timber.d("Routine saved: ${routine.name}")
+            } else {
+                Timber.e("Failed to save routine: ${result.exceptionOrNull()?.message}")
+            }
         }
     }
 
+    /**
+     * Update an existing routine
+     */
     fun updateRoutine(routine: Routine) {
         viewModelScope.launch {
-            workoutRepository.updateRoutine(routine)
+            val result = workoutRepository.updateRoutine(routine)
+            if (result.isSuccess) {
+                Timber.d("Routine updated: ${routine.name}")
+            } else {
+                Timber.e("Failed to update routine: ${result.exceptionOrNull()?.message}")
+            }
         }
     }
 
+    /**
+     * Delete a routine
+     */
     fun deleteRoutine(routineId: String) {
         viewModelScope.launch {
-            workoutRepository.deleteRoutine(routineId)
+            val result = workoutRepository.deleteRoutine(routineId)
+            if (result.isSuccess) {
+                Timber.d("Routine deleted: $routineId")
+            } else {
+                Timber.e("Failed to delete routine: ${result.exceptionOrNull()?.message}")
+            }
         }
     }
 
+    /**
+     * Load a routine for workout - sets parameters from first exercise
+     */
     fun loadRoutine(routine: Routine) {
+        if (routine.exercises.isEmpty()) {
+            Timber.w("Cannot load routine with no exercises")
+            return
+        }
+
         _loadedRoutine.value = routine
         _currentExerciseIndex.value = 0
         _currentSetIndex.value = 0
+
+        // Generate a new routine session ID for grouping all sets from this routine
         currentRoutineSessionId = java.util.UUID.randomUUID().toString()
         currentRoutineName = routine.name
+        Timber.d("✅ ROUTINE LOADED: Set currentRoutineSessionId = $currentRoutineSessionId, routineName = $currentRoutineName")
+
+        // Load parameters from first exercise
+        val firstExercise = routine.exercises[0]
+        val firstSetReps = firstExercise.setReps.firstOrNull() // Can be null for AMRAP sets
+
+        Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        Timber.d("LOADING ROUTINE: ${routine.name}")
+        Timber.d("  ID: ${routine.id}")
+        Timber.d("  Total exercises: ${routine.exercises.size}")
+        Timber.d("  First exercise: ${firstExercise.exercise.displayName}")
+        Timber.d("  Sets: ${firstExercise.setReps.size} (${firstExercise.setReps})")
+        Timber.d("  Weight: ${firstExercise.weightPerCableKg}kg")
+        Timber.d("  First set reps: $firstSetReps")
+        Timber.d("  Setting isJustLift = false")
+        Timber.d("")
+        Timber.d("WORKOUT TYPE DETAILS:")
+        Timber.d("  Type: ${firstExercise.workoutType.displayName}")
+        when (val wt = firstExercise.workoutType) {
+            is com.example.vitruvianredux.domain.model.WorkoutType.Echo -> {
+                Timber.d("  ✓ Echo mode detected!")
+                Timber.d("    Level: ${wt.level.displayName} (levelValue=${wt.level.levelValue})")
+                Timber.d("    Eccentric Load: ${wt.eccentricLoad.displayName} (${wt.eccentricLoad.percentage}%)")
+            }
+            is com.example.vitruvianredux.domain.model.WorkoutType.Program -> {
+                Timber.d("  Program mode: ${wt.mode.displayName}")
+            }
+        }
+        Timber.d("  First exercise isAMRAP: ${firstExercise.isAMRAP}")
+        Timber.d("  First set reps: $firstSetReps")
+        Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+        val params = WorkoutParameters(
+            workoutType = firstExercise.workoutType, // Use workout type from the exercise
+            reps = firstSetReps ?: 0, // AMRAP sets have null reps, use 0 as placeholder
+            weightPerCableKg = firstExercise.weightPerCableKg,
+            progressionRegressionKg = firstExercise.progressionKg,
+            isJustLift = false,  // CRITICAL: Routines are NOT just lift mode (enables autoplay)
+            stopAtTop = stopAtTop.value,   // Use user preference from settings
+            warmupReps = _workoutParameters.value.warmupReps,
+            isAMRAP = firstSetReps == null, // This SET is AMRAP if its reps is null
+            selectedExerciseId = firstExercise.exercise.id // Set exercise ID for history tracking
+        )
+
+        Timber.d("Created WorkoutParameters:")
+        Timber.d("  isAMRAP: ${params.isAMRAP}")
+        Timber.d("  workoutType.displayName: ${params.workoutType.displayName}")
+        when (val wt = params.workoutType) {
+            is com.example.vitruvianredux.domain.model.WorkoutType.Echo -> {
+                Timber.d("  Echo level: ${wt.level.displayName}")
+                Timber.d("  Eccentric load: ${wt.eccentricLoad.displayName}")
+            }
+            else -> {}
+        }
+
+        updateWorkoutParameters(params)
+
+        // Mark routine as used
+        viewModelScope.launch {
+            workoutRepository.markRoutineUsed(routine.id)
+        }
+
+        Timber.d("Routine loaded successfully - _loadedRoutine.value is now: ${_loadedRoutine.value?.name}")
     }
 
+    /**
+     * Load a routine and immediately start the workout
+     * Convenience method for one-click routine start from UI
+     */
+    @Suppress("unused")
     fun startRoutineWorkout(routine: Routine) {
         loadRoutine(routine)
-        showWorkoutSetupDialog()
+        startWorkout()
     }
 
+    /**
+     * Move to next exercise in loaded routine
+     */
+    @Suppress("unused")
     fun nextExercise() {
         val routine = _loadedRoutine.value ?: return
-        if (_currentExerciseIndex.value < routine.exercises.size - 1) {
-            _currentExerciseIndex.value++
-            _currentSetIndex.value = 0
+        val currentIndex = _currentExerciseIndex.value
+
+        if (currentIndex < routine.exercises.size - 1) {
+            val nextIndex = currentIndex + 1
+            _currentExerciseIndex.value = nextIndex
+
+            val nextExercise = routine.exercises[nextIndex]
+            updateWorkoutParameters(
+                _workoutParameters.value.copy(
+                    reps = nextExercise.reps,
+                    weightPerCableKg = nextExercise.weightPerCableKg,
+                    progressionRegressionKg = nextExercise.progressionKg
+                )
+            )
+
+            Timber.d("Moved to exercise ${nextIndex + 1}/${routine.exercises.size}: ${nextExercise.exercise.displayName}")
+        } else {
+            Timber.d("Last exercise in routine completed")
+            clearLoadedRoutine()
         }
     }
 
+    /**
+     * Move to previous exercise in loaded routine
+     */
+    @Suppress("unused")
     fun previousExercise() {
-        if (_currentExerciseIndex.value > 0) {
-            _currentExerciseIndex.value--
-            _currentSetIndex.value = 0
+        val routine = _loadedRoutine.value ?: return
+        val currentIndex = _currentExerciseIndex.value
+
+        if (currentIndex > 0) {
+            val prevIndex = currentIndex - 1
+            _currentExerciseIndex.value = prevIndex
+
+            val prevExercise = routine.exercises[prevIndex]
+            updateWorkoutParameters(
+                _workoutParameters.value.copy(
+                    reps = prevExercise.reps,
+                    weightPerCableKg = prevExercise.weightPerCableKg,
+                    progressionRegressionKg = prevExercise.progressionKg
+                )
+            )
+
+            Timber.d("Moved to exercise ${prevIndex + 1}/${routine.exercises.size}: ${prevExercise.exercise.displayName}")
         }
     }
 
+    /**
+     * Clear loaded routine
+     */
     fun clearLoadedRoutine() {
         _loadedRoutine.value = null
         _currentExerciseIndex.value = 0
         _currentSetIndex.value = 0
         currentRoutineSessionId = null
         currentRoutineName = null
+        Timber.d("Cleared loaded routine")
     }
 
+    /**
+     * Get current exercise from loaded routine
+     */
+    @Suppress("unused")
     fun getCurrentExercise(): RoutineExercise? {
-        return _loadedRoutine.value?.exercises?.getOrNull(_currentExerciseIndex.value)
+        val routine = _loadedRoutine.value ?: return null
+        val index = _currentExerciseIndex.value
+        return routine.exercises.getOrNull(index)
     }
 
-    // Program functions
-    fun saveProgram(program: WeeklyProgramWithDays) {
+    // ========== Weekly Programs ==========
+
+    /**
+     * Save a weekly program
+     */
+    fun saveProgram(program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays) {
         viewModelScope.launch {
-            workoutRepository.saveProgram(program)
+            val result = workoutRepository.saveProgram(program)
+            if (result.isSuccess) {
+                Timber.d("Saved weekly program: ${program.program.title}")
+            } else {
+                Timber.e("Failed to save weekly program: ${result.exceptionOrNull()?.message}")
+            }
         }
     }
 
+    /**
+     * Delete a weekly program
+     */
     fun deleteProgram(programId: String) {
         viewModelScope.launch {
-            workoutRepository.deleteProgram(programId)
+            val result = workoutRepository.deleteProgram(programId)
+            if (result.isSuccess) {
+                Timber.d("Deleted weekly program: $programId")
+            } else {
+                Timber.e("Failed to delete weekly program: ${result.exceptionOrNull()?.message}")
+            }
         }
     }
 
+    /**
+     * Activate a weekly program
+     */
     fun activateProgram(programId: String) {
         viewModelScope.launch {
-            workoutRepository.activateProgram(programId)
+            val result = workoutRepository.activateProgram(programId)
+            if (result.isSuccess) {
+                Timber.d("Activated weekly program: $programId")
+            } else {
+                Timber.e("Failed to activate weekly program: ${result.exceptionOrNull()?.message}")
+            }
         }
     }
 
+    /**
+     * Load a routine by ID (for weekly program day selection)
+     */
     fun loadRoutineById(routineId: String) {
         viewModelScope.launch {
-            workoutRepository.getRoutineById(routineId)?.let { routine ->
-                loadRoutine(routine)
-            }
+            workoutRepository.getRoutineById(routineId)
+                .firstOrNull()?.let { routine ->
+                    loadRoutine(routine)
+                }
         }
     }
 
     override fun onCleared() {
         super.onCleared()
-        autoStartJob?.cancel()
-        restTimerJob?.cancel()
-        connectionJob?.cancel()
+        Timber.d("MainViewModel clearing - cancelling collection jobs")
+
+        // Cancel collection jobs to prevent memory leaks
         monitorDataCollectionJob?.cancel()
         repEventsCollectionJob?.cancel()
-        bodyweightTimerJob?.cancel()
+        autoStartJob?.cancel()
+        restTimerJob?.cancel()
     }
 
-    data class SafetyEventCounts(
-        val collisionCount: Int = 0,
-        val overloadCount: Int = 0,
-        val emergencyStopCount: Int = 0
-    )
+    companion object {
+        private const val AUTO_STOP_DURATION_SECONDS = 5f  // User preference: 5 seconds
+    }
 }
+

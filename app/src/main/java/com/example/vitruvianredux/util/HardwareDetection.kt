@@ -1,37 +1,58 @@
 package com.example.vitruvianredux.util
 
 /**
- * Utility for detecting Vitruvian hardware model from BLE device name.
+ * Vitruvian Hardware Model Detection
+ *
+ * Identifies which generation of Vitruvian Trainer is connected based on device name
+ * and determines hardware capabilities.
+ *
+ * Known Models:
+ * - Euclid (VIT-200): Original V-Form Trainer with older motors
+ *   - Device names start with "Vee"
+ *   - Limited eccentric mode support due to hardware constraints
+ *
+ * - Trainer+: Second generation with improved motors
+ *   - Better eccentric mode performance
+ *   - Smoother operation overall
+ *
+ * Note: Currently we can only detect Euclid devices via "Vee" prefix.
+ * Trainer+ detection would require additional device name patterns to be identified.
  */
 object HardwareDetection {
 
     /**
-     * Detect the Vitruvian model from the BLE device name.
+     * Detect Vitruvian hardware model from device name
      */
     fun detectModel(deviceName: String): VitruvianModel {
         return when {
-            deviceName.startsWith(BleConstants.DEVICE_NAME_PREFIX, ignoreCase = true) -> VitruvianModel.EUCLID
+            // Euclid/V-Form devices use "Vee" prefix
+            deviceName.startsWith("Vee", ignoreCase = true) -> VitruvianModel.EUCLID
+
+            // Trainer+ detection pattern (to be confirmed with actual device names)
             deviceName.startsWith("Vitruvian", ignoreCase = true) -> VitruvianModel.TRAINER_PLUS
+
+            // Default to unknown if pattern doesn't match
             else -> VitruvianModel.UNKNOWN
         }
     }
 
     /**
-     * Get hardware capabilities for a device by name.
+     * Get hardware capabilities for a device name
      */
     fun getCapabilities(deviceName: String): HardwareCapabilities {
-        return detectModel(deviceName).capabilities
+        val model = detectModel(deviceName)
+        return model.capabilities
     }
 
     /**
-     * Check if the device supports eccentric-only mode.
+     * Check if eccentric mode is supported on this device
      */
     fun supportsEccentricMode(deviceName: String): Boolean {
         return getCapabilities(deviceName).supportsEccentricMode
     }
 
     /**
-     * Get a user-friendly display name for the device.
+     * Get user-friendly model name for display
      */
     fun getDisplayName(deviceName: String): String {
         val model = detectModel(deviceName)

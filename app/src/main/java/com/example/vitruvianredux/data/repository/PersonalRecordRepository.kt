@@ -10,8 +10,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Repository for managing personal records (PRs).
- * Handles storage and retrieval of exercise personal bests.
+ * Repository for managing personal records (PRs)
  */
 @Singleton
 class PersonalRecordRepository @Inject constructor(
@@ -19,10 +18,7 @@ class PersonalRecordRepository @Inject constructor(
 ) {
 
     /**
-     * Get the latest PR for a specific exercise and workout mode.
-     * @param exerciseId The exercise ID
-     * @param workoutMode The workout mode (e.g., "Echo", "Program")
-     * @return The personal record, or null if none exists
+     * Get the latest PR for an exercise in a specific workout mode
      */
     suspend fun getLatestPR(exerciseId: String, workoutMode: String): PersonalRecord? {
         return try {
@@ -34,19 +30,16 @@ class PersonalRecordRepository @Inject constructor(
     }
 
     /**
-     * Get all PRs for a specific exercise as a Flow.
-     * @param exerciseId The exercise ID
-     * @return Flow emitting list of personal records
+     * Get all PRs for an exercise across all workout modes
      */
     fun getPRsForExercise(exerciseId: String): Flow<List<PersonalRecord>> {
-        return personalRecordDao.getPRsForExercise(exerciseId)
-            .map { entities -> entities.map { it.toPersonalRecord() } }
+        return personalRecordDao.getPRsForExercise(exerciseId).map { entities ->
+            entities.map { it.toPersonalRecord() }
+        }
     }
 
     /**
-     * Get the best PR for a specific exercise (highest weight).
-     * @param exerciseId The exercise ID
-     * @return The best personal record, or null if none exists
+     * Get the best PR for an exercise across all modes
      */
     suspend fun getBestPR(exerciseId: String): PersonalRecord? {
         return try {
@@ -58,31 +51,26 @@ class PersonalRecordRepository @Inject constructor(
     }
 
     /**
-     * Get all personal records as a Flow.
-     * @return Flow emitting list of all personal records
+     * Get all personal records
      */
     fun getAllPRs(): Flow<List<PersonalRecord>> {
-        return personalRecordDao.getAllPRs()
-            .map { entities -> entities.map { it.toPersonalRecord() } }
+        return personalRecordDao.getAllPRs().map { entities ->
+            entities.map { it.toPersonalRecord() }
+        }
     }
 
     /**
-     * Get all personal records grouped by exercise.
-     * @return Flow emitting list of personal records grouped by exercise
+     * Get all personal records grouped by exercise (for analytics)
      */
     fun getAllPRsGrouped(): Flow<List<PersonalRecord>> {
-        return personalRecordDao.getAllPRsGrouped()
-            .map { entities -> entities.map { it.toPersonalRecord() } }
+        return personalRecordDao.getAllPRsGrouped().map { entities ->
+            entities.map { it.toPersonalRecord() }
+        }
     }
 
     /**
-     * Update PR if the new value is better than the existing one.
-     * @param exerciseId The exercise ID
-     * @param weightPerCableKg Weight per cable in kg
-     * @param reps Number of repetitions
-     * @param workoutMode The workout mode
-     * @param timestamp Unix timestamp in milliseconds
-     * @return Result with true if PR was updated, false otherwise
+     * Update PR if the new performance is better
+     * Returns Result.success(true) if a new PR was set, Result.success(false) otherwise
      */
     suspend fun updatePRIfBetter(
         exerciseId: String,
@@ -92,14 +80,14 @@ class PersonalRecordRepository @Inject constructor(
         timestamp: Long
     ): Result<Boolean> {
         return try {
-            val updated = personalRecordDao.updatePRIfBetter(
+            val isNewPR = personalRecordDao.updatePRIfBetter(
                 exerciseId = exerciseId,
                 weightPerCableKg = weightPerCableKg,
                 reps = reps,
                 workoutMode = workoutMode,
                 timestamp = timestamp
             )
-            Result.success(updated)
+            Result.success(isNewPR)
         } catch (e: Exception) {
             Timber.e(e, "Failed to update PR for exercise $exerciseId")
             Result.failure(e)
@@ -107,16 +95,12 @@ class PersonalRecordRepository @Inject constructor(
     }
 }
 
-/**
- * Extension function to convert PersonalRecordEntity to PersonalRecord domain model.
- */
-private fun PersonalRecordEntity.toPersonalRecord(): PersonalRecord {
-    return PersonalRecord(
-        id = id,
-        exerciseId = exerciseId,
-        weightPerCableKg = weightPerCableKg,
-        reps = reps,
-        timestamp = timestamp,
-        workoutMode = workoutMode
-    )
-}
+// Extension functions for mapping between entities and domain models
+private fun PersonalRecordEntity.toPersonalRecord() = PersonalRecord(
+    id = id,
+    exerciseId = exerciseId,
+    weightPerCableKg = weightPerCableKg,
+    reps = reps,
+    timestamp = timestamp,
+    workoutMode = workoutMode
+)

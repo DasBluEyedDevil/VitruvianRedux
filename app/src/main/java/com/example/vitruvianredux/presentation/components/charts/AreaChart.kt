@@ -1,52 +1,51 @@
 package com.example.vitruvianredux.presentation.components.charts
 
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.EaseInOutCubic
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import ir.ehsannarmani.compose_charts.LineChart
+import ir.ehsannarmani.compose_charts.models.AnimationMode
+import ir.ehsannarmani.compose_charts.models.DrawStyle
+import ir.ehsannarmani.compose_charts.models.DotProperties
+import ir.ehsannarmani.compose_charts.models.GridProperties
+import ir.ehsannarmani.compose_charts.models.HorizontalIndicatorProperties
+import ir.ehsannarmani.compose_charts.models.IndicatorPosition
+import ir.ehsannarmani.compose_charts.models.LabelHelperProperties
+import ir.ehsannarmani.compose_charts.models.LabelProperties
+import ir.ehsannarmani.compose_charts.models.Line
+import ir.ehsannarmani.compose_charts.models.PopupProperties
 
 /**
- * Area Chart Composable for displaying time-series data with filled area.
- *
- * @param data List of label-value pairs to display
- * @param modifier Modifier for the composable
- * @param title Optional chart title
- * @param label Y-axis label
- * @param showGrid Whether to show grid lines
- * @param showPopup Whether to show popup on touch
- * @param animationDuration Duration of the animation in milliseconds
+ * Material 3 Expressive Area Chart using ComposeCharts
+ * Provides animated area/line charts with gradient fills
  */
 @Composable
 fun AreaChart(
-    data: List<Pair<String, Float>>,
+    data: List<Pair<String, Float>>, // Label to value pairs
     modifier: Modifier = Modifier,
     title: String? = null,
-    label: String = "",
+    label: String = "Value",
     showGrid: Boolean = true,
-    showPopup: Boolean = false,
-    animationDuration: Int = 1000
+    showPopup: Boolean = true,
+    animationDuration: Int = 2000
 ) {
+    // Data validation
     if (data.isEmpty()) {
         EmptyChartState(
             message = "No data available",
@@ -55,135 +54,98 @@ fun AreaChart(
         return
     }
 
-    val animationProgress = remember { Animatable(0f) }
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val surfaceColor = MaterialTheme.colorScheme.surface
 
-    LaunchedEffect(data) {
-        animationProgress.snapTo(0f)
-        animationProgress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = animationDuration)
-        )
-    }
-
-    val colorScheme = MaterialTheme.colorScheme
-    val primaryColor = colorScheme.primary
-    val surfaceColor = colorScheme.surface
-    val outlineColor = colorScheme.outline
-
-    Column(modifier = modifier) {
-        title?.let {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        if (title != null) {
             Text(
-                text = it,
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
-                color = colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(modifier = Modifier.height(8.dp))
         }
 
-        Canvas(
+        LineChart(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
-        ) {
-            val width = size.width
-            val height = size.height
-            val padding = 40f
-
-            val maxValue = data.maxOfOrNull { it.second } ?: 1f
-            val minValue = data.minOfOrNull { it.second } ?: 0f
-            val valueRange = (maxValue - minValue).coerceAtLeast(1f)
-
-            val pointSpacing = (width - 2 * padding) / (data.size - 1).coerceAtLeast(1)
-
-            // Draw grid lines
-            if (showGrid) {
-                val gridLines = 5
-                for (i in 0..gridLines) {
-                    val y = padding + (height - 2 * padding) * (i.toFloat() / gridLines)
-                    drawLine(
-                        color = outlineColor.copy(alpha = 0.2f),
-                        start = Offset(padding, y),
-                        end = Offset(width - padding, y),
-                        strokeWidth = 1.dp.toPx()
-                    )
-                }
-            }
-
-            // Create the path for the area
-            val path = Path()
-            val linePath = Path()
-
-            data.forEachIndexed { index, (_, value) ->
-                val x = padding + index * pointSpacing
-                val normalizedValue = (value - minValue) / valueRange
-                val y = height - padding - (height - 2 * padding) * normalizedValue * animationProgress.value
-
-                if (index == 0) {
-                    path.moveTo(x, height - padding)
-                    path.lineTo(x, y)
-                    linePath.moveTo(x, y)
-                } else {
-                    path.lineTo(x, y)
-                    linePath.lineTo(x, y)
-                }
-            }
-
-            // Close the area path
-            val lastX = padding + (data.size - 1) * pointSpacing
-            path.lineTo(lastX, height - padding)
-            path.close()
-
-            // Draw filled area with gradient
-            drawPath(
-                path = path,
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        primaryColor.copy(alpha = 0.4f),
-                        primaryColor.copy(alpha = 0.1f)
+                .height(200.dp),
+            data = remember(data) {
+                listOf(
+                    Line(
+                        label = label,
+                        values = data.map { it.second.toDouble() },
+                        color = SolidColor(primaryColor),
+                        firstGradientFillColor = primaryColor.copy(alpha = 0.5f),
+                        secondGradientFillColor = Color.Transparent,
+                        strokeAnimationSpec = tween(animationDuration, easing = EaseInOutCubic),
+                        gradientAnimationDelay = 500,
+                        drawStyle = DrawStyle.Stroke(width = 3.dp),
+                        curvedEdges = true,
+                        dotProperties = DotProperties(
+                            enabled = true,
+                            color = SolidColor(surfaceColor),
+                            strokeWidth = 2.dp,
+                            radius = 5.dp,
+                            strokeColor = SolidColor(primaryColor)
+                        )
                     )
                 )
+            },
+            animationMode = AnimationMode.Together(delayBuilder = { it * 200L }),
+            gridProperties = GridProperties(
+                enabled = showGrid,
+                xAxisProperties = GridProperties.AxisProperties(
+                    enabled = true,
+                    color = SolidColor(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                    thickness = 1.dp
+                ),
+                yAxisProperties = GridProperties.AxisProperties(
+                    enabled = true,
+                    color = SolidColor(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
+                    thickness = 1.dp
+                )
+            ),
+            indicatorProperties = HorizontalIndicatorProperties(
+                enabled = showPopup,
+                textStyle = TextStyle(
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 12.sp
+                ),
+                padding = 8.dp,
+                position = IndicatorPosition.Horizontal.Start
+            ),
+            labelProperties = LabelProperties(
+                enabled = true,
+                textStyle = TextStyle(
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp
+                ),
+                labels = data.map { it.first }
+            ),
+            popupProperties = PopupProperties(
+                enabled = showPopup,
+                textStyle = TextStyle(
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontSize = 12.sp
+                ),
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            ),
+            labelHelperProperties = LabelHelperProperties(
+                enabled = true
             )
-
-            // Draw the line
-            drawPath(
-                path = linePath,
-                color = primaryColor,
-                style = Stroke(
-                    width = 3.dp.toPx(),
-                    cap = StrokeCap.Round
-                )
-            )
-
-            // Draw data points
-            data.forEachIndexed { index, (_, value) ->
-                val x = padding + index * pointSpacing
-                val normalizedValue = (value - minValue) / valueRange
-                val y = height - padding - (height - 2 * padding) * normalizedValue * animationProgress.value
-
-                // Outer circle
-                drawCircle(
-                    color = primaryColor,
-                    radius = 6.dp.toPx(),
-                    center = Offset(x, y)
-                )
-                // Inner circle
-                drawCircle(
-                    color = surfaceColor,
-                    radius = 3.dp.toPx(),
-                    center = Offset(x, y)
-                )
-            }
-        }
+        )
     }
 }
 
-/**
- * Returns a staggered animation delay for chart elements.
- */
-private fun getAnimationDelay(index: Int): Long = index * 200L
 
 /**
- * Displays an empty state message when no data is available.
+ * Empty state for charts when no data is available
  */
 @Composable
 private fun EmptyChartState(
@@ -193,14 +155,25 @@ private fun EmptyChartState(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(200.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+            .height(280.dp)
+            .padding(16.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.BarChart,
+                contentDescription = "No data available",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(48.dp)
+            )
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }

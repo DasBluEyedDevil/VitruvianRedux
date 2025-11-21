@@ -2,346 +2,461 @@ package com.example.vitruvianredux.presentation.screen
 
 import android.Manifest
 import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Analytics
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.BluetoothSearching
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavHostController
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
+import androidx.compose.ui.unit.sp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.compose.rememberNavController
-import com.example.vitruvianredux.data.repository.ExerciseRepository
-import com.example.vitruvianredux.domain.model.BluetoothDevice
 import com.example.vitruvianredux.domain.model.ConnectionState
+import com.example.vitruvianredux.presentation.navigation.NavGraph
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
+import com.example.vitruvianredux.presentation.viewmodel.ScannedDevice
+import com.example.vitruvianredux.ui.theme.*
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.MultiplePermissionsState
+import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.example.vitruvianredux.presentation.viewmodel.ThemeViewModel
-import com.example.vitruvianredux.ui.theme.ThemeMode
 
-/**
- * Navigation item for bottom navigation bar.
- */
-data class NavigationItem(
-    val route: String,
-    val icon: ImageVector,
-    val label: String
-)
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 
-/**
- * Enhanced main screen with bottom navigation and permission handling.
- *
- * @param viewModel Main app ViewModel
- * @param exerciseRepository Repository for exercise data
- */
+@OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun EnhancedMainScreen(
-    viewModel: MainViewModel,
-    exerciseRepository: ExerciseRepository
+    viewModel: MainViewModel = hiltViewModel(),
+    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository = hiltViewModel<MainViewModel>().exerciseRepository
 ) {
-    val navController = rememberNavController()
-    val context = LocalContext.current
-
-    // Theme state
-    val themeMode by viewModel.themeMode.collectAsState()
-
-    // Permission state
-    var permissionsGranted by remember { mutableStateOf(false) }
-    var showPermissionRationale by remember { mutableStateOf(false) }
-
-    // Connection state
     val connectionState by viewModel.connectionState.collectAsState()
-    val availableDevices by viewModel.availableDevices.collectAsState()
-    var showDeviceSelector by remember { mutableStateOf(false) }
+    val connectionLostDuringWorkout by viewModel.connectionLostDuringWorkout.collectAsState()
 
-    // Bottom navigation
-    var selectedNavIndex by remember { mutableIntStateOf(0) }
-    val navigationItems = listOf(
-        NavigationItem(NavigationRoutes.Home.route, Icons.Filled.Home, "Home"),
-        NavigationItem(NavigationRoutes.DailyRoutines.route, Icons.Filled.FitnessCenter, "Routines"),
-        NavigationItem(NavigationRoutes.Analytics.route, Icons.Filled.Analytics, "Analytics"),
-        NavigationItem(NavigationRoutes.Settings.route, Icons.Filled.Settings, "Settings")
-    )
+    val themeViewModel: ThemeViewModel = hiltViewModel()
+    val themeMode by themeViewModel.themeMode.collectAsState()
 
-    // Permission launcher
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        permissionsGranted = permissions.values.all { it }
-        if (!permissionsGranted) {
-            showPermissionRationale = true
-        }
+    // Determine if we're in dark mode for TopAppBar color
+    val isDarkMode = when (themeMode) {
+        ThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+        ThemeMode.LIGHT -> false
+        ThemeMode.DARK -> true
     }
 
-    // Check and request permissions on launch
-    LaunchedEffect(Unit) {
-        val requiredPermissions = buildList {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                add(Manifest.permission.BLUETOOTH_SCAN)
-                add(Manifest.permission.BLUETOOTH_CONNECT)
-            } else {
-                add(Manifest.permission.BLUETOOTH)
-                add(Manifest.permission.BLUETOOTH_ADMIN)
-                add(Manifest.permission.ACCESS_FINE_LOCATION)
-            }
-        }
+    val navController = rememberNavController()
+    var currentRoute by remember { mutableStateOf(NavigationRoutes.Home.route) }
 
-        permissionLauncher.launch(requiredPermissions.toTypedArray())
+    // Track navigation changes
+    LaunchedEffect(navController) {
+        navController.currentBackStackEntryFlow.collect { backStackEntry ->
+            currentRoute = backStackEntry.destination.route ?: NavigationRoutes.Home.route
+        }
+    }
+    
+    // Helper function to determine if current route is a "Workouts" route
+    val isWorkoutsRoute = remember(currentRoute) {
+        currentRoute == NavigationRoutes.Home.route ||
+        currentRoute == NavigationRoutes.JustLift.route ||
+        currentRoute == NavigationRoutes.SingleExercise.route ||
+        currentRoute == NavigationRoutes.DailyRoutines.route ||
+        currentRoute == NavigationRoutes.ActiveWorkout.route ||
+        currentRoute == NavigationRoutes.WeeklyPrograms.route ||
+        currentRoute.startsWith(NavigationRoutes.ProgramBuilder.route.replace("/{programId}", ""))
     }
 
-    // Show permission request screen if permissions not granted
-    if (!permissionsGranted) {
-        PermissionRequestScreen(
-            onRequestPermission = {
-                val requiredPermissions = buildList {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        add(Manifest.permission.BLUETOOTH_SCAN)
-                        add(Manifest.permission.BLUETOOTH_CONNECT)
-                    } else {
-                        add(Manifest.permission.BLUETOOTH)
-                        add(Manifest.permission.BLUETOOTH_ADMIN)
-                        add(Manifest.permission.ACCESS_FINE_LOCATION)
-                    }
-                }
-                permissionLauncher.launch(requiredPermissions.toTypedArray())
-            },
-            showRationale = showPermissionRationale
+    // Request BLE permissions (REMOVED POST_NOTIFICATIONS - not needed and causes Android to forward notifications to BLE device!)
+    val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        listOf(
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT,
+            Manifest.permission.ACCESS_FINE_LOCATION
         )
-        return
+    } else {
+        listOf(
+            Manifest.permission.BLUETOOTH,
+            Manifest.permission.BLUETOOTH_ADMIN,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
     }
+
+    val permissionState = rememberMultiplePermissionsState(permissions)
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
-        bottomBar = {
-            NavigationBar {
-                navigationItems.forEachIndexed { index, item ->
-                    NavigationBarItem(
-                        selected = selectedNavIndex == index,
-                        onClick = {
-                            selectedNavIndex = index
-                            navController.navigate(item.route) {
-                                popUpTo(navController.graph.startDestinationId) {
-                                    saveState = true
-                                }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        },
-                        icon = {
-                            Icon(
-                                imageVector = item.icon,
-                                contentDescription = item.label
+        contentWindowInsets = WindowInsets(0, 0, 0, 0), // Let components handle their own insets
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        topBar = {
+            LargeTopAppBar(
+                scrollBehavior = scrollBehavior,
+                title = {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
+                        Text(
+                            text = "Vitruvian",
+                            style = MaterialTheme.typography.headlineMedium.copy( // Larger for LargeTopAppBar
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0xFFEAB308), // Bright Gold
+                                        Color(0xFFF59E0B)  // Amber
+                                    )
+                                ),
+                                fontWeight = FontWeight.Bold
                             )
-                        },
-                        label = { Text(item.label) }
+                        )
+                        Text(
+                            text = "Project Phoenix",
+                            style = MaterialTheme.typography.titleMedium.copy( // Larger subtitle
+                                brush = Brush.linearGradient(
+                                    colors = listOf(
+                                        Color(0xFFF97316), // Orange
+                                        Color(0xFFEF4444)  // Red
+                                    )
+                                ),
+                                fontWeight = FontWeight.Medium
+                            )
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = if (isDarkMode) TopAppBarDark else TopAppBarLight,
+                    titleContentColor = TextPrimary,
+                    actionIconContentColor = TextPrimary
+                ),
+                actions = {
+                    // Connection status icon (Bluetooth) with text label
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier
+                            .padding(horizontal = 4.dp)
+                            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp) // Ensure 48dp touch target
+                            .clickable(
+                                onClick = {
+                                    if (connectionState is ConnectionState.Connected) {
+                                        viewModel.disconnect()
+                                    } else {
+                                        viewModel.ensureConnection(
+                                            onConnected = {},
+                                            onFailed = {}
+                                        )
+                                    }
+                                },
+                                role = androidx.compose.ui.semantics.Role.Button
+                            )
+                    ) {
+                        Icon(
+                            imageVector = when (connectionState) {
+                                is ConnectionState.Connected -> Icons.Default.Bluetooth
+                                is ConnectionState.Connecting -> Icons.AutoMirrored.Filled.BluetoothSearching
+                                is ConnectionState.Disconnecting -> Icons.AutoMirrored.Filled.BluetoothSearching
+                                is ConnectionState.Disconnected -> Icons.Default.BluetoothDisabled
+                                is ConnectionState.Scanning -> Icons.AutoMirrored.Filled.BluetoothSearching
+                                is ConnectionState.Error -> Icons.Default.BluetoothDisabled
+                            },
+                            contentDescription = when (connectionState) {
+                                is ConnectionState.Connected -> "Connected to machine. Tap to disconnect"
+                                is ConnectionState.Connecting -> "Connecting to machine"
+                                is ConnectionState.Disconnecting -> "Disconnecting from machine"
+                                is ConnectionState.Disconnected -> "Disconnected. Tap to connect"
+                                is ConnectionState.Scanning -> "Scanning for machine"
+                                is ConnectionState.Error -> "Connection error. Tap to retry"
+                            },
+                            tint = when (connectionState) {
+                                is ConnectionState.Connected -> Color(0xFF22C55E) // green-500
+                                is ConnectionState.Connecting -> Color(0xFFFBBF24) // yellow-400
+                                is ConnectionState.Disconnecting -> Color(0xFFFBBF24) // yellow-400
+                                is ConnectionState.Disconnected -> Color(0xFFEF4444) // red-500
+                                is ConnectionState.Scanning -> Color(0xFF3B82F6) // blue-500
+                                is ConnectionState.Error -> Color(0xFFEF4444) // red-500
+                            },
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = when (connectionState) {
+                                is ConnectionState.Connected -> "Connected"
+                                is ConnectionState.Connecting -> "Connecting"
+                                is ConnectionState.Disconnecting -> "Disconnecting"
+                                is ConnectionState.Disconnected -> "Disconnected"
+                                is ConnectionState.Scanning -> "Scanning"
+                                is ConnectionState.Error -> "Error"
+                            },
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                            color = when (connectionState) {
+                                is ConnectionState.Connected -> Color(0xFF22C55E)
+                                is ConnectionState.Connecting -> Color(0xFFFBBF24)
+                                is ConnectionState.Disconnecting -> Color(0xFFFBBF24)
+                                is ConnectionState.Disconnected -> Color(0xFFEF4444)
+                                is ConnectionState.Scanning -> Color(0xFF3B82F6)
+                                is ConnectionState.Error -> Color(0xFFEF4444)
+                            },
+                            maxLines = 1
+                        )
+                    }
+
+                    // Theme toggle
+                    com.example.vitruvianredux.presentation.components.ThemeToggle(
+                        mode = themeMode,
+                        onModeChange = { themeViewModel.setThemeMode(it) }
                     )
                 }
+            )
+        },
+        bottomBar = {
+            NavigationBar(
+                tonalElevation = 8.dp
+            ) {
+                // Analytics
+                NavigationBarItem(
+                    selected = currentRoute == NavigationRoutes.Analytics.route,
+                    onClick = {
+                        navController.navigate(NavigationRoutes.Analytics.route) {
+                            popUpTo(NavigationRoutes.Home.route)
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = if (currentRoute == NavigationRoutes.Analytics.route)
+                                Icons.Filled.BarChart
+                            else
+                                Icons.Outlined.BarChart,
+                            contentDescription = "Analytics"
+                        )
+                    },
+                    label = { Text("Analytics") },
+                    alwaysShowLabel = false
+                )
+
+                // Workouts
+                NavigationBarItem(
+                    selected = isWorkoutsRoute,
+                    onClick = {
+                        navController.navigate(NavigationRoutes.Home.route) {
+                            popUpTo(NavigationRoutes.Home.route)
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = if (isWorkoutsRoute)
+                                Icons.Filled.Home
+                            else
+                                Icons.Outlined.Home,
+                            contentDescription = "Workouts"
+                        )
+                    },
+                    label = { Text("Workouts") },
+                    alwaysShowLabel = false
+                )
+
+                // Settings
+                NavigationBarItem(
+                    selected = currentRoute == NavigationRoutes.Settings.route,
+                    onClick = {
+                        navController.navigate(NavigationRoutes.Settings.route) {
+                            popUpTo(NavigationRoutes.Home.route)
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = if (currentRoute == NavigationRoutes.Settings.route)
+                                Icons.Filled.Settings
+                            else
+                                Icons.Outlined.Settings,
+                            contentDescription = "Settings"
+                        )
+                    },
+                    label = { Text("Settings") },
+                    alwaysShowLabel = false
+                )
             }
         }
-    ) { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = NavigationRoutes.Home.route,
-            modifier = Modifier.padding(paddingValues)
-        ) {
-            composable(NavigationRoutes.Home.route) {
-                HomeScreen(
-                    navController = navController,
-                    viewModel = viewModel,
-                    themeMode = themeMode
-                )
-            }
+    ) { padding ->
+        // Use proper padding to account for TopAppBar and system bars (status bar, notch, etc.)
+        val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+        val adjustedPadding = PaddingValues(
+            start = padding.calculateLeftPadding(layoutDirection),
+            end = padding.calculateRightPadding(layoutDirection),
+            top = padding.calculateTopPadding(),
+            bottom = padding.calculateBottomPadding()
+        )
 
-            composable(NavigationRoutes.DailyRoutines.route) {
-                DailyRoutinesScreen(
-                    navController = navController,
-                    viewModel = viewModel,
-                    exerciseRepository = exerciseRepository,
-                    themeMode = themeMode,
-                    padding = PaddingValues(0.dp)
-                )
-            }
-
-            composable(NavigationRoutes.Analytics.route) {
-                AnalyticsScreen(
-                    viewModel = viewModel,
-                    themeMode = themeMode,
-                    padding = PaddingValues(0.dp)
-                )
-            }
-
-            composable(NavigationRoutes.Settings.route) {
-                SettingsScreen(
-                    viewModel = viewModel,
-                    onNavigateToConnectionLogs = {
-                        navController.navigate(NavigationRoutes.ConnectionLogs.route)
-                    },
-                    onNavigateToDiagnostics = {
-                        navController.navigate(NavigationRoutes.Diagnostics.route)
-                    }
-                )
-            }
-
-            composable(NavigationRoutes.JustLift.route) {
-                JustLiftScreen(
-                    navController = navController,
-                    viewModel = viewModel,
-                    themeMode = themeMode,
-                    padding = PaddingValues(0.dp)
-                )
-            }
-
-            composable(NavigationRoutes.ActiveWorkout.route) {
-                ActiveWorkoutScreen(
-                    navController = navController,
-                    viewModel = viewModel,
-                    exerciseRepository = exerciseRepository
-                )
-            }
-
-            composable(NavigationRoutes.ConnectionLogs.route) {
-                ConnectionLogsScreen(
-                    onNavigateBack = { navController.navigateUp() },
-                    mainViewModel = viewModel
-                )
-            }
-
-            composable(NavigationRoutes.Diagnostics.route) {
-                DiagnosticsScreen(
-                    onNavigateBack = { navController.navigateUp() }
-                )
-            }
+        if (!permissionState.allPermissionsGranted) {
+            PermissionRequestScreen(
+                permissionState = permissionState,
+                modifier = Modifier.padding(adjustedPadding)
+            )
+        } else {
+            NavGraph(
+                navController = navController,
+                viewModel = viewModel,
+                exerciseRepository = exerciseRepository,
+                themeMode = themeMode,
+                onThemeModeChange = { mode -> themeViewModel.setThemeMode(mode) },
+                modifier = Modifier.padding(adjustedPadding)
+            )
         }
     }
 
-    // Device selector dialog
-    if (showDeviceSelector) {
-        DeviceSelectorDialog(
-            devices = availableDevices,
-            onDeviceSelected = { device ->
-                viewModel.connectToDevice(device)
-                showDeviceSelector = false
+    // Show connection lost alert during workout (Issue #43)
+    if (connectionLostDuringWorkout) {
+        com.example.vitruvianredux.presentation.components.ConnectionLostDialog(
+            onReconnect = {
+                viewModel.dismissConnectionLostAlert()
+                viewModel.ensureConnection(
+                    onConnected = {},
+                    onFailed = {}
+                )
             },
-            onDismiss = { showDeviceSelector = false }
+            onDismiss = {
+                viewModel.dismissConnectionLostAlert()
+            }
         )
     }
 }
 
-/**
- * Screen shown when permissions are not granted.
- */
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun PermissionRequestScreen(
-    onRequestPermission: () -> Unit,
-    showRationale: Boolean
+    permissionState: MultiplePermissionsState,
+    modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(Spacing.large),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "Bluetooth Permission Required",
-                style = MaterialTheme.typography.headlineSmall
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = if (showRationale) {
-                    "Bluetooth permission is required to connect to your Vitruvian Trainer+. " +
-                            "Please grant the permission in your device settings."
-                } else {
-                    "This app needs Bluetooth permission to connect to your Vitruvian Trainer+ " +
-                            "and track your workouts."
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(onClick = onRequestPermission) {
-                Text("Grant Permission")
-            }
+        Icon(
+            imageVector = Icons.Default.Info,
+            contentDescription = "Connection information",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(64.dp)
+        )
+        Spacer(modifier = Modifier.height(Spacing.medium))
+        Text(
+            "Bluetooth permissions required",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(Spacing.small))
+        Text(
+            buildString {
+                append("This app needs Bluetooth and Location permissions to connect to your Vitruvian machine.")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    append(" Notification permission is needed to keep workouts running in the background.")
+                }
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(Spacing.large))
+        Button(onClick = { permissionState.launchMultiplePermissionRequest() }) {
+            Icon(Icons.Default.Check, contentDescription = "Confirm")
+            Spacer(modifier = Modifier.width(Spacing.small))
+            Text("Grant permissions")
         }
     }
 }
 
-/**
- * Dialog for selecting a Bluetooth device to connect to.
- */
 @Composable
 fun DeviceSelectorDialog(
-    devices: List<BluetoothDevice>,
-    onDeviceSelected: (BluetoothDevice) -> Unit,
+    devices: List<ScannedDevice>,
+    isScanning: Boolean,
+    onDeviceSelected: (ScannedDevice) -> Unit,
+    onRescan: () -> Unit,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Select Device") },
+        title = { Text("Select Vitruvian Device") },
         text = {
-            Column {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 if (devices.isEmpty()) {
-                    Text(
-                        text = "No devices found. Make sure your Vitruvian Trainer+ is powered on.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    devices.forEach { device ->
-                        TextButton(
-                            onClick = { onDeviceSelected(device) },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.Start
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.medium),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        if (isScanning) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(Spacing.small))
+                                Text("Scanning...")
+                            }
+                        } else {
+                            Text(
+                                "No devices found. Try scanning again.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+
+                if (devices.isNotEmpty()) {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)) {
+                        items(devices, key = { it.address }) { device ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onDeviceSelected(device) },
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
                             ) {
-                                Text(
-                                    text = device.name ?: "Unknown Device",
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                Text(
-                                    text = device.address,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(Spacing.medium),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            device.name,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            device.address,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                        contentDescription = "Navigate to device",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                         }
                     }
@@ -349,63 +464,18 @@ fun DeviceSelectorDialog(
             }
         },
         confirmButton = {
+            if (!isScanning) {
+                TextButton(onClick = onRescan) {
+                    Icon(Icons.Default.Refresh, contentDescription = "Rescan for devices", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(Spacing.extraSmall))
+                    Text("Rescan", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        },
+        dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text("Cancel", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     )
-}
-
-/**
- * Placeholder settings screen that delegates to SettingsTab.
- */
-@Composable
-private fun SettingsScreen(
-    viewModel: MainViewModel,
-    onNavigateToConnectionLogs: () -> Unit,
-    onNavigateToDiagnostics: () -> Unit
-) {
-    val weightUnit by viewModel.weightUnit.collectAsState()
-    val enableAutoplay by viewModel.enableAutoplay.collectAsState()
-    val enableVideoPlayback by viewModel.enableVideoPlayback.collectAsState()
-    val themeMode by viewModel.themeMode.collectAsState()
-    val colorScheme by viewModel.colorScheme.collectAsState()
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        SettingsTab(
-            weightUnit = weightUnit,
-            enableAutoplay = enableAutoplay,
-            enableVideoPlayback = enableVideoPlayback,
-            themeMode = themeMode,
-            colorScheme = colorScheme,
-            onWeightUnitChange = { viewModel.setWeightUnit(it) },
-            onAutoplayChange = { viewModel.setEnableAutoplay(it) },
-            onVideoPlaybackChange = { viewModel.setEnableVideoPlayback(it) },
-            onThemeModeChange = { viewModel.setThemeMode(it) },
-            onColorSchemeChange = { viewModel.setColorScheme(it) }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Developer options
-        Button(
-            onClick = onNavigateToConnectionLogs,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Connection Logs")
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Button(
-            onClick = onNavigateToDiagnostics,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text("Diagnostics")
-        }
-    }
 }

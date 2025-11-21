@@ -1,7 +1,9 @@
 package com.example.vitruvianredux.presentation.components
 
+import android.os.Build
+import android.widget.NumberPicker
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Remove
@@ -9,102 +11,213 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import kotlin.math.roundToInt
 
 /**
- * Compact number picker for selecting numeric values with increment/decrement buttons.
- * Suitable for inline use in forms and settings.
+ * Compact Number Picker using native Android NumberPicker
+ * Provides reliable wheel-based number selection with proper physics
+ * Supports both integer and fractional values with configurable step size
  */
 @Composable
 fun CompactNumberPicker(
-    value: Int,
-    onValueChange: (Int) -> Unit,
-    minValue: Int = 0,
-    maxValue: Int = 100,
-    step: Int = 1,
-    label: String? = null,
-    suffix: String? = null,
-    modifier: Modifier = Modifier
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    range: ClosedFloatingPointRange<Float>,
+    modifier: Modifier = Modifier,
+    label: String = "",
+    suffix: String = "",
+    step: Float = 1.0f
 ) {
+    // Generate array of values based on step
+    val values = remember(range, step) {
+        buildList {
+            var current = range.start
+            while (current <= range.endInclusive) {
+                add(current)
+                current += step
+            }
+        }
+    }
+
+    // Find current index
+    val currentIndex = remember(value, values) {
+        values.indexOfFirst { kotlin.math.abs(it - value) < 0.001f }.coerceAtLeast(0)
+    }
+
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        if (label != null) {
+        if (label.isNotEmpty()) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
-            Spacer(modifier = Modifier.height(4.dp))
         }
 
+        // Row with -/+ buttons and number picker
         Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            // Decrement button
-            FilledTonalIconButton(
+            // Decrease button
+            IconButton(
                 onClick = {
-                    val newValue = value - step
-                    if (newValue >= minValue) {
-                        onValueChange(newValue)
-                    }
+                    val newIndex = (currentIndex - 1).coerceIn(values.indices)
+                    onValueChange(values[newIndex])
                 },
-                enabled = value > minValue,
-                modifier = Modifier.size(36.dp)
+                enabled = currentIndex > 0,
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Remove,
-                    contentDescription = "Decrease",
-                    modifier = Modifier.size(18.dp)
+                    contentDescription = "Decrease $label",
+                    tint = if (currentIndex > 0)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                 )
             }
 
-            // Value display
-            Surface(
-                modifier = Modifier.widthIn(min = 48.dp),
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = value.toString(),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    if (suffix != null) {
-                        Text(
-                            text = " $suffix",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
+            // Get the theme-aware text color
+            val textColor = MaterialTheme.colorScheme.onSurface
 
-            // Increment button
-            FilledTonalIconButton(
-                onClick = {
-                    val newValue = value + step
-                    if (newValue <= maxValue) {
-                        onValueChange(newValue)
+            // Native Android NumberPicker wrapped in AndroidView
+            AndroidView(
+                factory = { context ->
+                    NumberPicker(context).apply {
+                        minValue = 0
+                        maxValue = values.size - 1
+                        this.value = currentIndex.coerceIn(0, values.size - 1)
+                        wrapSelectorWheel = false
+
+                        // Format displayed values with proper decimal precision
+                        val displayValues = values.map {
+                            val formatted = if (step >= 1.0f && it % 1.0f == 0f) {
+                                // Show as integer if step is 1.0 and value is whole number
+                                it.toInt().toString()
+                            } else {
+                                // Show with one decimal place for fractional values
+                                "%.1f".format(it)
+                            }
+                            if (suffix.isNotEmpty()) "$formatted $suffix" else formatted
+                        }.toTypedArray()
+                        this.displayedValues = displayValues
+
+                        setOnValueChangedListener { _, _, newIndex ->
+                            onValueChange(values[newIndex])
+                        }
+
+                        // Set text color for all Android versions
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                            setTextColor(textColor.toArgb())
+                        } else {
+                            // API 28 and below: Aggressively style ALL text-related children
+                            post {
+                                try {
+                                    val count = childCount
+                                    for (i in 0 until count) {
+                                        val child = getChildAt(i)
+                                        when (child) {
+                                            is android.widget.EditText -> {
+                                                child.setTextColor(textColor.toArgb())
+                                                child.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                                            }
+                                            is android.widget.TextView -> {
+                                                child.setTextColor(textColor.toArgb())
+                                                child.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                                            }
+                                        }
+                                    }
+
+                                    // Try to access and modify the Paint object
+                                    try {
+                                        val paintField = NumberPicker::class.java.getDeclaredField("mSelectorWheelPaint")
+                                        paintField.isAccessible = true
+                                        val paint = paintField.get(this) as? android.graphics.Paint
+                                        paint?.color = textColor.toArgb()
+                                    } catch (e: Exception) {
+                                        // Paint field not found - expected on some Android versions
+                                    }
+                                } catch (e: Exception) {
+                                    // Reflection failed - fall back to default styling
+                                }
+                            }
+                        }
                     }
                 },
-                enabled = value < maxValue,
-                modifier = Modifier.size(36.dp)
+                update = { picker ->
+                    // Update picker when value changes externally
+                    if (picker.value != currentIndex) {
+                        picker.value = currentIndex.coerceIn(0, values.size - 1)
+                    }
+
+                    // Update text color on every recomposition
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        picker.setTextColor(textColor.toArgb())
+                    } else {
+                        // API 28 and below: Apply text color to ALL text children
+                        picker.post {
+                            try {
+                                val count = picker.childCount
+                                for (i in 0 until count) {
+                                    val child = picker.getChildAt(i)
+                                    when (child) {
+                                        is android.widget.EditText -> {
+                                            child.setTextColor(textColor.toArgb())
+                                            child.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                                        }
+                                        is android.widget.TextView -> {
+                                            child.setTextColor(textColor.toArgb())
+                                            child.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                                        }
+                                    }
+                                }
+
+                                // Try to access and modify the Paint object
+                                try {
+                                    val paintField = NumberPicker::class.java.getDeclaredField("mSelectorWheelPaint")
+                                    paintField.isAccessible = true
+                                    val paint = paintField.get(picker) as? android.graphics.Paint
+                                    paint?.color = textColor.toArgb()
+                                } catch (e: Exception) {
+                                    // Paint field not found - expected on some Android versions
+                                }
+                            } catch (e: Exception) {
+                                // Reflection failed - fall back to default styling
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(120.dp)
+            )
+
+            // Increase button
+            IconButton(
+                onClick = {
+                    val newIndex = (currentIndex + 1).coerceIn(values.indices)
+                    onValueChange(values[newIndex])
+                },
+                enabled = currentIndex < values.size - 1,
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Increase",
-                    modifier = Modifier.size(18.dp)
+                    contentDescription = "Increase $label",
+                    tint = if (currentIndex < values.size - 1)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                 )
             }
         }
@@ -112,99 +225,24 @@ fun CompactNumberPicker(
 }
 
 /**
- * Compact float number picker for decimal values.
+ * Overload for backward compatibility with Int values
  */
 @Composable
-fun CompactFloatPicker(
-    value: Float,
-    onValueChange: (Float) -> Unit,
-    minValue: Float = 0f,
-    maxValue: Float = 100f,
-    step: Float = 0.5f,
-    decimalPlaces: Int = 1,
-    label: String? = null,
-    suffix: String? = null,
-    modifier: Modifier = Modifier
+fun CompactNumberPicker(
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    range: IntRange,
+    modifier: Modifier = Modifier,
+    label: String = "",
+    suffix: String = ""
 ) {
-    Column(
+    CompactNumberPicker(
+        value = value.toFloat(),
+        onValueChange = { onValueChange(it.roundToInt()) },
+        range = range.first.toFloat()..range.last.toFloat(),
         modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        if (label != null) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-        }
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Decrement button
-            FilledTonalIconButton(
-                onClick = {
-                    val newValue = value - step
-                    if (newValue >= minValue) {
-                        onValueChange(newValue)
-                    }
-                },
-                enabled = value > minValue,
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Remove,
-                    contentDescription = "Decrease",
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-
-            // Value display
-            Surface(
-                modifier = Modifier.widthIn(min = 56.dp),
-                shape = RoundedCornerShape(8.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "%.${decimalPlaces}f".format(value),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center
-                    )
-                    if (suffix != null) {
-                        Text(
-                            text = " $suffix",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            // Increment button
-            FilledTonalIconButton(
-                onClick = {
-                    val newValue = value + step
-                    if (newValue <= maxValue) {
-                        onValueChange(newValue)
-                    }
-                },
-                enabled = value < maxValue,
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Increase",
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
-    }
+        label = label,
+        suffix = suffix,
+        step = 1.0f
+    )
 }

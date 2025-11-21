@@ -2,52 +2,54 @@ package com.example.vitruvianredux.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Background colors
-val BackgroundBlack = Color(0xFF000000)
-val BackgroundDarkGrey = Color(0xFF121212)
-val SurfaceDarkGrey = Color(0xFF1E1E1E)
-val CardBackground = Color(0xFF252525)
+// Background Colors
+val BackgroundBlack = Color(0xFF000000)          // Pure black background
+val BackgroundDarkGrey = Color(0xFF121212)       // Dark grey surface
+val SurfaceDarkGrey = Color(0xFF1E1E1E)         // Elevated surfaces
+val CardBackground = Color(0xFF252525)           // Card backgrounds
 
-// Light theme colors
-val ColorLightBackground = Color(0xFFFAFAFB)
-val ColorOnLightBackground = Color(0xFF1A1C1A)
-val ColorLightSurface = Color(0xFFFFFFFF)
-val ColorOnLightSurface = Color(0xFF1C1C17)
-val ColorLightSurfaceVariant = Color(0xFFF1F1F6)
-val ColorOnLightSurfaceVariant = Color(0xFF6B6B00)
+// Light Theme Colors
+val ColorLightBackground = Color(0xFFF8F9FB)     // Soft light background
+val ColorOnLightBackground = Color(0xFF0F172A)   // Slate-900 like text
+val ColorLightSurface = Color(0xFFFFFFFF)        // White surface
+val ColorOnLightSurface = Color(0xFF111827)      // Dark text on surface
+val ColorLightSurfaceVariant = Color(0xFFF3F4F6) // Light gray surface variant
+val ColorOnLightSurfaceVariant = Color(0xFF6B7280) // Gray-500 text
 
-// Dark theme primary colors (Purple)
-val PrimaryPurpleDark = Color(0xFF8B76F6)
-val SecondaryPurpleDark = Color(0xFF7C66ED)
-val TertiaryPurpleDark = Color(0xFFA99FFA)
-val PurpleAccentDark = Color(0xFF8B76F6)
+// Purple Accent Colors - Material 3 Expressive
+// Dark Mode: Desaturated (~30% less saturated) to reduce eye strain and "vibration" effect
+// Light Mode: Vibrant/saturated for energy and branding
+val PrimaryPurpleDark = Color(0xFF8B5CF6)       // Desaturated purple for dark mode (was #9333EA)
+val SecondaryPurpleDark = Color(0xFF7C3AED)     // Desaturated deeper purple for dark mode
+val TertiaryPurpleDark = Color(0xFFA78BFA)      // Soft purple for dark mode highlights
+val PurpleAccentDark = Color(0xFF8B5CF6)        // Desaturated accent for dark mode
 
-// Light theme primary colors (Blue)
-val PrimaryBlueLight = Color(0xFF0067D4)
-val SecondaryBlueLight = Color(0xFF0085B2)
-val TertiaryBlueLight = Color(0xFF2196EE)
-val BlueAccentLight = Color(0xFF0067D4)
+// Light mode uses blue/teal (popular fitness app colors, great contrast)
+val PrimaryBlueLight = Color(0xFF06B6D4)        // Teal/cyan for light mode - modern, fresh
+val SecondaryBlueLight = Color(0xFF0891B2)      // Deeper teal for light mode
+val TertiaryBlueLight = Color(0xFF22D3EE)       // Bright cyan for light mode highlights
+val BlueAccentLight = Color(0xFF06B6D4)         // Teal accent for light mode
 
-// Top app bar colors
-val TopAppBarDark = Color(0xFF1A1A26)
-val TopAppBarLight = Color(0xFF3D5C8A)
+// TopAppBar Colors (darker for better contrast)
+val TopAppBarDark = Color(0xFF1A0E26)           // Very dark purple for dark mode header
+val TopAppBarLight = Color(0xFF4A2F8A)          // Darker purple for light mode header
 
-// Text colors
-val TextPrimary = Color(0xFFFFFFFF)
-val TextSecondary = Color(0xFFE0E0E0)
-val TextTertiary = Color(0xFFB0B0B0)
-val TextDisabled = Color(0xFF707070)
+// Text Colors
+val TextPrimary = Color(0xFFFFFFFF)             // Pure white text
+val TextSecondary = Color(0xFFE0E0E0)           // Light grey text
+val TextTertiary = Color(0xFFB0B0B0)            // Medium grey text
+val TextDisabled = Color(0xFF707070)            // Disabled text
 
-// Semantic colors
-val SuccessGreen = Color(0xFF4CAF50)
-val ErrorRed = Color(0xFFF44336)
-val WarningOrange = Color(0xFFFF9800)
-val InfoBlue = Color(0xFF2196F3)
+// Status Colors
+val SuccessGreen = Color(0xFF4CAF50)            // Success states
+val ErrorRed = Color(0xFFF44336)                // Error states
+val WarningOrange = Color(0xFFFF9800)           // Warning states
+val InfoBlue = Color(0xFF2196F3)                // Info states
 
-// Legacy color names for compatibility
+// Legacy colors (kept for compatibility) - default to dark mode variants
 val Purple80 = PrimaryPurpleDark
 val PurpleGrey80 = SecondaryPurpleDark
 val Pink80 = TertiaryPurpleDark
 val Purple40 = PurpleAccentDark
-val PurpleGrey40 = Color(0xFF625B71)
+val PurpleGrey40 = Color(0xFF625b71)
 val Pink40 = Color(0xFF7D5260)

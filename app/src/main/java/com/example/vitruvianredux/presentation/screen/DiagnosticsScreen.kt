@@ -1,56 +1,30 @@
 package com.example.vitruvianredux.presentation.screen
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.vitruvianredux.data.local.entity.DiagnosticsEntity
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.example.vitruvianredux.domain.model.DiagnosticDetails
 import com.example.vitruvianredux.presentation.viewmodel.DiagnosticsViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-/**
- * Diagnostics screen for viewing device diagnostics and history.
- *
- * @param onNavigateBack Callback to navigate back
- * @param viewModel DiagnosticsViewModel instance
- * @param padding Padding values from parent scaffold
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiagnosticsScreen(
     onNavigateBack: () -> Unit,
-    viewModel: DiagnosticsViewModel = hiltViewModel(),
-    padding: PaddingValues = PaddingValues(0.dp)
+    viewModel: DiagnosticsViewModel = hiltViewModel()
 ) {
     val currentDiagnostics by viewModel.currentDiagnostics.collectAsState()
     val history by viewModel.diagnosticsHistory.collectAsState()
@@ -59,64 +33,65 @@ fun DiagnosticsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Diagnostics") },
+                title = { Text("Device Diagnostics") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
                     IconButton(onClick = { showClearConfirmation = true }) {
-                        Icon(
-                            imageVector = Icons.Filled.Delete,
-                            contentDescription = "Clear History"
-                        )
+                        Icon(Icons.Default.Delete, contentDescription = "Clear History")
                     }
                 }
             )
         }
-    ) { scaffoldPadding ->
+    ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(scaffoldPadding)
                 .padding(padding)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                CurrentStatusCard(details = currentDiagnostics)
+                CurrentStatusCard(currentDiagnostics)
             }
 
             item {
                 Text(
-                    text = "History",
+                    "Temperature Sensors",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+                TemperatureGrid(currentDiagnostics?.temps ?: List(8) { 0 })
+            }
+
+            item {
+                Text(
+                    "History",
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.padding(vertical = 8.dp)
                 )
             }
 
             items(history) { record ->
-                HistoryRow(record = record)
+                HistoryRow(record)
+                HorizontalDivider()
             }
         }
     }
-
+    // Clear History Confirmation Dialog
     if (showClearConfirmation) {
         AlertDialog(
             onDismissRequest = { showClearConfirmation = false },
-            title = { Text("Clear History") },
-            text = { Text("Are you sure you want to clear all diagnostics history?") },
+            title = { Text("Clear Diagnostic History?") },
+            text = { Text("This will permanently delete all diagnostic records. This action cannot be undone.") },
             confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.clearHistory()
-                        showClearConfirmation = false
-                    }
-                ) {
+                TextButton(onClick = {
+                    viewModel.clearHistory()
+                    showClearConfirmation = false
+                }) {
                     Text("Clear")
                 }
             },
@@ -129,111 +104,95 @@ fun DiagnosticsScreen(
     }
 }
 
-/**
- * Card displaying current diagnostic status.
- *
- * @param details Current diagnostic details
- */
 @Composable
 fun CurrentStatusCard(details: DiagnosticDetails?) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = "Current Status",
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            if (details != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Firmware Version")
-                    Text(details.firmwareVersion)
-                }
-
-                HorizontalDivider()
-
-                details.temperatures?.let { temps ->
-                    TemperatureGrid(temps = temps)
-                }
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Live Status", style = MaterialTheme.typography.titleMedium)
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            if (details == null) {
+                Text("Waiting for data... (Is device connected?)")
             } else {
-                Text(
-                    text = "No device connected",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Runtime:")
+                    Text("${details.seconds}s")
+                }
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Status:")
+                    Text(
+                        if (details.containsFaults) "FAULT DETECTED" else "OK",
+                        color = if (details.containsFaults) Color.Red else Color.Green,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                
+                if (details.containsFaults) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("Fault Codes:", color = Color.Red)
+                    details.faults.forEachIndexed { index, code ->
+                        if (code != 0.toShort()) {
+                            Text("Slot ${index + 1}: 0x${code.toString(16).uppercase()}")
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-/**
- * Grid displaying temperature readings.
- *
- * @param temps List of temperature values in bytes
- */
 @Composable
 fun TemperatureGrid(temps: List<Byte>) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Text(
-            text = "Temperatures",
-            style = MaterialTheme.typography.labelMedium
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            temps.forEachIndexed { index, temp ->
-                Column {
-                    Text(
-                        text = "Sensor ${index + 1}",
-                        style = MaterialTheme.typography.labelSmall
-                    )
-                    Text(
-                        text = "${temp.toInt()}C",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+    Column {
+        val rows = temps.chunked(4)
+        rows.forEachIndexed { rowIndex, rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                rowItems.forEachIndexed { colIndex, temp ->
+                    val sensorIndex = rowIndex * 4 + colIndex + 1
+                    val tempInt = temp.toInt()
+                    val color = when {
+                        tempInt > 70 -> Color.Red
+                        tempInt > 50 -> Color(0xFFFF9800) // Orange
+                        else -> MaterialTheme.colorScheme.onSurface
+                    }
+                    
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("S$sensorIndex", style = MaterialTheme.typography.labelSmall)
+                        Text(
+                            "$tempInt°C",
+                            color = color,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
+            if (rowIndex < rows.size - 1) Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
 
-/**
- * Row displaying a historical diagnostics record.
- *
- * @param record Diagnostics entity from history
- */
 @Composable
-fun HistoryRow(record: DiagnosticsEntity) {
-    Card(
-        modifier = Modifier.fillMaxWidth()
+fun HistoryRow(record: com.example.vitruvianredux.data.local.entity.DiagnosticsEntity) {
+    val dateFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = record.timestamp.toString(),
-                style = MaterialTheme.typography.bodySmall
-            )
-            Text(
-                text = "FW: ${record.firmwareVersion}",
-                style = MaterialTheme.typography.bodySmall
-            )
+        Text(dateFormat.format(Date(record.timestamp)))
+        
+        if (record.containsFaults) {
+            Text("FAULT", color = Color.Red, fontWeight = FontWeight.Bold)
+        } else {
+            Text("OK", color = Color.Green)
         }
+        
+        Text("${record.runtimeSeconds}s")
     }
 }

@@ -1,511 +1,433 @@
 package com.example.vitruvianredux.presentation.screen
 
-import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.*
-import java.util.UUID
+import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
+import com.example.vitruvianredux.ui.theme.*
+import java.util.*
 
-/**
- * Dialog for building and editing routines.
- * Allows adding/removing exercises and configuring workout parameters.
- */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RoutineBuilderDialog(
-    initialRoutine: Routine? = null,
-    onSaveRoutine: (Routine) -> Unit,
-    onCancel: () -> Unit,
-    onOpenExercisePicker: ((RoutineExercise?) -> Unit)? = null,
-    modifier: Modifier = Modifier
+    routine: Routine? = null,
+    onSave: (Routine) -> Unit,
+    onDismiss: () -> Unit,
+    exerciseRepository: ExerciseRepository,
+    personalRecordRepository: com.example.vitruvianredux.data.repository.PersonalRecordRepository,
+    formatWeight: (Float, WeightUnit) -> String,
+    weightUnit: WeightUnit,
+    enableVideoPlayback: Boolean,
+    kgToDisplay: (Float, WeightUnit) -> Float,
+    displayToKg: (Float, WeightUnit) -> Float,
+    themeMode: ThemeMode
 ) {
-    var routineName by remember { mutableStateOf(initialRoutine?.name ?: "") }
-    var routineDescription by remember { mutableStateOf(initialRoutine?.description ?: "") }
-    var exercises by remember { mutableStateOf(initialRoutine?.exercises ?: emptyList()) }
-    var isEditingName by remember { mutableStateOf(false) }
-    var exerciseToEdit by remember { mutableStateOf<RoutineExercise?>(null) }
-    var showConfigDialog by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf(routine?.name ?: "") }
+    var description by remember { mutableStateOf(routine?.description ?: "") }
+    var exercises by remember { mutableStateOf(routine?.exercises ?: emptyList<RoutineExercise>()) }
+    var showError by remember { mutableStateOf(false) }
+    var showExercisePicker by remember { mutableStateOf(false) }
+    var exerciseToEdit by remember { mutableStateOf<Pair<Int, RoutineExercise>?>(null) }
 
-    AlertDialog(
-        onDismissRequest = onCancel,
-        modifier = modifier.fillMaxWidth()
+    val backgroundGradient = if (themeMode == ThemeMode.DARK) {
+        Brush.verticalGradient(colors = listOf(Color(0xFF0F172A), Color(0xFF1E1B4B), Color(0xFF172554)))
+    } else {
+        Brush.verticalGradient(colors = listOf(Color(0xFFE0E7FF), Color(0xFFFCE7F3), Color(0xFFDDD6FE)))
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false
+        )
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        Surface(
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.9f),
+            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+            color = Color.Transparent
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp)
-            ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            Box(modifier = Modifier.fillMaxSize().background(backgroundGradient)) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(Spacing.medium)
                 ) {
-                    if (isEditingName) {
-                        OutlinedTextField(
-                            value = routineName,
-                            onValueChange = { routineName = it },
-                            modifier = Modifier.weight(1f),
-                            label = { Text("Routine Name") },
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                    } else {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = if (routineName.isBlank()) "New Routine" else routineName,
+                            text = if (routine == null) "Create Routine" else "Edit Routine",
                             style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
+                        IconButton(onClick = onDismiss) {
+                            Icon(Icons.Default.Close, "Close", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
-                    IconButton(onClick = { isEditingName = !isEditingName }) {
-                        Icon(
-                            imageVector = if (isEditingName) Icons.Default.Check else Icons.Default.Edit,
-                            contentDescription = if (isEditingName) "Save name" else "Edit name"
+
+                    Spacer(modifier = Modifier.height(Spacing.medium))
+
+                    // Scrollable content
+                    Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = { name = it; showError = false },
+                            label = { Text("Routine Name *") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            isError = showError && name.isBlank()
                         )
-                    }
-                }
 
-                // Description field
-                OutlinedTextField(
-                    value = routineDescription,
-                    onValueChange = { routineDescription = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    label = { Text("Description (optional)") },
-                    maxLines = 2,
-                    shape = RoundedCornerShape(12.dp)
-                )
+                        if (showError && name.isBlank()) {
+                            Text("Routine name is required", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = Spacing.medium, top = Spacing.extraSmall))
+                        }
 
-                Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(Spacing.medium))
 
-                // Exercise list
-                Text(
-                    text = "Exercises (${exercises.size})",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                        OutlinedTextField(
+                            value = description,
+                            onValueChange = { description = it },
+                            label = { Text("Description (optional)") },
+                            modifier = Modifier.fillMaxWidth().height(100.dp),
+                            maxLines = 4
+                        )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(Spacing.large))
 
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f, fill = false)
-                        .heightIn(max = 300.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(exercises, key = { it.id }) { exercise ->
-                        ExerciseListItem(
-                            exercise = exercise,
-                            onEdit = {
-                                exerciseToEdit = exercise
-                                showConfigDialog = true
-                            },
-                            onDelete = {
-                                exercises = exercises.filter { it.id != exercise.id }
-                            },
-                            onMoveUp = {
-                                val index = exercises.indexOf(exercise)
-                                if (index > 0) {
-                                    exercises = exercises.toMutableList().apply {
-                                        removeAt(index)
-                                        add(index - 1, exercise)
-                                    }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Exercises", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                            Text("${exercises.size} exercises", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+
+                        if (showError && exercises.isEmpty()) {
+                            Text("Add at least one exercise", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = Spacing.extraSmall))
+                        }
+
+                        Spacer(modifier = Modifier.height(Spacing.small))
+
+                        if (exercises.isEmpty()) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.small),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                                shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+                                border = BorderStroke(1.dp, Color(0xFFF5F3FF))
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(Spacing.large), contentAlignment = Alignment.Center) {
+                                    Text("No exercises added yet", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
                                 }
-                            },
-                            onMoveDown = {
-                                val index = exercises.indexOf(exercise)
-                                if (index < exercises.size - 1) {
-                                    exercises = exercises.toMutableList().apply {
-                                        removeAt(index)
-                                        add(index + 1, exercise)
+                            }
+                        } else {
+                            Column(verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
+                                exercises.forEachIndexed { index, exercise ->
+                                    key(exercise.id) {
+                                        ExerciseListItem(
+                                            exercise = exercise,
+                                            isFirst = index == 0,
+                                            isLast = index == exercises.lastIndex,
+                                            weightUnit = weightUnit,
+                                            kgToDisplay = kgToDisplay,
+                                            onEdit = { exerciseToEdit = Pair(index, exercise) },
+                                            onDelete = {
+                                                exercises = exercises.filterIndexed { i, _ -> i != index }.mapIndexed { i, ex -> ex.copy(orderIndex = i) }
+                                                showError = false
+                                            },
+                                            onMoveUp = {
+                                                if (index > 0) {
+                                                    exercises = exercises.toMutableList().apply {
+                                                        removeAt(index).also { add(index - 1, it) }
+                                                    }.mapIndexed { i, ex -> ex.copy(orderIndex = i) }
+                                                }
+                                            },
+                                            onMoveDown = {
+                                                if (index < exercises.lastIndex) {
+                                                    exercises = exercises.toMutableList().apply {
+                                                        removeAt(index).also { add(index + 1, it) }
+                                                    }.mapIndexed { i, ex -> ex.copy(orderIndex = i) }
+                                                }
+                                            }
+                                        )
                                     }
                                 }
                             }
-                        )
-                    }
+                        }
 
-                    // Add exercise button
-                    item {
                         OutlinedButton(
-                            onClick = {
-                                onOpenExercisePicker?.invoke(null)
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(56.dp),
-                            shape = RoundedCornerShape(16.dp),
-                            border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+                            onClick = { showExercisePicker = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(12.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = "Add exercise"
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(Icons.Default.Add, "Add exercise")
+                            Spacer(modifier = Modifier.width(Spacing.small))
                             Text("Add Exercise")
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(Spacing.medium))
 
-                // Action buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onCancel,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text("Cancel")
-                    }
-
-                    Button(
-                        onClick = {
-                            val routine = Routine(
-                                id = initialRoutine?.id ?: UUID.randomUUID().toString(),
-                                name = routineName.ifBlank { "Unnamed Routine" },
-                                description = routineDescription,
-                                exercises = exercises,
-                                createdAt = initialRoutine?.createdAt ?: System.currentTimeMillis(),
-                                lastModified = System.currentTimeMillis()
-                            )
-                            onSaveRoutine(routine)
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(56.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        enabled = exercises.isNotEmpty()
-                    ) {
-                        Text("Save Routine", fontWeight = FontWeight.Bold)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.small)) {
+                        OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)) {
+                            Text("Cancel")
+                        }
+                        Button(
+                            onClick = {
+                                if (name.isBlank() || exercises.isEmpty()) {
+                                    showError = true
+                                } else {
+                                    val newRoutine = Routine(
+                                        id = routine?.id ?: UUID.randomUUID().toString(),
+                                        name = name.trim(),
+                                        description = description.trim(),
+                                        exercises = exercises,
+                                        createdAt = routine?.createdAt ?: System.currentTimeMillis(),
+                                        lastUsed = routine?.lastUsed,
+                                        useCount = routine?.useCount ?: 0
+                                    )
+                                    onSave(newRoutine)
+                                }
+                            },
+                            modifier = Modifier.weight(1f).height(56.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
+                        ) {
+                            Text("Save", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
         }
     }
 
-    // Exercise config dialog
-    if (showConfigDialog && exerciseToEdit != null) {
-        ExerciseConfigDialog(
-            exercise = exerciseToEdit!!,
-            onSave = { updatedExercise ->
-                exercises = exercises.map {
-                    if (it.id == updatedExercise.id) updatedExercise else it
-                }
-                showConfigDialog = false
-                exerciseToEdit = null
+    if (showExercisePicker) {
+        ExercisePickerDialog(
+            showDialog = true,
+            onDismiss = { showExercisePicker = false },
+            onExerciseSelected = { selectedExercise ->
+                val exercise = Exercise(
+                    name = selectedExercise.name,
+                    muscleGroup = selectedExercise.muscleGroups.split(",").firstOrNull()?.trim() ?: "Full Body",
+                    equipment = selectedExercise.equipment.split(",").firstOrNull()?.trim() ?: "",
+                    defaultCableConfig = CableConfiguration.DOUBLE,
+                    id = selectedExercise.id
+                )
+
+                val defaultWeightDisplay = 1f
+                val defaultWeightKg = displayToKg(defaultWeightDisplay, weightUnit)
+
+                val newRoutineExercise = RoutineExercise(
+                    id = UUID.randomUUID().toString(),
+                    exercise = exercise,
+                    cableConfig = exercise.resolveDefaultCableConfig(),
+                    orderIndex = exercises.size,
+                    setReps = listOf(10, 10, 10),
+                    weightPerCableKg = defaultWeightKg,
+                    setWeightsPerCableKg = listOf(defaultWeightKg, defaultWeightKg, defaultWeightKg),
+                    progressionKg = 0f,
+                    setRestSeconds = listOf(60, 60, 60), // Default 60s rest for all sets
+                    workoutType = WorkoutType.Program(ProgramMode.OldSchool),
+                    eccentricLoad = EccentricLoad.LOAD_100,
+                    echoLevel = EchoLevel.HARDER
+                )
+                exerciseToEdit = Pair(exercises.size, newRoutineExercise)
+                showExercisePicker = false
             },
-            onDismiss = {
-                showConfigDialog = false
+            exerciseRepository = exerciseRepository,
+            enableVideoPlayback = enableVideoPlayback
+        )
+    }
+
+    exerciseToEdit?.let { (index, exercise) ->
+        ExerciseEditBottomSheet(
+            exercise = exercise,
+            weightUnit = weightUnit,
+            enableVideoPlayback = enableVideoPlayback,
+            kgToDisplay = kgToDisplay,
+            displayToKg = displayToKg,
+            exerciseRepository = exerciseRepository,
+            personalRecordRepository = personalRecordRepository,
+            formatWeight = formatWeight,
+            onSave = { updatedExercise ->
+                exercises = exercises.toMutableList().apply {
+                    if (index < size) {
+                        set(index, updatedExercise)
+                    } else {
+                        add(updatedExercise)
+                    }
+                }.mapIndexed { i, ex -> ex.copy(orderIndex = i) }
                 exerciseToEdit = null
-            }
+                showError = false
+            },
+            onDismiss = { exerciseToEdit = null }
         )
     }
 }
 
-/**
- * List item for a single exercise in the routine builder.
- */
 @Composable
 fun ExerciseListItem(
     exercise: RoutineExercise,
+    isFirst: Boolean,
+    isLast: Boolean,
+    weightUnit: WeightUnit,
+    kgToDisplay: (Float, WeightUnit) -> Float,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit,
-    modifier: Modifier = Modifier
+    onMoveDown: () -> Unit
 ) {
+
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(if (isPressed) 0.99f else 1f, spring(Spring.DampingRatioMediumBouncy, 400f), label = "scale")
+
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .animateContentSize(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        modifier = Modifier.fillMaxWidth().scale(scale),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
+        border = BorderStroke(1.dp, Color(0xFFF5F3FF))
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onEdit)
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth().padding(Spacing.medium),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.small),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Reorder buttons
-            Column {
-                IconButton(
-                    onClick = onMoveUp,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowUp,
-                        contentDescription = "Move up",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                IconButton(onClick = onMoveUp, enabled = !isFirst, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.KeyboardArrowUp, "Move Up", tint = if (isFirst) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
-                IconButton(
-                    onClick = onMoveDown,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.KeyboardArrowDown,
-                        contentDescription = "Move down",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                IconButton(onClick = onMoveDown, enabled = !isLast, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.KeyboardArrowDown, "Move Down", tint = if (isLast) MaterialTheme.colorScheme.outlineVariant else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
             }
 
-            // Exercise info
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp)
-            ) {
-                Text(
-                    text = exercise.exercise.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = formatReps(exercise.setReps),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = formatSetTarget(exercise),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
-            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.small)) {
+                val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
+                val isBodyweight = exercise.exercise.equipment.isEmpty() && exercise.duration != null
 
-            // Actions
-            Row {
-                IconButton(onClick = onEdit) {
-                    Icon(
-                        imageVector = Icons.Default.Edit,
-                        contentDescription = "Edit exercise",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = "Delete exercise",
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-        }
-    }
-}
+                // For Echo mode, show "Adaptive" instead of weight (Issue #109)
+                val weightDisplay = when {
+                    exercise.workoutType is com.example.vitruvianredux.domain.model.WorkoutType.Echo -> {
+                        "Adaptive"
+                    }
+                    isBodyweight -> {
+                        // Bodyweight exercises: always show textual label instead of numeric weight
+                        "Bodyweight"
+                    }
+                    else -> {
+                        // Display individual set weights if they differ, otherwise show single weight
+                        if (exercise.setWeightsPerCableKg.isNotEmpty()) {
+                            val displayWeights = exercise.setWeightsPerCableKg.map { kgToDisplay(it, weightUnit).toInt() }
+                            val minWeight = displayWeights.minOrNull() ?: 0
+                            val maxWeight = displayWeights.maxOrNull() ?: 0
 
-/**
- * Dialog for configuring exercise parameters (sets, reps, weight, mode).
- */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ExerciseConfigDialog(
-    exercise: RoutineExercise,
-    onSave: (RoutineExercise) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var setReps by remember { mutableStateOf(exercise.setReps) }
-    var weight by remember { mutableStateOf(exercise.weight) }
-    var workoutType by remember { mutableStateOf(exercise.workoutType) }
-    var eccentricLoad by remember { mutableStateOf(exercise.eccentricLoad) }
-    var echoLevel by remember { mutableStateOf(exercise.echoLevel) }
-    var restSeconds by remember { mutableStateOf(exercise.setRestSeconds) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss
-    ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp)
-            ) {
-                Text(
-                    text = exercise.exercise.name,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Sets configuration
-                Text(
-                    text = "Sets & Reps",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Number of sets picker
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text("Sets: ${setReps.size}")
-                    Row {
-                        IconButton(
-                            onClick = {
-                                if (setReps.size > 1) {
-                                    setReps = setReps.dropLast(1)
-                                    restSeconds = restSeconds.dropLast(1)
-                                }
+                            if (minWeight == maxWeight) {
+                                "$minWeight$weightSuffix"
+                            } else {
+                                "$minWeight-$maxWeight$weightSuffix"
                             }
-                        ) {
-                            Icon(Icons.Default.Remove, "Decrease sets")
-                        }
-                        IconButton(
-                            onClick = {
-                                val lastRep = setReps.lastOrNull() ?: 10
-                                val lastRest = restSeconds.lastOrNull() ?: 60
-                                setReps = setReps + lastRep
-                                restSeconds = restSeconds + lastRest
-                            }
-                        ) {
-                            Icon(Icons.Default.Add, "Increase sets")
+                        } else {
+                            val displayWeight = kgToDisplay(exercise.weightPerCableKg, weightUnit)
+                            "${displayWeight.toInt()}$weightSuffix"
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Text(exercise.exercise.displayName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
 
-                // Weight configuration
-                Text(
-                    text = "Weight",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedTextField(
-                    value = weight.toString(),
-                    onValueChange = { weight = it.toFloatOrNull() ?: weight },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Weight (kg)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                // Action buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text("Cancel")
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.small), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)) {
+                        Text(formatSetTarget(exercise), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
                     }
-
-                    Button(
-                        onClick = {
-                            onSave(
-                                exercise.copy(
-                                    setReps = setReps,
-                                    weight = weight,
-                                    workoutType = workoutType,
-                                    eccentricLoad = eccentricLoad,
-                                    echoLevel = echoLevel,
-                                    setRestSeconds = restSeconds
-                                )
-                            )
-                        },
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text("Save", fontWeight = FontWeight.Bold)
+                    Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)) {
+                        Text(weightDisplay, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
                     }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.small), verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    if (exercise.progressionKg != 0f) {
+                        val displayProgression = kgToDisplay(exercise.progressionKg, weightUnit)
+                        val progressionText = if (displayProgression > 0) "+${displayProgression.toInt()}$weightSuffix per rep" else "${displayProgression.toInt()}$weightSuffix per rep"
+                        Surface(shape = RoundedCornerShape(6.dp), color = if (exercise.progressionKg > 0) MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.error.copy(alpha = 0.15f)) {
+                            Text(progressionText, style = MaterialTheme.typography.bodySmall, color = if (exercise.progressionKg > 0) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
+                        }
+                    }
+                    val firstRest = exercise.setRestSeconds.firstOrNull() ?: 60
+                    if (firstRest > 0) {
+                        Surface(shape = RoundedCornerShape(6.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                            Text("${firstRest}s rest", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                IconButton(onClick = { isPressed = true; onEdit() }, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Edit, "Edit", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                }
+                IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Delete, "Delete", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                 }
             }
         }
     }
+
+    LaunchedEffect(isPressed) {
+        if (isPressed) { kotlinx.coroutines.delay(100); isPressed = false }
+    }
 }
 
-/**
- * Formats set/rep list for display. E.g., [10, 10, 10] -> "3x10"
- */
-private fun formatReps(setReps: List<Int?>): String {
+internal fun formatReps(setReps: List<Int?>): String {
     if (setReps.isEmpty()) return "0 sets"
-
-    val groups = mutableListOf<Pair<Int, String>>()
-    var currentReps = setReps[0]
-    var currentCount = 1
-
-    for (i in 1 until setReps.size) {
-        if (setReps[i] == currentReps) {
-            currentCount++
-        } else {
-            groups.add(currentCount to (currentReps?.toString() ?: "AMRAP"))
-            currentReps = setReps[i]
-            currentCount = 1
-        }
+    val allSame = setReps.all { it == setReps.first() }
+    return if (allSame) {
+        val reps = setReps.first()
+        if (reps == null) "${setReps.size} x AMRAP" else "${setReps.size} x $reps reps"
+    } else {
+        "${setReps.size} sets: ${setReps.joinToString("/") { it?.toString() ?: "AMRAP" }}"
     }
-    groups.add(currentCount to (currentReps?.toString() ?: "AMRAP"))
-
-    return groups.joinToString(", ") { (count, reps) -> "${count}x$reps" }
 }
 
-/**
- * Formats exercise target info for display.
- */
-private fun formatSetTarget(exercise: RoutineExercise): String {
-    val parts = mutableListOf<String>()
-    parts.add("${exercise.weight}kg")
-    parts.add(exercise.workoutType.displayName)
-    return parts.joinToString(" | ")
+internal fun formatSetTarget(exercise: RoutineExercise): String {
+    val duration = exercise.duration
+    if (duration != null) {
+        val sets = exercise.setReps.size
+        return if (sets <= 0) {
+            "$duration sec"
+        } else {
+            "${sets} x ${duration} sec"
+        }
+    }
+    return formatReps(exercise.setReps)
 }

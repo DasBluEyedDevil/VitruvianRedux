@@ -1,0 +1,85 @@
+================================================================================
+PHASE 4: APPLY RENAMES - QUICK REFERENCE CARD
+================================================================================
+
+TOOL PATH
+  /home/user/VitruvianDeobfuscated/phase4_apply_renames.py
+
+BASIC COMMANDS
+  # Dry-run (preview only)
+  ./phase4_apply_renames.py --analysis FILE.json --dry-run
+  
+  # Execute renames
+  ./phase4_apply_renames.py --analysis FILE.json
+  
+  # Process specific module
+  ./phase4_apply_renames.py --analysis FILE.json --module formtrainer
+
+KEY FEATURES
+  ✓ Conflict detection (prevents duplicate names)
+  ✓ Dry-run mode (preview before applying)
+  ✓ Automatic backups (.backup extension)
+  ✓ Context-aware refactoring (not simple text replace)
+  ✓ Cross-file reference handling
+  ✓ Detailed logging of all changes
+
+PERFORMANCE (tested on FormTrainer)
+  Files: 5 | Time: 0.133s | Rate: ~26ms/file
+
+SAFETY CHECKLIST
+  [ ] Commit current state to git
+  [ ] Run with --dry-run first
+  [ ] Review PHASE4_RENAME_LOG_DRY_RUN.txt
+  [ ] Check for conflicts/warnings
+  [ ] Execute without --dry-run
+  [ ] Review PHASE4_RENAME_LOG.txt
+  [ ] Verify build still compiles
+
+INPUT FORMAT (JSON)
+  [
+    {
+      "file": "/absolute/path/File.java",
+      "methods": [{"old": "a", "new": "methodA", "return_type": "void", "params": "..."}],
+      "fields": [{"old": "f1a", "new": "fieldA", "type": "Type"}]
+    }
+  ]
+
+OUTPUT FILES
+  PHASE4_RENAME_LOG.txt          - Full rename log
+  PHASE4_RENAME_LOG_DRY_RUN.txt  - Dry-run preview log
+  *.java.backup                   - Original file backups
+
+ROLLBACK PROCEDURE
+  # Restore from backups if needed
+  cd java-decompiled/sources/com/vitruvian/formtrainer/
+  for f in *.java.backup; do mv "$f" "${f%.backup}"; done
+
+COMMON ISSUES
+  Error: "File not found"
+    → Check JSON has absolute paths
+  
+  Warning: "name conflict"
+    → Rename skipped (check log)
+  
+  Error: "Analysis file not found"
+    → Verify --analysis path is correct
+
+WORKFLOW INTEGRATION
+  1. phase4_analyzer.py           → Identify patterns
+  2. phase4_deobfuscate_methods.py → Generate analysis JSON
+  3. phase4_apply_renames.py      → Execute refactoring ← YOU ARE HERE
+  4. Verification                  → Review & test
+
+EXAMPLE SESSION
+  $ ./phase4_apply_renames.py --analysis PHASE4_FORMTRAINER_ANALYSIS.json --dry-run
+  [Preview changes...]
+  
+  $ cat PHASE4_RENAME_LOG_DRY_RUN.txt
+  [Review log...]
+  
+  $ ./phase4_apply_renames.py --analysis PHASE4_FORMTRAINER_ANALYSIS.json
+  [Execute renames...]
+  
+  $ git add . && git commit -m "Phase 4: Applied internal renames"
+
+================================================================================
