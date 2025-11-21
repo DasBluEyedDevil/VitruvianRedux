@@ -164,7 +164,7 @@ class AMRAPFeatureTest {
         for (i in 0..15) {
             actualRepCounter.process(
                 repsRomCount = i,
-                repsSetCount = if (i > 0) i - 1 else 0,
+                repsSetCount = i, // Set counter tracks actual working reps for AMRAP
                 posA = 100,
                 posB = 100
             )
@@ -267,7 +267,7 @@ class AMRAPFeatureTest {
         for (i in 0..10) {
             actualRepCounter.process(
                 repsRomCount = i,
-                repsSetCount = if (i > 0) i - 1 else 0,
+                repsSetCount = if (i == 0) 0 else i, // Baseline then 1..10 working reps
                 posA = 100,
                 posB = 100
             )

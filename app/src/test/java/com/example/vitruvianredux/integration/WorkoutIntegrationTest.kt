@@ -210,7 +210,7 @@ class WorkoutIntegrationTest {
         repeat(4) { index ->
             repCounter.process(
                 repsRomCount = index,
-                repsSetCount = index,
+                repsSetCount = 0, // Set counter stays at 0 during warmup
                 posA = 2000,
                 posB = 2000
             )
@@ -225,8 +225,8 @@ class WorkoutIntegrationTest {
         // When: Processing 10 working reps
         repeat(10) { index ->
             repCounter.process(
-                repsRomCount = 4 + index,
-                repsSetCount = 4 + index,
+                repsRomCount = warmupCount.warmupReps, // ROM counter holds warmup total
+                repsSetCount = index + 1,              // Set counter tracks working reps
                 posA = 2000,
                 posB = 2000
             )

@@ -28,7 +28,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.example.vitruvianredux.domain.model.Routine
 import com.example.vitruvianredux.ui.theme.Spacing
@@ -59,7 +58,6 @@ fun CollapsibleRoutineCard(
                 )
             ),
         shape = RoundedCornerShape(20.dp),
-
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
         ),
