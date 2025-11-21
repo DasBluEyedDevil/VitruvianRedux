@@ -61,48 +61,48 @@ class RepCountingTest {
         // NOTE: First notification establishes baseline, so we need 9 notifications for 8 counted reps
         val notifications = listOf(
             // Baseline (not counted as a rep)
-            RepNotification(topCounter = 0, completeCounter = 0, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 0.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 0.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Warmup rep 1
-            RepNotification(topCounter = 1, completeCounter = 1, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 1.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 1.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Warmup rep 2  
-            RepNotification(topCounter = 2, completeCounter = 2, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 2.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 2.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Warmup rep 3
-            RepNotification(topCounter = 3, completeCounter = 3, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 3.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 3.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Working rep 1
-            RepNotification(topCounter = 4, completeCounter = 4, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 4.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 4.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Working rep 2
-            RepNotification(topCounter = 5, completeCounter = 5, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 5.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 5.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Working rep 3
-            RepNotification(topCounter = 6, completeCounter = 6, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 6.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 6.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Working rep 4
-            RepNotification(topCounter = 7, completeCounter = 7, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 7.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 7.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
             // Working rep 5
-            RepNotification(topCounter = 8, completeCounter = 8, rawData = byteArrayOf(), timestamp = 0L),
+            RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 8.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 8.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L),
         )
         
         for (notification in notifications) {
-            val topCounter = notification.topCounter
-            val completeCounter = notification.completeCounter
-            
+            val repsRomCount = (notification.repsRomCount ?: 0).toInt()
+            val repsSetCount = (notification.repsSetCount ?: 0).toInt()
+
             // Track top of range
             if (lastTopCounter == null) {
-                lastTopCounter = topCounter
+                lastTopCounter = repsRomCount
             } else {
-                val topDelta = calculateCounterDelta(lastTopCounter, topCounter)
+                val topDelta = calculateCounterDelta(lastTopCounter, repsRomCount)
                 if (topDelta > 0) {
-                    lastTopCounter = topCounter
+                    lastTopCounter = repsRomCount
                 }
             }
-            
+
             // Track rep complete
             if (lastRepCounter == null) {
-                lastRepCounter = completeCounter
+                lastRepCounter = repsSetCount
                 continue
             }
-            
-            val delta = calculateCounterDelta(lastRepCounter, completeCounter)
+
+            val delta = calculateCounterDelta(lastRepCounter, repsSetCount)
             if (delta > 0) {
-                lastRepCounter = completeCounter
+                lastRepCounter = repsSetCount
                 
                 // Increment counters
                 val totalReps = warmupReps + workingReps + 1
@@ -137,9 +137,9 @@ class RepCountingTest {
         var lastTopCounter = 10
         
         // Simulate reaching top of rep 5
-        val topNotification = RepNotification(topCounter = 11, completeCounter = 10, rawData = byteArrayOf(), timestamp = 0L)
-        
-        val topDelta = calculateCounterDelta(lastTopCounter, topNotification.topCounter)
+        val topNotification = RepNotification(up = 0, down = 0, rangeTop = 300.0f, rangeBottom = 0.0f, repsRomCount = 11.toShort(), repsRomTotal = 10.toShort(), repsSetCount = 10.toShort(), repsSetTotal = 10.toShort(), rawData = byteArrayOf(), timestamp = 0L)
+
+        val topDelta = calculateCounterDelta(lastTopCounter, (topNotification.repsRomCount ?: 0).toInt())
         
         assertTrue("Top counter should have incremented", topDelta > 0)
         

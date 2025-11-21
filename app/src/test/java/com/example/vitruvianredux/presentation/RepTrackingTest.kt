@@ -192,8 +192,14 @@ class RepTrackingTest {
         
         // First notification initializes counter
         repTracker.processRepNotification(RepNotification(
-            topCounter = counter,
-            completeCounter = counter,
+            up = 0,
+            down = 0,
+            rangeTop = 300.0f,
+            rangeBottom = 0.0f,
+            repsRomCount = counter.toShort(),
+            repsRomTotal = 10.toShort(),
+            repsSetCount = counter.toShort(),
+            repsSetTotal = 10.toShort(),
             rawData = byteArrayOf(),
             timestamp = System.currentTimeMillis()
         ))
@@ -202,8 +208,14 @@ class RepTrackingTest {
         repeat(3) {
             counter = (counter + 1) and 0xFFFF
             repTracker.processRepNotification(RepNotification(
-                topCounter = counter,
-                completeCounter = counter,
+                up = 0,
+                down = 0,
+                rangeTop = 300.0f,
+                rangeBottom = 0.0f,
+                repsRomCount = counter.toShort(),
+                repsRomTotal = 10.toShort(),
+                repsSetCount = counter.toShort(),
+                repsSetTotal = 10.toShort(),
                 rawData = byteArrayOf(),
                 timestamp = System.currentTimeMillis()
             ))
@@ -214,8 +226,14 @@ class RepTrackingTest {
         repeat(5) {
             counter = (counter + 1) and 0xFFFF
             repTracker.processRepNotification(RepNotification(
-                topCounter = counter,
-                completeCounter = counter,
+                up = 0,
+                down = 0,
+                rangeTop = 300.0f,
+                rangeBottom = 0.0f,
+                repsRomCount = counter.toShort(),
+                repsRomTotal = 10.toShort(),
+                repsSetCount = counter.toShort(),
+                repsSetTotal = 10.toShort(),
                 rawData = byteArrayOf(),
                 timestamp = System.currentTimeMillis()
             ))
@@ -288,8 +306,14 @@ class RepTrackingTest {
     private fun simulateRepComplete(): RepNotification {
         simulatedCounter++
         return RepNotification(
-            topCounter = simulatedCounter,
-            completeCounter = simulatedCounter,
+            up = 0,
+            down = 0,
+            rangeTop = 300.0f,
+            rangeBottom = 0.0f,
+            repsRomCount = simulatedCounter.toShort(),
+            repsRomTotal = 10.toShort(),
+            repsSetCount = simulatedCounter.toShort(),
+            repsSetTotal = 10.toShort(),
             rawData = byteArrayOf(),
             timestamp = System.currentTimeMillis()
         )
@@ -316,28 +340,28 @@ class RepCounterTracker {
     }
     
     fun processRepNotification(notification: RepNotification) {
-        val topCounter = notification.topCounter
-        val completeCounter = notification.completeCounter
-        
+        val repsRomCount = (notification.repsRomCount ?: 0).toInt()
+        val repsSetCount = (notification.repsSetCount ?: 0).toInt()
+
         // Track top of range
         if (lastTopCounter == null) {
-            lastTopCounter = topCounter
+            lastTopCounter = repsRomCount
         } else {
-            val topDelta = calculateDelta(lastTopCounter!!, topCounter)
+            val topDelta = calculateDelta(lastTopCounter!!, repsRomCount)
             if (topDelta > 0) {
-                lastTopCounter = topCounter
+                lastTopCounter = repsRomCount
             }
         }
-        
+
         // Track rep complete
         if (lastRepCounter == null) {
-            lastRepCounter = completeCounter
+            lastRepCounter = repsSetCount
             return
         }
-        
-        val delta = calculateDelta(lastRepCounter!!, completeCounter)
+
+        val delta = calculateDelta(lastRepCounter!!, repsSetCount)
         if (delta > 0) {
-            lastRepCounter = completeCounter
+            lastRepCounter = repsSetCount
             
             val currentWarmup = repCount.warmupReps
             val currentWorking = repCount.workingReps
