@@ -8,7 +8,7 @@
 .externalNativeBuild
 .cxx
 local.properties
-/reference
+
 
 # Claude Code / Quadrumvirate
 .skills
@@ -35,3 +35,6 @@ test_output.txt
 /phone_backup_apk/
 /converted_kotlin/
 /decompiled_apk/
+
+# Git worktrees
+.worktrees/
