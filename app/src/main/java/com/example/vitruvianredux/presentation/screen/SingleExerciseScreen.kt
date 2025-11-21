@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.example.vitruvianredux.data.local.ExerciseEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
@@ -36,7 +37,7 @@ fun SingleExerciseScreen(
 ) {
     val weightUnit by viewModel.weightUnit.collectAsState()
     val enableVideoPlayback by viewModel.enableVideoPlayback.collectAsState()
-    val isAutoConnecting by viewModel.isAutoConnecting().collectAsState(initial = false)
+    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState(initial = false)
     val connectionError by viewModel.connectionError.collectAsState()
 
     var showExercisePicker by remember { mutableStateOf(true) }
@@ -211,19 +212,16 @@ private fun createDefaultRoutineExercise(exercise: Exercise): RoutineExercise {
     return RoutineExercise(
         id = UUID.randomUUID().toString(),
         exercise = exercise,
-        cableConfiguration = resolveDefaultCableConfig(exercise),
-        targetPeakForce = 0,
+        cableConfig = resolveDefaultCableConfig(exercise),
+        orderIndex = 0,
         setReps = listOf(10, 10, 10),
-        weight = 20.0f,
-        weightOverride = null,
+        weightPerCableKg = 20.0f,
+        setWeightsPerCableKg = emptyList(),
         workoutType = WorkoutType.Program(ProgramMode.OldSchool),
         eccentricLoad = EccentricLoad.LOAD_100,
         echoLevel = EchoLevel.HARDER,
-        tempo = 0.0f,
-        setRestSeconds = listOf(60, 60, 60),
-        videoUrl = null,
-        isSuperset = false,
-        autoAdvanceEnabled = false
+        progressionKg = 0f,
+        setRestSeconds = listOf(60, 60, 60)
     )
 }
 
@@ -249,19 +247,19 @@ private fun startSingleExerciseWorkout(
         description = "Temporary routine for single exercise mode",
         exercises = listOf(configuredExercise),
         createdAt = 0L,
-        lastModified = null
+        lastUsed = null
     )
 
     // Load the routine and start workout
     viewModel.loadRoutine(tempRoutine)
     viewModel.ensureConnection(
         onConnected = {
-            viewModel.startWorkout(skipWarmup = false, resuming = false)
+            viewModel.startWorkout()
             navController.navigate(NavigationRoutes.ActiveWorkout.route) {
                 popUpTo(NavigationRoutes.Home.route)
             }
         },
-        onConnectionFailed = {
+        onFailed = {
             // Connection error will be shown via connectionError state
         }
     )

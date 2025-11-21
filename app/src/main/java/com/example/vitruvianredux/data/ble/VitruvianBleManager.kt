@@ -48,7 +48,7 @@ sealed class ConnectionStatus {
  * Handle state for grab detection.
  */
 enum class HandleState {
-    Released, Moving, Grabbed
+    UNKNOWN, Released, Moving, Grabbed
 }
 
 /**
@@ -553,7 +553,7 @@ class VitruvianBleManager(
         }
     }
 
-    private fun validateSample(posA: Short, loadA: Short, posB: Short, loadB: Short): Boolean {
+    private fun validateSample(posA: Int, loadA: Float, posB: Int, loadB: Float): Boolean {
         // Basic range validation
         if (posA < 0 || posA > 3000 || posB < 0 || posB > 3000) {
             return false

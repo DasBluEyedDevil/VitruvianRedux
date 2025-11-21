@@ -46,7 +46,7 @@ fun WeeklyProgramsScreen(
 ) {
     val programs by viewModel.weeklyPrograms.collectAsState()
     val activeProgram by viewModel.activeProgram.collectAsState()
-    val isAutoConnecting by viewModel.isAutoConnecting().collectAsState(initial = false)
+    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState(initial = false)
     val connectionError by viewModel.connectionError.collectAsState()
 
     // Determine dark mode for gradient
@@ -481,12 +481,12 @@ private fun startTodayWorkout(
         viewModel.loadRoutineById(routineId)
         viewModel.ensureConnection(
             onConnected = {
-                viewModel.startWorkout(skipWarmup = false, resuming = false)
+                viewModel.startWorkout()
                 navController.navigate(NavigationRoutes.ActiveWorkout.route) {
                     popUpTo(NavigationRoutes.Home.route)
                 }
             },
-            onConnectionFailed = { }
+            onFailed = { }
         )
     }
 }

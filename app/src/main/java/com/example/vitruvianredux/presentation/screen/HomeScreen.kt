@@ -71,7 +71,7 @@ fun HomeScreen(
     val completedWorkouts by viewModel.completedWorkouts.collectAsState()
     val progressPercentage by viewModel.progressPercentage.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
-    val isAutoConnecting by viewModel.isAutoConnecting().collectAsState()
+    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
     val activeProgram by viewModel.activeProgram.collectAsState()
     val routines by viewModel.routines.collectAsState()
@@ -136,7 +136,7 @@ fun HomeScreen(
                                         viewModel.startWorkout()
                                         navController.navigate(NavigationRoutes.ActiveWorkout.route)
                                     },
-                                    onError = { }
+                                    onFailed = { }
                                 )
                             }
                         }
@@ -210,7 +210,7 @@ fun HomeScreen(
                                 viewModel.startWorkout()
                                 navController.navigate(NavigationRoutes.ActiveWorkout.route)
                             },
-                            onError = { }
+                            onFailed = { }
                         )
                     }
                 )

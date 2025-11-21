@@ -9,8 +9,14 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.example.vitruvianredux.domain.model.UserPreferences
 import com.example.vitruvianredux.domain.model.WeightUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,6 +33,8 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 class PreferencesManager @Inject constructor(
     private val context: Context
 ) {
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
     private val WEIGHT_UNIT_KEY = stringPreferencesKey("weight_unit")
     private val AUTOPLAY_ENABLED_KEY = booleanPreferencesKey("autoplay_enabled")
     private val STOP_AT_TOP_KEY = booleanPreferencesKey("stop_at_top")
@@ -52,6 +60,49 @@ class PreferencesManager @Inject constructor(
             strictValidation = preferences[STRICT_VALIDATION_KEY] ?: false
         )
     }
+
+    /**
+     * StateFlow of user preferences for observation.
+     */
+    val userPreferences: StateFlow<UserPreferences> = preferencesFlow
+        .stateIn(
+            scope = scope,
+            started = SharingStarted.Eagerly,
+            initialValue = UserPreferences()
+        )
+
+    /**
+     * StateFlow of weight unit preference.
+     */
+    val weightUnit: StateFlow<WeightUnit> = preferencesFlow
+        .map { it.weightUnit }
+        .stateIn(
+            scope = scope,
+            started = SharingStarted.Eagerly,
+            initialValue = WeightUnit.KG
+        )
+
+    /**
+     * StateFlow of stop at top preference.
+     */
+    val stopAtTop: StateFlow<Boolean> = preferencesFlow
+        .map { it.stopAtTop }
+        .stateIn(
+            scope = scope,
+            started = SharingStarted.Eagerly,
+            initialValue = false
+        )
+
+    /**
+     * StateFlow of enable video playback preference.
+     */
+    val enableVideoPlayback: StateFlow<Boolean> = preferencesFlow
+        .map { it.enableVideoPlayback }
+        .stateIn(
+            scope = scope,
+            started = SharingStarted.Eagerly,
+            initialValue = true
+        )
 
     /**
      * Set the weight unit preference.

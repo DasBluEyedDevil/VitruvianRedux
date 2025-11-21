@@ -79,7 +79,7 @@ fun ActiveWorkoutScreen(
     val loadedRoutine by viewModel.loadedRoutine.collectAsState()
     val currentExerciseIndex by viewModel.currentExerciseIndex.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
-    val isAutoConnecting by viewModel.isAutoConnecting().collectAsState()
+    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
     val userPreferences by viewModel.userPreferences.collectAsState()
 
@@ -160,7 +160,7 @@ fun ActiveWorkoutScreen(
                     onRetryConnection = {
                         viewModel.ensureConnection(
                             onConnected = { viewModel.startWorkout() },
-                            onError = { }
+                            onFailed = { }
                         )
                     }
                 )

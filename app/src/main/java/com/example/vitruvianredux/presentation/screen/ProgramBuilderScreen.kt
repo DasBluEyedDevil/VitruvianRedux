@@ -46,7 +46,7 @@ fun ProgramBuilderScreen(
     padding: PaddingValues = PaddingValues()
 ) {
     val routines by viewModel.routines.collectAsState()
-    val isAutoConnecting by viewModel.isAutoConnecting().collectAsState(initial = false)
+    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState(initial = false)
     val connectionError by viewModel.connectionError.collectAsState()
     val programs by viewModel.weeklyPrograms.collectAsState()
 

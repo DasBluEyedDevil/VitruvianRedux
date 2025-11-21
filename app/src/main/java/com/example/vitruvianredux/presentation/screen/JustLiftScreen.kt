@@ -77,7 +77,7 @@ fun JustLiftScreen(
     val repCount by viewModel.repCount.collectAsState()
     val autoStopState by viewModel.autoStopUiState.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
-    val isAutoConnecting by viewModel.isAutoConnecting().collectAsState()
+    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
     val connectionState by viewModel.connectionState.collectAsState()
 
@@ -192,13 +192,9 @@ fun JustLiftScreen(
                 onClick = {
                     viewModel.ensureConnection(
                         onConnected = {
-                            viewModel.startWorkout(
-                                mode = selectedMode,
-                                weightPerCable = weightPerCable,
-                                eccentricLoad = eccentricLoad
-                            )
+                            viewModel.startWorkout(isJustLiftMode = true)
                         },
-                        onError = { }
+                        onFailed = { }
                     )
                 },
                 modifier = Modifier.fillMaxWidth(),
