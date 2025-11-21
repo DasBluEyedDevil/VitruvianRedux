@@ -54,6 +54,7 @@ fun ConnectionLogsScreen(
     var showExportDialog by remember { mutableStateOf(false) }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0), // Avoid double insets - parent handles system bars
         topBar = {
             TopAppBar(
                 title = { Text("Connection Logs") },

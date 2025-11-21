@@ -82,7 +82,9 @@ fun VitruvianProjectPhoenixTheme(
     MaterialTheme(
         colorScheme = if (useDarkColors) DarkColorScheme else LightColorScheme,
         typography = Typography,
-        shapes = ExpressiveShapes, // Material 3 Expressive: More rounded shapes
-        content = content
-    )
+        shapes = ExpressiveShapes // Material 3 Expressive: More rounded shapes
+    ) {
+        // Wrap content with EnhancedRippleTheme for better tactile feedback
+        EnhancedRippleTheme(content = content)
+    }
 }

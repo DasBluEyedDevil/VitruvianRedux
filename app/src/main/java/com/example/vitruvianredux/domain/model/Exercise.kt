@@ -27,18 +27,4 @@ data class Exercise(
         get() = name
 }
 
-/**
- * Exercise categories for organization
- * Used primarily for filtering and grouping in the UI
- */
-enum class ExerciseCategory(val displayName: String) {
-    CHEST("Chest"),
-    BACK("Back"),
-    SHOULDERS("Shoulders"),
-    BICEPS("Biceps"),
-    TRICEPS("Triceps"),
-    LEGS("Legs"),
-    GLUTES("Glutes"),
-    CORE("Core"),
-    FULL_BODY("Full Body")
-}
+// ExerciseCategory enum moved to ExerciseCategory.kt

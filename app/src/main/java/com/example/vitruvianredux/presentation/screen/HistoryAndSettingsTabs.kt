@@ -1263,28 +1263,6 @@ fun SettingsTab(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(Spacing.small))
-
-                OutlinedButton(
-                    onClick = onNavigateToDiagnostics,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(20.dp)
-                ) {
-                    Icon(
-                        Icons.Default.MedicalServices,
-                        contentDescription = "Diagnostics",
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(Spacing.small))
-                    Text(
-                        "Device Diagnostics",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     "View Bluetooth connection debug logs to diagnose connectivity issues",
