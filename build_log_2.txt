@@ -1,0 +1,89 @@
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig UP-TO-DATE
+> Task :app:checkDebugAarMetadata UP-TO-DATE
+> Task :app:processDebugNavigationResources UP-TO-DATE
+> Task :app:compileDebugNavigationResources UP-TO-DATE
+> Task :app:generateDebugResValues UP-TO-DATE
+> Task :app:mapDebugSourceSetPaths UP-TO-DATE
+> Task :app:generateDebugResources UP-TO-DATE
+> Task :app:mergeDebugResources UP-TO-DATE
+> Task :app:packageDebugResources UP-TO-DATE
+> Task :app:parseDebugLocalResources UP-TO-DATE
+> Task :app:createDebugCompatibleScreenManifests UP-TO-DATE
+> Task :app:extractDeepLinksDebug UP-TO-DATE
+> Task :app:processDebugMainManifest UP-TO-DATE
+> Task :app:processDebugManifest UP-TO-DATE
+> Task :app:processDebugManifestForPackage UP-TO-DATE
+> Task :app:processDebugResources UP-TO-DATE
+> Task :app:javaPreCompileDebug UP-TO-DATE
+> Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets UP-TO-DATE
+> Task :app:compressDebugAssets UP-TO-DATE
+> Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:desugarDebugFileDependencies UP-TO-DATE
+> Task :app:mergeExtDexDebug UP-TO-DATE
+> Task :app:mergeLibDexDebug UP-TO-DATE
+> Task :app:mergeDebugJniLibFolders UP-TO-DATE
+> Task :app:mergeDebugNativeLibs UP-TO-DATE
+> Task :app:stripDebugDebugSymbols UP-TO-DATE
+> Task :app:validateSigningDebug UP-TO-DATE
+> Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:kspDebugKotlin
+
+> Task :app:compileDebugKotlin FAILED
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1226:5 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1226:8 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1226:9 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1226:28 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1226:30 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1226:30 Functions which invoke @Composable functions must be marked with the @Composable annotation
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1226:30 Function declaration must have a name.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1227:9 @Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1228:34 Unresolved reference 'showDeleteAllDialog'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1242:44 @Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1247:25 Unresolved reference 'onDeleteAllWorkouts'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1248:25 Unresolved reference 'showDeleteAllDialog'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1263:33 Unresolved reference 'showDeleteAllDialog'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1279:5 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1279:8 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1279:9 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1279:25 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1279:27 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1279:27 Functions which invoke @Composable functions must be marked with the @Composable annotation
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1279:27 Function declaration must have a name.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1280:60 @Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1281:24 Unresolved reference 'onCancelAutoConnecting'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1285:5 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1285:20 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1285:22 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1285:26 Syntax error: Expecting a top level declaration.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1285:26 Functions which invoke @Composable functions must be marked with the @Composable annotation
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1285:26 Function declaration must have a name.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1285:28 Function invocation 'error(...)' expected.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1285:34 Syntax error: Unexpected tokens (use ';' to separate expressions on the same line).
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1286:60 @Composable invocations can only happen from the context of a @Composable function
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1287:23 Function invocation 'error(...)' expected.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1288:25 Unresolved reference 'onClearConnectionError'.
+e: file:///C:/Users/dasbl/AndroidStudioProjects/VitruvianRedux/app/src/main/java/com/example/vitruvianredux/presentation/screen/HistoryAndSettingsTabs.kt:1291:1 Syntax error: Expecting a top level declaration.
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:compileDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 9s
+32 actionable tasks: 2 executed, 30 up-to-date

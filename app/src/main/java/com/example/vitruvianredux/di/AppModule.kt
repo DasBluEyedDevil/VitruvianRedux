@@ -638,11 +638,7 @@ object AppModule {
      */
     internal val MIGRATION_22_23 = object : Migration(22, 23) {
         override fun migrate(db: SupportSQLiteDatabase) {
-            // Add safety tracking columns to workout_sessions
-            db.execSQL("ALTER TABLE workout_sessions ADD COLUMN safetyFlags INTEGER NOT NULL DEFAULT 0")
-            db.execSQL("ALTER TABLE workout_sessions ADD COLUMN deloadWarningCount INTEGER NOT NULL DEFAULT 0")
-            db.execSQL("ALTER TABLE workout_sessions ADD COLUMN romViolationCount INTEGER NOT NULL DEFAULT 0")
-            db.execSQL("ALTER TABLE workout_sessions ADD COLUMN spotterActivations INTEGER NOT NULL DEFAULT 0")
+
 
             // Create phase_statistics table
             db.execSQL("""

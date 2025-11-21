@@ -209,8 +209,8 @@ class WorkoutIntegrationTest {
         // Simulate 3 warmup reps (need 4 calls - first one initializes the counter)
         repeat(4) { index ->
             repCounter.process(
-                topCounter = index,
-                completeCounter = index,
+                repsRomCount = index,
+                repsSetCount = index,
                 posA = 2000,
                 posB = 2000
             )
@@ -225,8 +225,8 @@ class WorkoutIntegrationTest {
         // When: Processing 10 working reps
         repeat(10) { index ->
             repCounter.process(
-                topCounter = 4 + index,
-                completeCounter = 4 + index,
+                repsRomCount = 4 + index,
+                repsSetCount = 4 + index,
                 posA = 2000,
                 posB = 2000
             )

@@ -1010,15 +1010,15 @@ class MainViewModel @Inject constructor(
     }
 
     fun startWorkout(skipCountdown: Boolean = false, isJustLiftMode: Boolean = false) {
-                    Timber.d("$$ startWorkout() CALLED! skipCountdown=$skipCountdown, isJustLiftMode=$isJustLiftMode $$")
-        
-                    // CRITICAL: Re-set rep event callback to ensure it's active for this workout
-                    // This fixes the issue where callback set in init block may not persist
-        
-                    // Reset safety event tracking
-                    _safetyEventCounts.value = SafetyEventCounts()
-        
-                    viewModelScope.launch {
+        Timber.d("$$ startWorkout() CALLED! skipCountdown=$skipCountdown, isJustLiftMode=$isJustLiftMode $$")
+
+        // CRITICAL: Re-set rep event callback to ensure it's active for this workout
+        // This fixes the issue where callback set in init block may not persist
+
+        // Reset safety event tracking
+        _safetyEventCounts.value = SafetyEventCounts()
+
+        viewModelScope.launch {
             // Reset per-session peak tracking
             maxConcentricPerCableKgThisSession = 0f
             maxEccentricPerCableKgThisSession = 0f
