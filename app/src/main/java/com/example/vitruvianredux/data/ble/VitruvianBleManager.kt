@@ -136,12 +136,12 @@ class VitruvianBleManager(
     private val HANDLE_REST_THRESHOLD = 2.5     // Position < 2.5 = handles at rest
     private val VELOCITY_THRESHOLD = 100.0      // Velocity > 100 units/s = significant movement
 
-    // Handle detection constants for force-based grab/release detection
-    private val HANDLE_GRAB_FORCE_KG = 3.0f
+    // Handle detection constants - matching official app (AUTO_START_SAFETY_STATE_COMPLETE.md)
+    private val HANDLE_GRAB_FORCE_KG = 3.0f           // Force spike indicating grab
     private val HANDLE_GRAB_VELOCITY_THRESHOLD = 0.1f
-    private val HANDLE_GRAB_DURATION_MS = 100L
-    private val HANDLE_RELEASE_FORCE_KG = 1.0f
-    private val HANDLE_RELEASE_DURATION_MS = 150L
+    private val HANDLE_GRAB_DURATION_MS = 200L        // Official: 200ms sustained force
+    private val HANDLE_RELEASE_FORCE_KG = 1.0f        // Force drop indicating release
+    private val HANDLE_RELEASE_DURATION_MS = 500L     // Official: 500ms sustained low force
 
     // Track position range for tuning (logged at workout end)
     private var minPositionSeen = Double.MAX_VALUE
