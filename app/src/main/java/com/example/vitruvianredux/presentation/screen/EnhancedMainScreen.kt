@@ -37,6 +37,10 @@ import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.example.vitruvianredux.presentation.viewmodel.ThemeViewModel
 
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.LargeTopAppBar
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun EnhancedMainScreen(
@@ -93,19 +97,21 @@ fun EnhancedMainScreen(
     }
 
     val permissionState = rememberMultiplePermissionsState(permissions)
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0), // Let components handle their own insets
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
-                modifier = Modifier.statusBarsPadding(), // Handle status bar for edge-to-edge
+            LargeTopAppBar(
+                scrollBehavior = scrollBehavior,
                 title = {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
                         Text(
                             text = "Vitruvian",
-                            style = MaterialTheme.typography.titleMedium.copy(
+                            style = MaterialTheme.typography.headlineMedium.copy( // Larger for LargeTopAppBar
                                 brush = Brush.linearGradient(
                                     colors = listOf(
                                         Color(0xFFEAB308), // Bright Gold
@@ -117,7 +123,7 @@ fun EnhancedMainScreen(
                         )
                         Text(
                             text = "Project Phoenix",
-                            style = MaterialTheme.typography.bodyMedium.copy(
+                            style = MaterialTheme.typography.titleMedium.copy( // Larger subtitle
                                 brush = Brush.linearGradient(
                                     colors = listOf(
                                         Color(0xFFF97316), // Orange
