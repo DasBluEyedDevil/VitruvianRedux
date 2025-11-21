@@ -1,57 +1,56 @@
 package com.example.vitruvianredux.presentation.screen
 
-import android.content.Intent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.core.content.FileProvider
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.example.vitruvianredux.data.local.ConnectionLogEntity
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.vitruvianredux.presentation.viewmodel.ConnectionLogsViewModel
-import com.example.vitruvianredux.presentation.viewmodel.LogStats
-import kotlinx.coroutines.launch
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.*
+import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 
 /**
- * Screen for viewing and managing connection logs
+ * Screen for viewing BLE connection logs.
+ *
+ * @param onNavigateBack Callback to navigate back
+ * @param mainViewModel Main app ViewModel
+ * @param viewModel ConnectionLogsViewModel instance
+ * @param padding Padding values from parent scaffold
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConnectionLogsScreen(
     onNavigateBack: () -> Unit,
-    mainViewModel: com.example.vitruvianredux.presentation.viewmodel.MainViewModel,
-    viewModel: ConnectionLogsViewModel = hiltViewModel()
+    mainViewModel: MainViewModel,
+    viewModel: ConnectionLogsViewModel = hiltViewModel(),
+    padding: PaddingValues = PaddingValues(0.dp)
 ) {
-    val filteredLogs by viewModel.filteredLogs.collectAsState()
+    val logs by viewModel.logs.collectAsState()
     val logStats by viewModel.logStats.collectAsState()
-    val selectedLevelFilter by viewModel.selectedLevelFilter.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val isAutoConnecting by mainViewModel.isAutoConnecting.collectAsState()
-    val connectionError by mainViewModel.connectionError.collectAsState()
-
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    var showClearDialog by remember { mutableStateOf(false) }
-    var showExportDialog by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -59,236 +58,80 @@ fun ConnectionLogsScreen(
                 title = { Text("Connection Logs") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
                     }
                 },
                 actions = {
-                    // Export button
-                    IconButton(onClick = { showExportDialog = true }) {
-                        Icon(Icons.Default.Share, "Export logs")
+                    IconButton(onClick = { viewModel.shareLogs() }) {
+                        Icon(
+                            imageVector = Icons.Filled.Share,
+                            contentDescription = "Share Logs"
+                        )
                     }
-                    // Clear logs button
-                    IconButton(onClick = { showClearDialog = true }) {
-                        Icon(Icons.Default.Delete, "Clear all logs")
+                    IconButton(onClick = { viewModel.clearLogs() }) {
+                        Icon(
+                            imageVector = Icons.Filled.Clear,
+                            contentDescription = "Clear Logs"
+                        )
                     }
                 }
             )
         }
-    ) { padding ->
+    ) { scaffoldPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(scaffoldPadding)
                 .padding(padding)
-                .padding(16.dp)
         ) {
-            // Stats card
-            LogStatsCard(stats = logStats)
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Search bar
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { viewModel.setSearchQuery(it) },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Search logs...") },
-                leadingIcon = { Icon(Icons.Default.Search, "Search") },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                            Icon(Icons.Default.Clear, "Clear search")
-                        }
-                    }
-                },
-                singleLine = true
+            // Stats Card
+            LogStatsCard(
+                totalLogs = logStats.totalLogs,
+                errorCount = logStats.errorCount,
+                warningCount = logStats.warningCount,
+                modifier = Modifier.padding(16.dp)
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Filter chips
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            // Log entries
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                FilterChip(
-                    selected = selectedLevelFilter == "ERROR",
-                    onClick = {
-                        viewModel.setLevelFilter(if (selectedLevelFilter == "ERROR") null else "ERROR")
-                    },
-                    label = { Text("Errors") },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Default.Warning,
-                            contentDescription = "Error log level",
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                )
-
-                FilterChip(
-                    selected = selectedLevelFilter == "WARNING",
-                    onClick = {
-                        viewModel.setLevelFilter(if (selectedLevelFilter == "WARNING") null else "WARNING")
-                    },
-                    label = { Text("Warnings") }
-                )
-
-                FilterChip(
-                    selected = selectedLevelFilter == "INFO",
-                    onClick = {
-                        viewModel.setLevelFilter(if (selectedLevelFilter == "INFO") null else "INFO")
-                    },
-                    label = { Text("Info") }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Logs list
-            if (filteredLogs.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.Info,
-                            contentDescription = "No connection logs available",
-                            modifier = Modifier.size(64.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            "No logs found",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(filteredLogs, key = { it.id }) { log ->
-                        LogEntryCard(log = log)
-                    }
+                items(logs) { logEntry ->
+                    LogEntryCard(
+                        timestamp = logEntry.timestamp,
+                        level = logEntry.level,
+                        message = logEntry.message
+                    )
                 }
             }
         }
     }
-
-    // Clear dialog
-    if (showClearDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearDialog = false },
-            title = { Text("Clear All Logs?") },
-            text = { Text("This will permanently delete all connection logs. This action cannot be undone.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.clearAllLogs()
-                        showClearDialog = false
-                    }
-                ) {
-                    Text("Clear", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    // Export dialog
-    if (showExportDialog) {
-        AlertDialog(
-            onDismissRequest = { showExportDialog = false },
-            title = { Text("Export Logs") },
-            text = {
-                Text(
-                    "This will open the Android share sheet. " +
-                    "You can email the log file, upload to Drive, or share via any app.\n\n" +
-                    "Recommended: Email the log file to report issues."
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            val logsText = viewModel.exportLogsAsText()
-
-                            // Create a temporary file
-                            val fileName = "vitruvian_connection_logs_${System.currentTimeMillis()}.txt"
-                            val file = File(context.cacheDir, fileName)
-                            file.writeText(logsText)
-
-                            // Share the file
-                            val uri = FileProvider.getUriForFile(
-                                context,
-                                "${context.packageName}.fileprovider",
-                                file
-                            )
-
-                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_STREAM, uri)
-                                putExtra(Intent.EXTRA_EMAIL, arrayOf("VitruvianRedux@gmail.com"))
-                                putExtra(Intent.EXTRA_SUBJECT, "VitruvianRedux Connection Logs - Issue Report")
-                                putExtra(Intent.EXTRA_TEXT,
-                                    "Attached are my VitruvianRedux connection logs.\n\n" +
-                                    "GitHub Issue #: (fill in if applicable)\n" +
-                                    "Device Model: ${android.os.Build.MODEL}\n" +
-                                    "Android Version: ${android.os.Build.VERSION.RELEASE}\n\n" +
-                                    "Description of issue:\n" +
-                                    "(Please describe what happened)\n\n" +
-                                    "Steps to reproduce:\n" +
-                                    "1. \n" +
-                                    "2. \n" +
-                                    "3. \n"
-                                )
-                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            }
-
-                            context.startActivity(Intent.createChooser(shareIntent, "Share Connection Logs"))
-                        }
-                        showExportDialog = false
-                    }
-                ) {
-                    Text("Share")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showExportDialog = false }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-
-    // Auto-connect UI overlays (same as other screens)
-    if (isAutoConnecting) {
-        com.example.vitruvianredux.presentation.components.ConnectingOverlay(
-            onCancel = { mainViewModel.cancelAutoConnecting() }
-        )
-    }
-
-    connectionError?.let { error ->
-        com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
-            message = error,
-            onDismiss = { mainViewModel.clearConnectionError() }
-        )
-    }
 }
 
+/**
+ * Card displaying log statistics summary.
+ *
+ * @param totalLogs Total number of log entries
+ * @param errorCount Number of error entries
+ * @param warningCount Number of warning entries
+ * @param modifier Modifier for the card
+ */
 @Composable
-private fun LogStatsCard(stats: LogStats) {
+fun LogStatsCard(
+    totalLogs: Int,
+    errorCount: Int,
+    warningCount: Int,
+    modifier: Modifier = Modifier
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
         Row(
@@ -297,130 +140,101 @@ private fun LogStatsCard(stats: LogStats) {
                 .padding(16.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            StatItem(label = "Total", value = stats.total.toString())
-            StatItem(label = "Errors", value = stats.errors.toString(), color = MaterialTheme.colorScheme.error)
-            StatItem(label = "Warnings", value = stats.warnings.toString(), color = Color(0xFFFF9800))
-            StatItem(label = "Info", value = stats.info.toString())
+            StatItem(label = "Total", value = totalLogs.toString())
+            StatItem(
+                label = "Errors",
+                value = errorCount.toString(),
+                valueColor = MaterialTheme.colorScheme.error
+            )
+            StatItem(
+                label = "Warnings",
+                value = warningCount.toString(),
+                valueColor = MaterialTheme.colorScheme.tertiary
+            )
         }
     }
 }
 
+/**
+ * Individual statistic item in the stats card.
+ */
 @Composable
-private fun StatItem(label: String, value: String, color: Color = MaterialTheme.colorScheme.onSecondaryContainer) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+private fun StatItem(
+    label: String,
+    value: String,
+    valueColor: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text(
             text = value,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = color
+            style = MaterialTheme.typography.headlineMedium,
+            color = valueColor
         )
         Text(
             text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.7f)
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
 
+/**
+ * Card displaying a single log entry.
+ *
+ * @param timestamp Log entry timestamp
+ * @param level Log level (e.g., "INFO", "ERROR", "WARNING")
+ * @param message Log message content
+ */
 @Composable
-private fun LogEntryCard(log: ConnectionLogEntity) {
-    val dateFormat = remember { SimpleDateFormat("HH:mm:ss.SSS", Locale.US) }
-    val timeString = remember(log.timestamp) { dateFormat.format(Date(log.timestamp)) }
+fun LogEntryCard(
+    timestamp: String,
+    level: String,
+    message: String
+) {
+    val backgroundColor = when (level.uppercase()) {
+        "ERROR" -> MaterialTheme.colorScheme.errorContainer
+        "WARNING", "WARN" -> MaterialTheme.colorScheme.tertiaryContainer
+        else -> MaterialTheme.colorScheme.surfaceVariant
+    }
 
-    val levelColor = when (log.level) {
-        "ERROR" -> MaterialTheme.colorScheme.error
-        "WARNING" -> Color(0xFFFF9800)
-        "INFO" -> MaterialTheme.colorScheme.primary
-        "DEBUG" -> MaterialTheme.colorScheme.onSurfaceVariant
-        else -> MaterialTheme.colorScheme.onSurface
+    val textColor = when (level.uppercase()) {
+        "ERROR" -> MaterialTheme.colorScheme.onErrorContainer
+        "WARNING", "WARN" -> MaterialTheme.colorScheme.onTertiaryContainer
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = levelColor.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(8.dp)
-            ),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = backgroundColor)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
-            // Header row
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = timeString,
-                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = timestamp,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = textColor.copy(alpha = 0.7f)
                 )
-                Surface(
-                    color = levelColor.copy(alpha = 0.2f),
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(
-                        text = log.level,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = levelColor,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Event type
-            Text(
-                text = log.eventType,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = levelColor
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            // Message
-            Text(
-                text = log.message,
-                style = MaterialTheme.typography.bodyMedium
-            )
-
-            // Device info
-            if (log.deviceName != null || log.deviceAddress != null) {
-                Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Device: ${log.deviceName ?: "Unknown"} (${log.deviceAddress ?: "N/A"})",
-                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = level,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = textColor
                 )
             }
-
-            // Details (if present)
-            if (!log.details.isNullOrEmpty()) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Text(
-                        text = log.details,
-                        modifier = Modifier.padding(8.dp),
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                        fontSize = 11.sp
-                    )
-                }
-            }
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace
+                ),
+                color = textColor,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
     }
 }

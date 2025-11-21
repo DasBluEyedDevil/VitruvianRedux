@@ -1,280 +1,255 @@
 package com.example.vitruvianredux.presentation.components
 
-import android.graphics.Color
-import android.graphics.Typeface
+import android.graphics.Color as AndroidColor
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.core.graphics.toColorInt
-import com.example.vitruvianredux.domain.model.PersonalRecord
-import com.example.vitruvianredux.domain.model.WeightUnit
+import com.example.vitruvianredux.domain.model.WorkoutMetric
 import com.example.vitruvianredux.domain.model.WorkoutSession
-import com.github.mikephil.charting.charts.PieChart
-import com.github.mikephil.charting.data.*
+import com.github.mikephil.charting.charts.LineChart
+import com.github.mikephil.charting.components.XAxis
+import com.github.mikephil.charting.data.Entry
+import com.github.mikephil.charting.data.LineData
+import com.github.mikephil.charting.data.LineDataSet
 import com.github.mikephil.charting.formatter.ValueFormatter
-import com.patrykandpatrick.vico.compose.cartesian.CartesianChartHost
-import com.patrykandpatrick.vico.compose.cartesian.axis.*
-import com.patrykandpatrick.vico.compose.cartesian.layer.rememberColumnCartesianLayer
-import com.patrykandpatrick.vico.compose.cartesian.layer.rememberLineCartesianLayer
-import com.patrykandpatrick.vico.compose.common.component.rememberLineComponent
-import com.patrykandpatrick.vico.compose.common.fill
-import com.patrykandpatrick.vico.core.cartesian.axis.HorizontalAxis
-import com.patrykandpatrick.vico.core.cartesian.axis.VerticalAxis
-import com.patrykandpatrick.vico.core.cartesian.layer.LineCartesianLayer
-import com.patrykandpatrick.vico.compose.cartesian.rememberCartesianChart
-import com.patrykandpatrick.vico.compose.m3.common.rememberM3VicoTheme
-import com.patrykandpatrick.vico.compose.common.ProvideVicoTheme
-import com.patrykandpatrick.vico.core.cartesian.data.CartesianChartModelProducer
-import com.patrykandpatrick.vico.core.cartesian.data.columnSeries
-import com.patrykandpatrick.vico.core.cartesian.data.lineSeries
-import androidx.compose.ui.graphics.Color as ComposeColor
 import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Line chart showing weight progression over time for a specific exercise
- * Enhanced with Material 3 Expressive theming and better interactions
+ * Line chart for displaying force metrics over time during a workout.
  */
 @Composable
-fun WeightProgressionChart(
-    prs: List<PersonalRecord>,
-    weightUnit: WeightUnit,
-    formatWeight: (Float, WeightUnit) -> String,
-    modifier: Modifier = Modifier
+fun ForceMetricsChart(
+    metrics: List<WorkoutMetric>,
+    modifier: Modifier = Modifier,
+    showConcentric: Boolean = true,
+    showEccentric: Boolean = true
 ) {
-    val vicoTheme = rememberM3VicoTheme() // Material 3 Expressive theming
-    val modelProducer = remember { CartesianChartModelProducer() }
+    val primaryColor = MaterialTheme.colorScheme.primary.toArgb()
+    val secondaryColor = MaterialTheme.colorScheme.secondary.toArgb()
+    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
 
-    LaunchedEffect(prs) {
-        if (prs.isNotEmpty()) {
-            val sortedPRs = prs.sortedBy { it.timestamp }
-            modelProducer.runTransaction {
-                lineSeries {
-                    series(sortedPRs.map { it.weightPerCableKg.toDouble() })
-                }
-            }
-        }
-    }
-
-    ProvideVicoTheme(vicoTheme) {
-        CartesianChartHost(
-            chart = rememberCartesianChart(
-                rememberLineCartesianLayer(),
-                startAxis = VerticalAxis.rememberStart(
-                    label = rememberAxisLabelComponent()
-                ),
-                bottomAxis = HorizontalAxis.rememberBottom(
-                    label = rememberAxisLabelComponent()
-                )
-            ),
-            modelProducer = modelProducer,
-            modifier = modifier.height(280.dp) // Material 3 Expressive: Taller chart
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
         )
-    }
-}
-
-/**
- * Pie chart showing muscle group distribution
- * Note: Vico doesn't have pie charts, so we keep MPAndroidChart for this
- */
-@Composable
-fun MuscleGroupDistributionChart(
-    muscleGroupCounts: Map<String, Int>,
-    modifier: Modifier = Modifier
-) {
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-    val textColor = if (isDark) Color.WHITE else Color.BLACK
-
-    AndroidView(
-        factory = { context ->
-            PieChart(context).apply {
-                description.isEnabled = false
-                setUsePercentValues(true)
-                setDrawEntryLabels(true)
-                setEntryLabelTextSize(11f)
-                setEntryLabelColor(textColor)
-
-                // Hole in the middle
-                isDrawHoleEnabled = true
-                setHoleColor(Color.TRANSPARENT)
-                holeRadius = 40f
-                transparentCircleRadius = 45f
-
-                // Center text
-                setDrawCenterText(true)
-                centerText = "Muscle\nGroups"
-                setCenterTextSize(14f)
-                setCenterTextColor(textColor)
-                setCenterTextTypeface(Typeface.DEFAULT_BOLD)
-
-                // Legend
-                legend.apply {
-                    this.textColor = textColor
-                    isEnabled = true
-                    textSize = 11f
-                }
-
-                setExtraOffsets(5f, 10f, 5f, 10f)
-            }
-        },
-        update = { chart ->
-            // If no data, show placeholder
-            val counts = if (muscleGroupCounts.isEmpty()) {
-                mapOf("No Data" to 1)
-            } else {
-                muscleGroupCounts
-            }
-
-            // Calculate total and percentages
-            val total = counts.values.sum().toFloat()
-            val entries = counts.map { (group, count) ->
-                val percentage = (count.toFloat() / total) * 100f
-                PieEntry(percentage, group)
-            }
-
-            // Define colors for muscle groups
-            val colors = listOf(
-                "#9333EA".toColorInt(), // Purple
-                "#3B82F6".toColorInt(), // Blue
-                "#10B981".toColorInt(), // Green
-                "#F59E0B".toColorInt(), // Orange
-                "#EF4444".toColorInt(), // Red
-                "#8B5CF6".toColorInt(), // Violet
-                "#EC4899".toColorInt(), // Pink
-                "#14B8A6".toColorInt()  // Teal
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Force Over Time",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
             )
 
-            val dataSet = PieDataSet(entries, "").apply {
-                this.colors = colors.take(entries.size)
-                sliceSpace = 2f
-                selectionShift = 8f
-                valueTextSize = 14f
-                valueTextColor = Color.WHITE
-                valueFormatter = object : ValueFormatter() {
-                    override fun getFormattedValue(value: Float): String {
-                        return if (value >= 5f) "${value.toInt()}%" else "" // Hide small values
-                    }
-                }
-            }
+            Spacer(modifier = Modifier.height(16.dp))
 
-            chart.data = PieData(dataSet)
-            chart.invalidate()
-        },
-        modifier = modifier.height(300.dp)
-    )
-}
-
-/**
- * Column chart showing PR count by workout mode using Vico
- * Enhanced with Material 3 Expressive theming and better styling
- */
-@Composable
-fun WorkoutModeDistributionChart(
-    personalRecords: List<PersonalRecord>,
-    modifier: Modifier = Modifier
-) {
-    val vicoTheme = rememberM3VicoTheme() // Material 3 Expressive theming
-    val modelProducer = remember { CartesianChartModelProducer() }
-
-    LaunchedEffect(personalRecords) {
-        if (personalRecords.isNotEmpty()) {
-            val modeCounts = personalRecords.groupingBy { it.workoutMode }.eachCount()
-            modelProducer.runTransaction {
-                columnSeries {
-                    series(modeCounts.values.map { it.toDouble() })
-                }
-            }
-        }
-    }
-
-    ProvideVicoTheme(vicoTheme) {
-        CartesianChartHost(
-            chart = rememberCartesianChart(
-                rememberColumnCartesianLayer(
-                    columnProvider = com.patrykandpatrick.vico.core.cartesian.layer.ColumnCartesianLayer.ColumnProvider.series(
-                        listOf(
-                            MaterialTheme.colorScheme.primary,
-                            MaterialTheme.colorScheme.secondary,
-                            MaterialTheme.colorScheme.tertiary,
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.secondaryContainer
-                        ).map { color ->
-                            rememberLineComponent(
-                                fill(color),
-                                0.6f.dp // Material 3 Expressive: Wider columns
-                            )
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp),
+                factory = { context ->
+                    LineChart(context).apply {
+                        description.isEnabled = false
+                        legend.textColor = textColor
+                        xAxis.apply {
+                            position = XAxis.XAxisPosition.BOTTOM
+                            setDrawGridLines(false)
+                            this.textColor = textColor
                         }
-                    ),
-                    columnCollectionSpacing = 8.dp // Material 3 Expressive: More spacing
-                ),
-                startAxis = VerticalAxis.rememberStart(
-                    label = rememberAxisLabelComponent()
-                ),
-                bottomAxis = HorizontalAxis.rememberBottom(
-                    label = rememberAxisLabelComponent()
-                )
-            ),
-            modelProducer = modelProducer,
-            modifier = modifier.height(280.dp) // Material 3 Expressive: Taller chart
-        )
-    }
-}
+                        axisLeft.apply {
+                            setDrawGridLines(true)
+                            gridColor = AndroidColor.LTGRAY
+                            this.textColor = textColor
+                        }
+                        axisRight.isEnabled = false
+                        setTouchEnabled(true)
+                        isDragEnabled = true
+                        setScaleEnabled(true)
+                    }
+                },
+                update = { chart ->
+                    val dataSets = mutableListOf<LineDataSet>()
 
-/**
- * Line chart showing total volume (weight * reps) over time using Vico
- * Enhanced with Material 3 Expressive theming and gradient area fill
- */
-@Composable
-fun TotalVolumeChart(
-    workoutSessions: List<WorkoutSession>,
-    weightUnit: WeightUnit,
-    formatWeight: (Float, WeightUnit) -> String,
-    modifier: Modifier = Modifier
-) {
-    val vicoTheme = rememberM3VicoTheme() // Material 3 Expressive theming
-    val modelProducer = remember { CartesianChartModelProducer() }
+                    if (showConcentric) {
+                        val concentricEntries = metrics.mapIndexed { index, metric ->
+                            Entry(index.toFloat(), metric.concentricForce)
+                        }
+                        val concentricDataSet = LineDataSet(concentricEntries, "Concentric").apply {
+                            color = primaryColor
+                            setCircleColor(primaryColor)
+                            lineWidth = 2f
+                            circleRadius = 3f
+                            setDrawValues(false)
+                            mode = LineDataSet.Mode.CUBIC_BEZIER
+                        }
+                        dataSets.add(concentricDataSet)
+                    }
 
-    LaunchedEffect(workoutSessions) {
-        if (workoutSessions.isNotEmpty()) {
-            // Group by day and sum total volume
-            val volumeByDate = workoutSessions
-                .sortedBy { it.timestamp }
-                .groupBy { session ->
-                    val instant = java.time.Instant.ofEpochMilli(session.timestamp)
-                    instant.atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                    if (showEccentric) {
+                        val eccentricEntries = metrics.mapIndexed { index, metric ->
+                            Entry(index.toFloat(), metric.eccentricForce)
+                        }
+                        val eccentricDataSet = LineDataSet(eccentricEntries, "Eccentric").apply {
+                            color = secondaryColor
+                            setCircleColor(secondaryColor)
+                            lineWidth = 2f
+                            circleRadius = 3f
+                            setDrawValues(false)
+                            mode = LineDataSet.Mode.CUBIC_BEZIER
+                        }
+                        dataSets.add(eccentricDataSet)
+                    }
+
+                    chart.data = LineData(dataSets.toList())
+                    chart.invalidate()
                 }
-                .mapValues { (_, sessions) ->
-                    sessions.sumOf { (it.weightPerCableKg * it.totalReps * 2).toDouble() }
-                }
+            )
 
-            modelProducer.runTransaction {
-                lineSeries {
-                    series(volumeByDate.values.toList())
+            // Legend
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (showConcentric) {
+                    LegendItem(color = MaterialTheme.colorScheme.primary, label = "Concentric")
+                    Spacer(modifier = Modifier.width(16.dp))
+                }
+                if (showEccentric) {
+                    LegendItem(color = MaterialTheme.colorScheme.secondary, label = "Eccentric")
                 }
             }
         }
     }
+}
 
-    ProvideVicoTheme(vicoTheme) {
-        CartesianChartHost(
-            chart = rememberCartesianChart(
-                rememberLineCartesianLayer(),
-                startAxis = VerticalAxis.rememberStart(
-                    label = rememberAxisLabelComponent()
-                ),
-                bottomAxis = HorizontalAxis.rememberBottom(
-                    label = rememberAxisLabelComponent()
+/**
+ * Chart showing workout volume over time.
+ */
+@Composable
+fun VolumeProgressChart(
+    sessions: List<WorkoutSession>,
+    modifier: Modifier = Modifier
+) {
+    val primaryColor = MaterialTheme.colorScheme.primary.toArgb()
+    val textColor = MaterialTheme.colorScheme.onSurface.toArgb()
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Volume Progress",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (sessions.isEmpty()) {
+                Text(
+                    text = "No workout data available",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-            ),
-            modelProducer = modelProducer,
-            modifier = modifier.height(280.dp) // Material 3 Expressive: Taller chart
+            } else {
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    factory = { context ->
+                        LineChart(context).apply {
+                            description.isEnabled = false
+                            legend.isEnabled = false
+                            xAxis.apply {
+                                position = XAxis.XAxisPosition.BOTTOM
+                                setDrawGridLines(false)
+                                this.textColor = textColor
+                                valueFormatter = object : ValueFormatter() {
+                                    private val dateFormat = SimpleDateFormat("MM/dd", Locale.getDefault())
+                                    override fun getFormattedValue(value: Float): String {
+                                        val index = value.toInt()
+                                        return if (index in sessions.indices) {
+                                            dateFormat.format(Date(sessions[index].timestamp))
+                                        } else ""
+                                    }
+                                }
+                            }
+                            axisLeft.apply {
+                                setDrawGridLines(true)
+                                gridColor = AndroidColor.LTGRAY
+                                this.textColor = textColor
+                            }
+                            axisRight.isEnabled = false
+                            setTouchEnabled(true)
+                            isDragEnabled = true
+                            setScaleEnabled(true)
+                        }
+                    },
+                    update = { chart ->
+                        val entries = sessions.mapIndexed { index, session ->
+                            val volume = session.weightPerCableKg * session.totalReps * 2
+                            Entry(index.toFloat(), volume)
+                        }
+
+                        val dataSet = LineDataSet(entries, "Volume").apply {
+                            color = primaryColor
+                            setCircleColor(primaryColor)
+                            lineWidth = 2f
+                            circleRadius = 4f
+                            setDrawValues(false)
+                            mode = LineDataSet.Mode.CUBIC_BEZIER
+                            setDrawFilled(true)
+                            fillColor = primaryColor
+                            fillAlpha = 50
+                        }
+
+                        chart.data = LineData(dataSet)
+                        chart.invalidate()
+                    }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Legend item component for charts.
+ */
+@Composable
+private fun LegendItem(
+    color: Color,
+    label: String
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            modifier = Modifier.size(12.dp),
+            shape = RoundedCornerShape(6.dp),
+            color = color
+        ) {}
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

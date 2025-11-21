@@ -1,93 +1,85 @@
 package com.example.vitruvianredux.presentation.screen
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import androidx.navigation.NavController
 import com.example.vitruvianredux.data.local.ProgramDayEntity
 import com.example.vitruvianredux.data.local.WeeklyProgramEntity
 import com.example.vitruvianredux.data.local.WeeklyProgramWithDays
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.Routine
+import com.example.vitruvianredux.ui.theme.ThemeMode
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
-import com.example.vitruvianredux.ui.theme.Spacing
 import java.time.DayOfWeek
 import java.time.format.TextStyle
-import java.util.*
+import java.util.Locale
+import java.util.UUID
 
 /**
- * Program Builder screen - create or edit a weekly program.
- * Allows user to assign routines to each day of the week.
+ * Screen for building and editing weekly programs.
+ * Allows users to assign routines to each day of the week.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProgramBuilderScreen(
     navController: NavController,
     viewModel: MainViewModel,
     programId: String,
     exerciseRepository: ExerciseRepository,
-    themeMode: com.example.vitruvianredux.ui.theme.ThemeMode
+    themeMode: ThemeMode,
+    padding: PaddingValues = PaddingValues()
 ) {
     val routines by viewModel.routines.collectAsState()
-    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
+    val isAutoConnecting by viewModel.isAutoConnecting().collectAsState(initial = false)
     val connectionError by viewModel.connectionError.collectAsState()
+    val programs by viewModel.weeklyPrograms.collectAsState()
 
-    var programName by remember { mutableStateOf("New Program") }
+    // Find existing program if editing
+    val existingProgram = remember(programId, programs) {
+        if (programId != "new") {
+            programs.find { it.program.id == programId }
+        } else null
+    }
+
+    var programName by remember {
+        mutableStateOf(existingProgram?.program?.name ?: "New Program")
+    }
     var isEditingName by remember { mutableStateOf(false) }
     var showRoutinePicker by remember { mutableStateOf(false) }
     var selectedDay by remember { mutableStateOf<DayOfWeek?>(null) }
-
-    // Map of day to selected routine
     var dailyRoutines by remember {
         mutableStateOf<Map<DayOfWeek, Routine?>>(
-            DayOfWeek.entries.associateWith { null }
+            existingProgram?.let { program ->
+                program.days.associate { day ->
+                    val dayOfWeek = DayOfWeek.of(day.dayOfWeek)
+                    val routine = routines.find { it.id == day.routineId }
+                    dayOfWeek to routine
+                }
+            } ?: emptyMap()
         )
     }
 
-    // Load existing program data if editing (programId != "new")
-    val programs by viewModel.weeklyPrograms.collectAsState()
-    LaunchedEffect(programId, programs, routines) {
-        if (programId != "new") {
-            val existingProgram = programs.find { it.program.id == programId }
-            existingProgram?.let { program ->
-                // Set program name
-                programName = program.program.title
-
-                // Convert ProgramDayEntity list back to Map<DayOfWeek, Routine?>
-                val routineMap = mutableMapOf<DayOfWeek, Routine?>()
-
-                // Initialize all days as rest days
-                DayOfWeek.entries.forEach { day ->
-                    routineMap[day] = null
-                }
-
-                // Fill in workout days from program
-                program.days.forEach { programDay ->
-                    // programDay.dayOfWeek is Int (1=MONDAY, 7=SUNDAY)
-                    val dayOfWeek = DayOfWeek.of(programDay.dayOfWeek)
-                    val routine = routines.find { it.id == programDay.routineId }
-                    routineMap[dayOfWeek] = routine
-                }
-
-                dailyRoutines = routineMap
-            }
+    val listState = rememberLazyListState()
+    val canScrollDown by remember {
+        derivedStateOf {
+            val lastVisibleItem = listState.layoutInfo.visibleItemsInfo.lastOrNull()
+            lastVisibleItem != null && lastVisibleItem.index < listState.layoutInfo.totalItemsCount - 1
         }
     }
 
@@ -99,13 +91,11 @@ fun ProgramBuilderScreen(
                         TextField(
                             value = programName,
                             onValueChange = { programName = it },
-                            singleLine = true,
                             colors = TextFieldDefaults.colors(
-                                focusedContainerColor = MaterialTheme.colorScheme.primary,
-                                unfocusedContainerColor = MaterialTheme.colorScheme.primary,
-                                focusedTextColor = MaterialTheme.colorScheme.onPrimary,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onPrimary
-                            )
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent
+                            ),
+                            singleLine = true
                         )
                     } else {
                         Text(programName)
@@ -113,125 +103,73 @@ fun ProgramBuilderScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back"
+                        )
                     }
                 },
                 actions = {
+                    // Edit/Save name button
                     IconButton(onClick = { isEditingName = !isEditingName }) {
                         Icon(
-                            if (isEditingName) Icons.Default.Check else Icons.Default.Edit,
+                            imageVector = if (isEditingName) Icons.Default.Check else Icons.Default.Edit,
                             contentDescription = if (isEditingName) "Save name" else "Edit name"
                         )
                     }
+                    // Save program button
                     IconButton(onClick = {
-                        // Collect program data and save to database
+                        val uuid = if (programId == "new") UUID.randomUUID().toString() else programId
                         val programEntity = WeeklyProgramEntity(
-                            id = if (programId == "new") UUID.randomUUID().toString() else programId,
-                            title = programName,
-                            notes = null,
+                            id = uuid,
+                            name = programName,
+                            description = null,
                             isActive = false,
+                            activeStartDate = null,
                             createdAt = System.currentTimeMillis()
                         )
-
-                        // Create ProgramDayEntity for each day with an assigned routine
-                        val programDays = dailyRoutines.entries
-                            .filter { (_, routine) -> routine != null }
-                            .map { (day, routine) ->
+                        val programDays = dailyRoutines
+                            .filter { it.value != null }
+                            .map { (dayOfWeek, routine) ->
                                 ProgramDayEntity(
-                                    programId = programEntity.id,
-                                    dayOfWeek = day.value, // DayOfWeek.value: MONDAY=1 to SUNDAY=7
+                                    id = 0,
+                                    programId = uuid,
+                                    dayOfWeek = dayOfWeek.value,
                                     routineId = routine!!.id
                                 )
                             }
-
-                        // Save program with days
-                        val programWithDays = WeeklyProgramWithDays(
-                            program = programEntity,
-                            days = programDays
-                        )
+                        val programWithDays = WeeklyProgramWithDays(programEntity, programDays)
                         viewModel.saveProgram(programWithDays)
-
                         navController.navigateUp()
                     }) {
-                        Icon(Icons.Default.Done, contentDescription = "Save program")
+                        Icon(
+                            imageVector = Icons.Default.Save,
+                            contentDescription = "Save program"
+                        )
                     }
                 },
+                modifier = Modifier.statusBarsPadding(),
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    titleContentColor = MaterialTheme.colorScheme.onSurface,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                    actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                    containerColor = MaterialTheme.colorScheme.surface
                 )
             )
         }
-    ) { padding ->
-        // Determine actual theme (matching Theme.kt logic)
-        val useDarkColors = when (themeMode) {
-            com.example.vitruvianredux.ui.theme.ThemeMode.SYSTEM -> isSystemInDarkTheme()
-            com.example.vitruvianredux.ui.theme.ThemeMode.LIGHT -> false
-            com.example.vitruvianredux.ui.theme.ThemeMode.DARK -> true
-        }
-
-        val backgroundGradient = if (useDarkColors) {
-            Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFF0F172A), // slate-900
-                    Color(0xFF1E1B4B), // indigo-950
-                    Color(0xFF172554)  // blue-950
-                )
-            )
-        } else {
-            Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFFE0E7FF), // soft indigo
-                    Color(0xFFEDE9FE), // soft violet
-                    Color(0xFFDFF6FF)  // soft sky blue
-                )
-            )
-        }
-
-        // Track scroll state to show scroll indicator
-        val listState = rememberLazyListState()
-
-        // Determine if we can scroll down (more content below)
-        val canScrollDown by remember {
-            derivedStateOf {
-                val layoutInfo = listState.layoutInfo
-                val lastVisibleItem = layoutInfo.visibleItemsInfo.lastOrNull()
-
-                // Can scroll down if the last visible item is not the last item in the list
-                lastVisibleItem?.let {
-                    it.index < layoutInfo.totalItemsCount - 1
-                } ?: false
-            }
-        }
-
-        Box(
+    ) { innerPadding ->
+        LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .background(backgroundGradient)
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(Spacing.medium),
-                verticalArrangement = Arrangement.spacedBy(Spacing.medium)
-            ) {
-            item {
-                Text(
-                    "Schedule workouts for each day",
-                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
-                    fontWeight = FontWeight.Bold
-                )
-            }
+            item { Spacer(modifier = Modifier.height(8.dp)) }
 
-            // 7 day cards
-            itemsIndexed(DayOfWeek.entries.toList()) { index, day ->
+            itemsIndexed(DayOfWeek.entries.toList()) { _, day ->
+                val routine = dailyRoutines[day]
                 DayRoutineCard(
                     day = day,
-                    routine = dailyRoutines[day],
+                    routine = routine,
                     onSelectRoutine = {
                         selectedDay = day
                         showRoutinePicker = true
@@ -245,178 +183,43 @@ fun ProgramBuilderScreen(
             }
 
             item {
-                Spacer(modifier = Modifier.height(Spacing.medium))
-
-                // Summary card - Material 3 Expressive
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-                    border = androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.medium)
-                    ) {
-                        Text(
-                            "Program Summary",
-                            style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(Spacing.small))
-
-                        val workoutDays = dailyRoutines.values.filterNotNull().size
-                        val restDays = 7 - workoutDays
-
-                        Text(
-                            "$workoutDays workout days, $restDays rest days",
-                            style = MaterialTheme.typography.bodyLarge, // Material 3 Expressive: Larger (was bodyMedium)
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-            }
-
-            // Scroll indicator - gradient fade at bottom when more content is available
-            if (canScrollDown) {
-                val bottomColor = if (useDarkColors) Color(0xFF172554) else Color(0xFFDFF6FF)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(80.dp)
-                        .align(Alignment.BottomCenter)
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    bottomColor.copy(alpha = 0.85f),
-                                    bottomColor
-                                )
-                            )
-                        )
-                        .zIndex(1f)
-                ) {
-                    // Down arrow icon to indicate more content
-                    Surface(
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 12.dp),
-                        shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.KeyboardArrowDown,
-                            contentDescription = "Scroll down for more",
-                            modifier = Modifier
-                                .padding(8.dp)
-                                .size(28.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
+                Spacer(modifier = Modifier.height(16.dp))
+                ProgramSummaryCard(dailyRoutines = dailyRoutines)
             }
         }
     }
 
-    // Routine picker dialog - Material 3 Expressive
+    // Routine picker dialog
     if (showRoutinePicker && selectedDay != null) {
-        AlertDialog(
-            onDismissRequest = { showRoutinePicker = false },
-            title = { 
-                Text(
-                    "Select Routine for ${selectedDay!!.getDisplayName(TextStyle.FULL, Locale.getDefault())}",
-                    style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger
-                    fontWeight = FontWeight.Bold
-                ) 
-            },
-            text = {
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.small)
-                ) {
-                    if (routines.isEmpty()) {
-                        item {
-                            Text(
-                                "No routines available. Create a routine first.",
-                                style = MaterialTheme.typography.bodyLarge, // Material 3 Expressive: Larger (was bodyMedium)
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    } else {
-                        itemsIndexed(routines) { _, routine ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        dailyRoutines = dailyRoutines.toMutableMap().apply {
-                                            put(selectedDay!!, routine)
-                                        }
-                                        showRoutinePicker = false
-                                    },
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-                                shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 12dp)
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(Spacing.medium)
-                                ) {
-                                    Text(
-                                        routine.name,
-                                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger (was bodyLarge)
-                                        fontWeight = FontWeight.Bold // Material 3 Expressive: Bolder (was Medium)
-                                    )
-                                    Text(
-                                        "${routine.exercises.size} exercises",
-                                        style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
+        RoutinePickerDialog(
+            selectedDay = selectedDay!!,
+            routines = routines,
+            onRoutineSelected = { routine ->
+                dailyRoutines = dailyRoutines.toMutableMap().apply {
+                    put(selectedDay!!, routine)
                 }
+                showRoutinePicker = false
             },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(
-                    onClick = { showRoutinePicker = false },
-                    modifier = Modifier.height(56.dp), // Material 3 Expressive: Taller button
-                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
-                ) {
-                    Text(
-                        "Cancel",
-                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
-            shape = RoundedCornerShape(28.dp) // Material 3 Expressive: Very rounded for dialogs
+            onDismiss = { showRoutinePicker = false }
         )
     }
 
-    // Auto-connect UI overlays (same as other screens)
+    // Auto-connecting overlay
     if (isAutoConnecting) {
-        com.example.vitruvianredux.presentation.components.ConnectingOverlay(
-            onCancel = { viewModel.cancelAutoConnecting() }
-        )
+        ConnectingOverlay(onCancel = { viewModel.cancelAutoConnecting() })
     }
 
+    // Connection error dialog
     connectionError?.let { error ->
-        com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
-            message = error,
+        ConnectionErrorDialog(
+            error = error,
             onDismiss = { viewModel.clearConnectionError() }
         )
     }
 }
 
 /**
- * Card for selecting a routine for a specific day.
+ * Card representing a single day with its assigned routine.
  */
 @Composable
 fun DayRoutineCard(
@@ -425,58 +228,56 @@ fun DayRoutineCard(
     onSelectRoutine: () -> Unit,
     onClearRoutine: () -> Unit
 ) {
+    val containerColor = if (routine != null) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHighest
+    }
+
+    val borderColor = if (routine != null) {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+    } else {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+    }
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onSelectRoutine),
-        colors = CardDefaults.cardColors(
-            containerColor = if (routine != null) {
-                MaterialTheme.colorScheme.primaryContainer // Material 3 Expressive: Use primary container when routine assigned
-            } else {
-                MaterialTheme.colorScheme.surfaceContainerHighest // Material 3 Expressive: Higher contrast
-            }
-        ),
-        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-        border = androidx.compose.foundation.BorderStroke(
-            2.dp,
-            if (routine != null) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-            } else {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-            }
-        ) // Material 3 Expressive: Thicker border (was 1dp)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        border = BorderStroke(2.dp, borderColor)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp), // Material 3 Expressive: More padding (was Spacing.medium)
+                .padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    day.getDisplayName(TextStyle.FULL, Locale.getDefault()),
-                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
+                    text = day.getDisplayName(TextStyle.FULL, Locale.getDefault()),
+                    style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
-
+                Spacer(modifier = Modifier.height(4.dp))
                 if (routine != null) {
-                    Spacer(modifier = Modifier.height(Spacing.extraSmall))
                     Text(
-                        routine.name,
-                        style = MaterialTheme.typography.bodyLarge // Material 3 Expressive: Larger (was bodyMedium)
+                        text = routine.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
-                        "${routine.exercises.size} exercises",
-                        style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "${routine.exercises.size} exercises",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                 } else {
-                    Spacer(modifier = Modifier.height(Spacing.extraSmall))
                     Text(
-                        "Rest day",
-                        style = MaterialTheme.typography.bodyLarge, // Material 3 Expressive: Larger (was bodyMedium)
+                        text = "Rest day - tap to assign routine",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -485,18 +286,163 @@ fun DayRoutineCard(
             if (routine != null) {
                 IconButton(onClick = onClearRoutine) {
                     Icon(
-                        Icons.Default.Clear,
+                        imageVector = Icons.Default.Close,
                         contentDescription = "Clear routine",
-                        tint = MaterialTheme.colorScheme.error
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                 }
             } else {
                 Icon(
-                    Icons.Default.Add,
+                    imageVector = Icons.Default.Add,
                     contentDescription = "Add routine",
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
         }
     }
+}
+
+/**
+ * Summary card showing program statistics.
+ */
+@Composable
+private fun ProgramSummaryCard(
+    dailyRoutines: Map<DayOfWeek, Routine?>
+) {
+    val workoutDays = dailyRoutines.count { it.value != null }
+    val totalExercises = dailyRoutines.values.filterNotNull().sumOf { it.exercises.size }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = "Program Summary",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                SummaryStatItem(
+                    value = "$workoutDays",
+                    label = "Workout Days"
+                )
+                SummaryStatItem(
+                    value = "${7 - workoutDays}",
+                    label = "Rest Days"
+                )
+                SummaryStatItem(
+                    value = "$totalExercises",
+                    label = "Total Exercises"
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SummaryStatItem(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            text = value,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/**
+ * Dialog for selecting a routine to assign to a day.
+ */
+@Composable
+private fun RoutinePickerDialog(
+    selectedDay: DayOfWeek,
+    routines: List<Routine>,
+    onRoutineSelected: (Routine) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Select Routine for ${selectedDay.getDisplayName(TextStyle.FULL, Locale.getDefault())}",
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.headlineSmall
+            )
+        },
+        text = {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (routines.isEmpty()) {
+                    item {
+                        Text(
+                            text = "No routines available. Create a routine first.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    items(routines.size) { index ->
+                        val routine = routines[index]
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onRoutineSelected(routine) },
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                            )
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                            ) {
+                                Text(
+                                    text = routine.name,
+                                    fontWeight = FontWeight.Bold,
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Text(
+                                    text = "${routine.exercises.size} exercises",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.height(56.dp),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Text("Cancel")
+            }
+        }
+    )
 }

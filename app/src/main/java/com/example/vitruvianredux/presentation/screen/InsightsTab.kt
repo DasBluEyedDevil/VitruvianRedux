@@ -3,125 +3,139 @@ package com.example.vitruvianredux.presentation.screen
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Analytics
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity
+import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.HeuristicStatistics
 import com.example.vitruvianredux.domain.model.PersonalRecord
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutSession
+import com.example.vitruvianredux.presentation.components.ImprovedInsightsComponentsKt
+import com.example.vitruvianredux.presentation.components.PhaseAnalysisChart
+import com.example.vitruvianredux.presentation.components.ProgressVelocityCard
+import com.example.vitruvianredux.presentation.components.TrainingBalanceCard
+import com.example.vitruvianredux.presentation.components.TrainingConsistencyCard
+import com.example.vitruvianredux.presentation.components.WeeklyComparisonCard
 import com.example.vitruvianredux.ui.theme.Spacing
-import com.example.vitruvianredux.presentation.components.*
-import com.example.vitruvianredux.presentation.components.charts.PhaseAnalysisChart
+import java.util.Locale
 
 /**
- * Improved Insights Tab - Phase 3.2 UI Modernization
- * Features:
- * - Summary grid at top with Volume metrics (2x2)
- * - Collapsible insight cards (reduces scrolling by 70-80%)
- * - Phase Analysis Chart integration
- * - Material 3 Expressive styling
+ * Insights tab showing workout analytics and training insights.
+ *
+ * @param prs List of personal records
+ * @param workoutSessions List of workout sessions
+ * @param phaseStatistics Phase statistics data
+ * @param exerciseRepository Exercise repository for lookups
+ * @param modifier Optional modifier
+ * @param weightUnit Current weight unit preference
+ * @param formatWeight Function to format weight values
  */
 @Composable
 fun InsightsTab(
     prs: List<PersonalRecord>,
     workoutSessions: List<WorkoutSession>,
-    exerciseRepository: com.example.vitruvianredux.data.repository.ExerciseRepository,
+    phaseStatistics: List<PhaseStatisticsEntity>,
+    exerciseRepository: ExerciseRepository,
     modifier: Modifier = Modifier,
-    phaseStatistics: List<HeuristicStatistics> = emptyList(),
     weightUnit: WeightUnit = WeightUnit.KG,
-    formatWeight: (Float, WeightUnit) -> String = { w, u -> "${w.toInt()} ${u.name.lowercase()}" }
+    formatWeight: (Float, WeightUnit) -> String = { w, u ->
+        "${w.toInt()} ${u.name.lowercase(Locale.ROOT)}"
+    }
 ) {
-    // Track which cards are expanded - Phase Analysis expanded by default
+    // Expansion state for collapsible cards
     var phaseAnalysisExpanded by remember { mutableStateOf(true) }
-    var trainingBalanceExpanded by remember { mutableStateOf(false) }
-    var progressVelocityExpanded by remember { mutableStateOf(false) }
-    var consistencyExpanded by remember { mutableStateOf(false) }
-    var weeklyComparisonExpanded by remember { mutableStateOf(false) }
+    var trainingBalanceExpanded by remember { mutableStateOf(true) }
+    var progressVelocityExpanded by remember { mutableStateOf(true) }
+    var consistencyExpanded by remember { mutableStateOf(true) }
+    var weeklyComparisonExpanded by remember { mutableStateOf(true) }
 
-    // Calculate summary metrics
-    val totalExercises = prs.map { it.exerciseId }.distinct().size
-    val totalPRs = prs.size
-    val totalVolume = workoutSessions.sumOf { session ->
-        (session.weightPerCableKg * 2 * session.totalReps).toDouble()
-    }.toFloat()
-    val avgPRWeight = if (prs.isNotEmpty()) prs.map { it.weightPerCableKg * 2 }.average().toFloat() else 0f
+    // Calculate average heuristic stats from phase statistics
+    val averageHeuristicStats = remember(phaseStatistics) {
+        if (phaseStatistics.isNotEmpty()) {
+            HeuristicStatistics(
+                concentricPower = phaseStatistics.map { it.concentricPower }.average().toFloat(),
+                eccentricPower = phaseStatistics.map { it.eccentricPower }.average().toFloat(),
+                concentricTime = phaseStatistics.map { it.concentricTime }.average().toFloat(),
+                eccentricTime = phaseStatistics.map { it.eccentricTime }.average().toFloat()
+            )
+        } else null
+    }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(Spacing.medium),
-        verticalArrangement = Arrangement.spacedBy(Spacing.medium)
+            .padding(Spacing.Medium),
+        verticalArrangement = Arrangement.spacedBy(Spacing.Medium)
     ) {
-        // Header
         item {
             Text(
-                text = "Insights & Analytics",
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = "Deep analysis of your training patterns",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "Training Insights",
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(bottom = 8.dp)
             )
         }
 
-        // Summary Grid (2x2) - Key metrics at top
-        item {
-            SummaryGrid(
-                totalExercises = totalExercises,
-                totalPRs = totalPRs,
-                totalVolume = totalVolume,
-                avgPRWeight = avgPRWeight,
-                weightUnit = weightUnit,
-                formatWeight = formatWeight
-            )
-        }
-
-        // Phase Analysis Chart - Expanded by default
-        if (phaseStatistics.isNotEmpty()) {
+        // Phase Analysis Card
+        averageHeuristicStats?.let { stats ->
             item {
                 CollapsibleInsightCard(
                     title = "Phase Analysis",
-                    icon = Icons.AutoMirrored.Filled.TrendingUp,
-                    isExpanded = phaseAnalysisExpanded,
-                    onToggle = { phaseAnalysisExpanded = !phaseAnalysisExpanded }
+                    subtitle = "Concentric vs Eccentric Power",
+                    icon = Icons.Filled.Analytics,
+                    expanded = phaseAnalysisExpanded,
+                    onExpandToggle = { phaseAnalysisExpanded = !phaseAnalysisExpanded }
                 ) {
                     PhaseAnalysisChart(
-                        phaseStatistics = phaseStatistics,
+                        statistics = stats,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
         }
 
-        // Training Balance - Collapsible
+        // Training Balance Card
         if (prs.isNotEmpty()) {
             item {
                 CollapsibleInsightCard(
                     title = "Training Balance",
-                    icon = Icons.Default.Balance,
-                    isExpanded = trainingBalanceExpanded,
-                    onToggle = { trainingBalanceExpanded = !trainingBalanceExpanded }
+                    subtitle = "Muscle group distribution",
+                    icon = Icons.Filled.BarChart,
+                    expanded = trainingBalanceExpanded,
+                    onExpandToggle = { trainingBalanceExpanded = !trainingBalanceExpanded }
                 ) {
                     TrainingBalanceCard(
-                        personalRecords = prs,
+                        prs = prs,
                         exerciseRepository = exerciseRepository,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -129,46 +143,49 @@ fun InsightsTab(
             }
         }
 
-        // Progress Velocity - Collapsible
+        // Progress Velocity Card
         if (prs.isNotEmpty()) {
             item {
                 CollapsibleInsightCard(
                     title = "Progress Velocity",
-                    icon = Icons.Default.Speed,
-                    isExpanded = progressVelocityExpanded,
-                    onToggle = { progressVelocityExpanded = !progressVelocityExpanded }
+                    subtitle = "How fast you're improving",
+                    icon = Icons.Filled.Speed,
+                    expanded = progressVelocityExpanded,
+                    onExpandToggle = { progressVelocityExpanded = !progressVelocityExpanded }
                 ) {
                     ProgressVelocityCard(
-                        personalRecords = prs,
+                        prs = prs,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
         }
 
-        // Consistency Score - Collapsible
+        // Training Consistency Card
         item {
             CollapsibleInsightCard(
-                title = "Consistency Score",
-                icon = Icons.Default.CalendarMonth,
-                isExpanded = consistencyExpanded,
-                onToggle = { consistencyExpanded = !consistencyExpanded }
+                title = "Consistency",
+                subtitle = "Your workout frequency",
+                icon = Icons.Filled.CalendarMonth,
+                expanded = consistencyExpanded,
+                onExpandToggle = { consistencyExpanded = !consistencyExpanded }
             ) {
-                ConsistencyScoreCard(
+                TrainingConsistencyCard(
                     workoutSessions = workoutSessions,
                     modifier = Modifier.fillMaxWidth()
                 )
             }
         }
 
-        // Weekly Comparison - Collapsible
+        // Weekly Comparison Card
         if (workoutSessions.isNotEmpty()) {
             item {
                 CollapsibleInsightCard(
                     title = "Weekly Comparison",
+                    subtitle = "This week vs last week",
                     icon = Icons.AutoMirrored.Filled.CompareArrows,
-                    isExpanded = weeklyComparisonExpanded,
-                    onToggle = { weeklyComparisonExpanded = !weeklyComparisonExpanded }
+                    expanded = weeklyComparisonExpanded,
+                    onExpandToggle = { weeklyComparisonExpanded = !weeklyComparisonExpanded }
                 ) {
                     WeeklyComparisonCard(
                         workoutSessions = workoutSessions,
@@ -181,35 +198,26 @@ fun InsightsTab(
         }
 
         // Empty state
-        if (prs.isEmpty() && workoutSessions.isEmpty()) {
+        if (prs.isEmpty() && workoutSessions.isEmpty() && phaseStatistics.isEmpty()) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(32.dp),
+                            .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(
-                            Icons.Default.Insights,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(64.dp)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "No Insights Yet",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold
+                            text = "No data yet",
+                            style = MaterialTheme.typography.titleMedium
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Complete workouts to unlock insights",
+                            text = "Complete some workouts to see insights",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -221,166 +229,86 @@ fun InsightsTab(
 }
 
 /**
- * Summary Grid - 2x2 grid showing key metrics at the top
+ * Collapsible card for insight sections.
+ *
+ * @param title Card title
+ * @param subtitle Card subtitle
+ * @param icon Card icon
+ * @param expanded Whether the card is expanded
+ * @param onExpandToggle Callback when expand toggle is clicked
+ * @param modifier Optional modifier
+ * @param content Card content when expanded
  */
 @Composable
-private fun SummaryGrid(
-    totalExercises: Int,
-    totalPRs: Int,
-    totalVolume: Float,
-    avgPRWeight: Float,
-    weightUnit: WeightUnit,
-    formatWeight: (Float, WeightUnit) -> String
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Top row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                SummaryMetric(
-                    icon = Icons.Default.FitnessCenter,
-                    label = "Exercises",
-                    value = totalExercises.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-                SummaryMetric(
-                    icon = Icons.Default.EmojiEvents,
-                    label = "Total PRs",
-                    value = totalPRs.toString(),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            // Bottom row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                SummaryMetric(
-                    icon = Icons.Default.Scale,
-                    label = "Total Volume",
-                    value = formatWeight(totalVolume, weightUnit),
-                    modifier = Modifier.weight(1f)
-                )
-                SummaryMetric(
-                    icon = Icons.AutoMirrored.Filled.TrendingUp,
-                    label = "Avg PR Weight",
-                    value = formatWeight(avgPRWeight, weightUnit),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SummaryMetric(
-    icon: ImageVector,
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .background(
-                MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                shape = MaterialTheme.shapes.small
-            )
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(20.dp)
-        )
-        Column {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-/**
- * Collapsible Insight Card - Header with expand/collapse functionality
- */
-@Composable
-private fun CollapsibleInsightCard(
+fun CollapsibleInsightCard(
     title: String,
+    subtitle: String,
     icon: ImageVector,
-    isExpanded: Boolean,
-    onToggle: () -> Unit,
+    expanded: Boolean,
+    onExpandToggle: () -> Unit,
+    modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isExpanded) 4.dp else 1.dp
-        )
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column {
-            // Header - always visible, clickable
+            // Header (always visible)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onToggle() }
+                    .clickable(onClick = onExpandToggle)
                     .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Column {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
+
                 Icon(
-                    imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
-            // Content - animated visibility
+            // Content (collapsible)
             AnimatedVisibility(
-                visible = isExpanded,
+                visible = expanded,
                 enter = expandVertically(),
                 exit = shrinkVertically()
             ) {
-                Box(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+                Column(
+                    modifier = Modifier.padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = 16.dp
+                    )
+                ) {
                     content()
                 }
             }

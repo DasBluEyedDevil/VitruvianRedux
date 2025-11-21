@@ -1,37 +1,24 @@
 package com.example.vitruvianredux.data.repository
 
-import com.example.vitruvianredux.data.local.WorkoutDao
-import com.example.vitruvianredux.data.local.WorkoutMetricEntity
-import com.example.vitruvianredux.data.local.WorkoutSessionEntity
-import com.example.vitruvianredux.data.local.RoutineEntity
-import com.example.vitruvianredux.data.local.RoutineExerciseEntity
-import com.example.vitruvianredux.data.local.WeeklyProgramWithDays
 import com.example.vitruvianredux.data.local.PersonalRecordDao
-import com.example.vitruvianredux.data.local.PersonalRecordEntity
+import com.example.vitruvianredux.data.local.WeeklyProgramWithDays
+import com.example.vitruvianredux.data.local.WorkoutDao
 import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
 import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
 import com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity
 import com.example.vitruvianredux.domain.model.HeuristicStatistics
+import com.example.vitruvianredux.domain.model.Routine
 import com.example.vitruvianredux.domain.model.WorkoutMetric
 import com.example.vitruvianredux.domain.model.WorkoutSession
-import com.example.vitruvianredux.domain.model.Routine
-import com.example.vitruvianredux.domain.model.RoutineExercise
-import com.example.vitruvianredux.domain.model.Exercise
-import com.example.vitruvianredux.domain.model.CableConfiguration
-import com.example.vitruvianredux.domain.model.WorkoutMode
-import com.example.vitruvianredux.domain.model.WorkoutType
-import com.example.vitruvianredux.domain.model.ProgramMode
-import com.example.vitruvianredux.domain.model.EchoLevel
-import com.example.vitruvianredux.domain.model.EccentricLoad
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Repository for workout history management
+ * Repository for managing workout sessions, routines, and programs.
+ * Central point for all workout-related data operations.
  */
 @Singleton
 class WorkoutRepository @Inject constructor(
@@ -41,31 +28,16 @@ class WorkoutRepository @Inject constructor(
     private val diagnosticsDao: DiagnosticsDao
 ) {
 
+    // ===================== Workout Sessions =====================
+
     /**
-     * Save a workout session
+     * Save a workout session.
+     * @param session The workout session to save
+     * @return Result indicating success or failure
      */
     suspend fun saveSession(session: WorkoutSession): Result<Unit> {
         return try {
-            val entity = WorkoutSessionEntity(
-                id = session.id,
-                timestamp = session.timestamp,
-                mode = session.mode,
-                reps = session.reps,
-                weightPerCableKg = session.weightPerCableKg,
-                progressionKg = session.progressionKg,
-                duration = session.duration,
-                totalReps = session.totalReps,
-                warmupReps = session.warmupReps,
-                workingReps = session.workingReps,
-                isJustLift = session.isJustLift,
-                stopAtTop = session.stopAtTop,
-                eccentricLoad = session.eccentricLoad,
-                echoLevel = session.echoLevel,
-                exerciseId = session.exerciseId,
-                exerciseName = session.exerciseName,
-                routineSessionId = session.routineSessionId,
-                routineName = session.routineName
-            )
+            val entity = session.toEntity()
             workoutDao.insertSession(entity)
             Timber.d("Saved workout session: ${session.id}")
             Result.success(Unit)
@@ -76,23 +48,18 @@ class WorkoutRepository @Inject constructor(
     }
 
     /**
-     * Save workout metrics (batch insert for performance)
+     * Save workout metrics for a session.
+     * @param sessionId The session ID
+     * @param metrics List of workout metrics to save
+     * @return Result indicating success or failure
      */
     suspend fun saveMetrics(sessionId: String, metrics: List<WorkoutMetric>): Result<Unit> {
         return try {
-            val entities = metrics.map { metric ->
-                WorkoutMetricEntity(
-                    sessionId = sessionId,
-                    timestamp = metric.timestamp,
-                    loadA = metric.loadA,
-                    loadB = metric.loadB,
-                    positionA = metric.positionA,
-                    positionB = metric.positionB,
-                    ticks = metric.ticks
-                )
+            val entities = metrics.mapIndexed { index, metric ->
+                metric.toEntity(sessionId, index)
             }
             workoutDao.insertMetrics(entities)
-            Timber.d("Saved ${entities.size} metrics for session $sessionId")
+            Timber.d("Saved ${metrics.size} metrics for session: $sessionId")
             Result.success(Unit)
         } catch (e: Exception) {
             Timber.e(e, "Failed to save workout metrics")
@@ -101,28 +68,16 @@ class WorkoutRepository @Inject constructor(
     }
 
     /**
-     * Save phase statistics
+     * Save phase statistics for a session.
+     * @param sessionId The session ID
+     * @param stats The heuristic statistics to save
+     * @return Result indicating success or failure
      */
     suspend fun savePhaseStatistics(sessionId: String, stats: HeuristicStatistics): Result<Unit> {
         return try {
-            val entity = PhaseStatisticsEntity(
-                sessionId = sessionId,
-                concentricKgAvg = stats.concentric.kgAvg,
-                concentricKgMax = stats.concentric.kgMax,
-                concentricVelAvg = stats.concentric.velAvg,
-                concentricVelMax = stats.concentric.velMax,
-                concentricWattAvg = stats.concentric.wattAvg,
-                concentricWattMax = stats.concentric.wattMax,
-                eccentricKgAvg = stats.eccentric.kgAvg,
-                eccentricKgMax = stats.eccentric.kgMax,
-                eccentricVelAvg = stats.eccentric.velAvg,
-                eccentricVelMax = stats.eccentric.velMax,
-                eccentricWattAvg = stats.eccentric.wattAvg,
-                eccentricWattMax = stats.eccentric.wattMax,
-                timestamp = stats.timestamp
-            )
+            val entity = stats.toPhaseStatisticsEntity(sessionId)
             phaseStatisticsDao.insert(entity)
-            Timber.d("Saved phase statistics for session $sessionId")
+            Timber.d("Saved phase statistics for session: $sessionId")
             Result.success(Unit)
         } catch (e: Exception) {
             Timber.e(e, "Failed to save phase statistics")
@@ -131,104 +86,117 @@ class WorkoutRepository @Inject constructor(
     }
 
     /**
-     * Get all workout sessions
+     * Get all workout sessions as a Flow.
+     * @return Flow emitting list of all sessions
      */
     fun getAllSessions(): Flow<List<WorkoutSession>> {
-        return workoutDao.getAllSessions().map { entities ->
-            entities.map { it.toWorkoutSession() }
-        }
+        return workoutDao.getAllSessions()
+            .map { entities -> entities.map { it.toWorkoutSession() } }
     }
 
     /**
-     * Get recent workout sessions
+     * Get recent workout sessions as a Flow.
+     * @param limit Maximum number of sessions to return
+     * @return Flow emitting list of recent sessions
      */
     fun getRecentSessions(limit: Int = 10): Flow<List<WorkoutSession>> {
-        return workoutDao.getRecentSessions(limit).map { entities ->
-            entities.map { it.toWorkoutSession() }
-        }
+        return workoutDao.getRecentSessions(limit)
+            .map { entities -> entities.map { it.toWorkoutSession() } }
     }
 
     /**
-     * Get a specific workout session
+     * Get a specific session by ID.
+     * @param sessionId The session ID
+     * @return The workout session, or null if not found
      */
     suspend fun getSession(sessionId: String): WorkoutSession? {
         return workoutDao.getSession(sessionId)?.toWorkoutSession()
     }
 
     /**
-     * Get metrics for a workout session
+     * Get metrics for a session as a Flow.
+     * @param sessionId The session ID
+     * @return Flow emitting list of metrics
      */
     fun getMetricsForSession(sessionId: String): Flow<List<WorkoutMetric>> {
-        return workoutDao.getMetricsForSession(sessionId).map { entities ->
-            entities.map { it.toWorkoutMetric() }
-        }
+        return workoutDao.getMetricsForSession(sessionId)
+            .map { entities -> entities.map { it.toWorkoutMetric() } }
     }
 
     /**
-     * Get metrics for a workout session synchronously (for export)
+     * Get metrics for a session synchronously.
+     * @param sessionId The session ID
+     * @return List of workout metrics
      */
     suspend fun getMetricsForSessionSync(sessionId: String): List<WorkoutMetric> {
-        return workoutDao.getMetricsForSessionSync(sessionId).map { it.toWorkoutMetric() }
+        return workoutDao.getMetricsForSessionSync(sessionId)
+            .map { it.toWorkoutMetric() }
     }
 
     /**
-     * Get recent workout sessions synchronously (for export)
+     * Get recent sessions synchronously.
+     * @param limit Maximum number of sessions
+     * @return List of workout sessions
      */
     suspend fun getRecentSessionsSync(limit: Int = 10): List<WorkoutSession> {
-        return workoutDao.getRecentSessionsSync(limit).map { it.toWorkoutSession() }
+        return workoutDao.getRecentSessionsSync(limit)
+            .map { it.toWorkoutSession() }
     }
 
     /**
-     * Get all phase statistics
+     * Get all phase statistics as a Flow.
+     * @return Flow emitting list of phase statistics
      */
     fun getAllPhaseStatistics(): Flow<List<PhaseStatisticsEntity>> {
         return phaseStatisticsDao.getAll()
     }
 
     /**
-     * Get phase statistics for a specific session
-     */
-    suspend fun getPhaseStatisticsForSession(sessionId: String): PhaseStatisticsEntity? =
-        phaseStatisticsDao.getBySessionId(sessionId)
-
-    /**
-     * Delete a workout
+     * Delete a workout session.
+     * @param sessionId The session ID to delete
+     * @return Result indicating success or failure
      */
     suspend fun deleteWorkout(sessionId: String): Result<Unit> {
         return try {
-            workoutDao.deleteWorkout(sessionId)
-            Timber.d("Deleted workout: $sessionId")
+            workoutDao.deleteSession(sessionId)
+            Timber.d("Deleted workout session: $sessionId")
             Result.success(Unit)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to delete workout")
+            Timber.e(e, "Failed to delete workout session")
             Result.failure(e)
         }
     }
 
     /**
-     * Delete all workouts
+     * Delete all workout sessions.
+     * @return Result indicating success or failure
      */
     suspend fun deleteAllWorkouts(): Result<Unit> {
         return try {
-            workoutDao.deleteAllWorkouts()
-            Timber.d("Deleted all workouts")
+            workoutDao.deleteAllSessions()
+            Timber.d("Deleted all workout sessions")
             Result.success(Unit)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to delete all workouts")
+            Timber.e(e, "Failed to delete all workout sessions")
             Result.failure(e)
         }
     }
 
-    // ========== Routine Operations ==========
+    // ===================== Routines =====================
 
     /**
-     * Save a routine with exercises
+     * Save a routine.
+     * @param routine The routine to save
+     * @return Result indicating success or failure
      */
     suspend fun saveRoutine(routine: Routine): Result<Unit> {
         return try {
-            val entity = routine.toEntity()
+            val routineEntity = routine.toEntity()
             val exerciseEntities = routine.exercises.map { it.toEntity(routine.id) }
-            workoutDao.insertRoutineWithExercises(entity, exerciseEntities)
+
+            workoutDao.insertRoutine(routineEntity)
+            workoutDao.insertRoutineExercises(exerciseEntities)
+
             Timber.d("Saved routine: ${routine.name}")
             Result.success(Unit)
         } catch (e: Exception) {
@@ -238,13 +206,19 @@ class WorkoutRepository @Inject constructor(
     }
 
     /**
-     * Update a routine
+     * Update an existing routine.
+     * @param routine The routine to update
+     * @return Result indicating success or failure
      */
     suspend fun updateRoutine(routine: Routine): Result<Unit> {
         return try {
-            val entity = routine.toEntity()
+            val routineEntity = routine.toEntity()
             val exerciseEntities = routine.exercises.map { it.toEntity(routine.id) }
-            workoutDao.updateRoutineWithExercises(entity, exerciseEntities)
+
+            workoutDao.updateRoutine(routineEntity)
+            workoutDao.deleteRoutineExercises(routine.id)
+            workoutDao.insertRoutineExercises(exerciseEntities)
+
             Timber.d("Updated routine: ${routine.name}")
             Result.success(Unit)
         } catch (e: Exception) {
@@ -254,37 +228,37 @@ class WorkoutRepository @Inject constructor(
     }
 
     /**
-     * Get all routines
+     * Get all routines as a Flow.
+     * @return Flow emitting list of all routines
      */
     fun getAllRoutines(): Flow<List<Routine>> {
-        return workoutDao.getAllRoutines().map { entities ->
-            entities.map { entity ->
-                val exercises = workoutDao.getExercisesForRoutineSync(entity.id)
-                entity.toRoutine(exercises)
+        return workoutDao.getAllRoutines()
+            .map { routinesWithExercises ->
+                routinesWithExercises.map { (routine, exercises) ->
+                    routine.toRoutine(exercises)
+                }
             }
-        }
     }
 
     /**
-     * Get a specific routine
+     * Get a routine by ID.
+     * @param routineId The routine ID
+     * @return The routine, or null if not found
      */
     suspend fun getRoutine(routineId: String): Routine? {
-        return try {
-            val entity = workoutDao.getRoutineById(routineId) ?: return null
-            val exercises = workoutDao.getExercisesForRoutineSync(routineId)
-            entity.toRoutine(exercises)
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to get routine")
-            null
+        return workoutDao.getRoutine(routineId)?.let { (routine, exercises) ->
+            routine.toRoutine(exercises)
         }
     }
 
     /**
-     * Delete a routine
+     * Delete a routine.
+     * @param routineId The routine ID to delete
+     * @return Result indicating success or failure
      */
     suspend fun deleteRoutine(routineId: String): Result<Unit> {
         return try {
-            workoutDao.deleteRoutineComplete(routineId)
+            workoutDao.deleteRoutine(routineId)
             Timber.d("Deleted routine: $routineId")
             Result.success(Unit)
         } catch (e: Exception) {
@@ -294,106 +268,127 @@ class WorkoutRepository @Inject constructor(
     }
 
     /**
-     * Mark routine as used (updates lastUsed and increments useCount)
+     * Mark a routine as used (updates lastUsed and increments useCount).
+     * @param routineId The routine ID
+     * @return Result indicating success or failure
      */
     suspend fun markRoutineUsed(routineId: String): Result<Unit> {
         return try {
-            workoutDao.markRoutineUsed(routineId)
-            Timber.d("Marked routine used: $routineId")
+            workoutDao.markRoutineUsed(routineId, System.currentTimeMillis())
+            Timber.d("Marked routine as used: $routineId")
             Result.success(Unit)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to mark routine used")
+            Timber.e(e, "Failed to mark routine as used")
             Result.failure(e)
         }
     }
 
     /**
-     * Get routine by ID as a Flow
+     * Get a routine by ID as a Flow.
+     * @param routineId The routine ID
+     * @return Flow emitting the routine or null
      */
     fun getRoutineById(routineId: String): Flow<Routine?> {
-        return workoutDao.observeRoutineById(routineId).map { entity ->
-            entity?.let {
-                val exercises = workoutDao.getExercisesForRoutineSync(routineId)
-                it.toRoutine(exercises)
+        return workoutDao.getRoutineFlow(routineId)
+            .map { routineWithExercises ->
+                routineWithExercises?.let { (routine, exercises) ->
+                    routine.toRoutine(exercises)
+                }
             }
-        }
     }
 
-    // ========== Weekly Programs ==========
+    // ===================== Weekly Programs =====================
 
     /**
-     * Get all weekly programs with their assigned days
+     * Get all weekly programs as a Flow.
+     * @return Flow emitting list of all programs
      */
-    fun getAllPrograms(): Flow<List<WeeklyProgramWithDays>> =
-        workoutDao.getAllProgramsWithDays()
+    fun getAllPrograms(): Flow<List<WeeklyProgramWithDays>> {
+        return workoutDao.getAllPrograms()
+    }
 
     /**
-     * Get the currently active program with its days
+     * Get the currently active program.
+     * @return Flow emitting the active program or null
      */
-    fun getActiveProgram(): Flow<WeeklyProgramWithDays?> =
-        workoutDao.getActiveProgramWithDays()
+    fun getActiveProgram(): Flow<WeeklyProgramWithDays?> {
+        return workoutDao.getActiveProgram()
+    }
 
     /**
-     * Get a specific program by ID with its days
+     * Get a program by ID.
+     * @param programId The program ID
+     * @return Flow emitting the program or null
      */
-    fun getProgramById(programId: String): Flow<WeeklyProgramWithDays?> =
-        workoutDao.getProgramWithDaysById(programId)
+    fun getProgramById(programId: String): Flow<WeeklyProgramWithDays?> {
+        return workoutDao.getProgramById(programId)
+    }
 
     /**
-     * Save a new weekly program or update existing one
+     * Save a weekly program.
+     * @param programWithDays The program with days to save
+     * @return Result indicating success or failure
      */
     suspend fun saveProgram(programWithDays: WeeklyProgramWithDays): Result<Unit> {
         return try {
-            workoutDao.insertProgramWithDays(
-                program = programWithDays.program,
-                days = programWithDays.days
-            )
-            Timber.d("Saved weekly program: ${programWithDays.program.title}")
+            workoutDao.insertProgram(programWithDays)
+            Timber.d("Saved program: ${programWithDays.program.name}")
             Result.success(Unit)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to save weekly program")
+            Timber.e(e, "Failed to save program")
             Result.failure(e)
         }
     }
 
     /**
-     * Delete a weekly program
+     * Delete a weekly program.
+     * @param programId The program ID to delete
+     * @return Result indicating success or failure
      */
     suspend fun deleteProgram(programId: String): Result<Unit> {
         return try {
             workoutDao.deleteProgram(programId)
-            Timber.d("Deleted weekly program: $programId")
+            Timber.d("Deleted program: $programId")
             Result.success(Unit)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to delete weekly program")
+            Timber.e(e, "Failed to delete program")
             Result.failure(e)
         }
     }
 
     /**
-     * Activate a weekly program (deactivates all others)
+     * Activate a program (and deactivate others).
+     * @param programId The program ID to activate
+     * @return Result indicating success or failure
      */
     suspend fun activateProgram(programId: String): Result<Unit> {
         return try {
             workoutDao.activateProgram(programId)
-            Timber.d("Activated weekly program: $programId")
+            Timber.d("Activated program: $programId")
             Result.success(Unit)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to activate weekly program")
+            Timber.e(e, "Failed to activate program")
             Result.failure(e)
         }
     }
 
-    // ========== Personal Records ==========
+    // ===================== Personal Records =====================
 
     /**
-     * Get all personal records
+     * Get all personal records as a Flow.
+     * @return Flow emitting list of personal records
      */
-    fun getAllPersonalRecords(): Flow<List<PersonalRecordEntity>> =
-        personalRecordDao.getAllPRs()
+    fun getAllPersonalRecords(): Flow<List<com.example.vitruvianredux.data.local.PersonalRecordEntity>> {
+        return personalRecordDao.getAllPRs()
+    }
 
     /**
-     * Update personal record if the new performance is better
+     * Update personal record if the new value is better.
+     * @param exerciseId The exercise ID
+     * @param weightPerCableKg Weight per cable in kg
+     * @param reps Number of repetitions
+     * @param workoutMode The workout mode
+     * @return true if PR was updated, false otherwise
      */
     suspend fun updatePersonalRecordIfNeeded(
         exerciseId: String,
@@ -401,193 +396,12 @@ class WorkoutRepository @Inject constructor(
         reps: Int,
         workoutMode: String
     ): Boolean {
-        return try {
-            val isNewPR = personalRecordDao.updatePRIfBetter(
-                exerciseId = exerciseId,
-                weightPerCableKg = weightPerCableKg,
-                reps = reps,
-                workoutMode = workoutMode,
-                timestamp = System.currentTimeMillis()
-            )
-            if (isNewPR) {
-                Timber.d("New PR set for exercise $exerciseId: ${weightPerCableKg}kg x $reps reps ($workoutMode)")
-            }
-            isNewPR
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to update personal record")
-            false
-        }
+        return personalRecordDao.updatePRIfBetter(
+            exerciseId = exerciseId,
+            weightPerCableKg = weightPerCableKg,
+            reps = reps,
+            workoutMode = workoutMode,
+            timestamp = System.currentTimeMillis()
+        )
     }
-}
-
-// Extension functions for mapping between entities and domain models
-private fun WorkoutSessionEntity.toWorkoutSession() = WorkoutSession(
-    id = id,
-    timestamp = timestamp,
-    mode = mode,
-    reps = reps,
-    weightPerCableKg = weightPerCableKg,
-    progressionKg = progressionKg,
-    duration = duration,
-    totalReps = totalReps,
-    warmupReps = warmupReps,
-    workingReps = workingReps,
-    isJustLift = isJustLift,
-    stopAtTop = stopAtTop,
-    eccentricLoad = eccentricLoad,
-    echoLevel = echoLevel,
-    exerciseId = exerciseId,
-    exerciseName = exerciseName,
-    routineSessionId = routineSessionId,
-    routineName = routineName
-)
-
-private fun WorkoutMetricEntity.toWorkoutMetric() = WorkoutMetric(
-    timestamp = timestamp,
-    loadA = loadA,
-    loadB = loadB,
-    positionA = positionA,
-    positionB = positionB,
-    ticks = ticks
-)
-
-// Routine mapping extensions
-private fun Routine.toEntity() = RoutineEntity(
-    id = id,
-    name = name,
-    description = description,
-    createdAt = createdAt,
-    lastUsed = lastUsed,
-    useCount = useCount
-)
-
-private fun RoutineExercise.toEntity(routineId: String): RoutineExerciseEntity {
-    val setRepsString = setReps.joinToString(",") { it?.toString() ?: "null" }
-    val setWeightsString = setWeightsPerCableKg.joinToString(",") { it.toString() }
-    val setRestString = setRestSeconds.toJsonArray()
-    Timber.d("💾 toEntity: '${exercise.name}' setReps=$setReps -> '$setRepsString', setWeights=$setWeightsPerCableKg -> '$setWeightsString', setRest=$setRestSeconds -> '$setRestString'")
-
-    return RoutineExerciseEntity(
-        id = id,
-        routineId = routineId,
-        // Store Exercise data class fields
-        exerciseName = exercise.name,
-        exerciseMuscleGroup = exercise.muscleGroup,
-        exerciseEquipment = exercise.equipment,
-        exerciseDefaultCableConfig = exercise.defaultCableConfig.name, // Convert enum to String
-        exerciseId = exercise.id, // Store exercise library ID
-        // Routine-specific configuration
-        cableConfig = cableConfig.name, // Convert enum to String
-        orderIndex = orderIndex,
-        setReps = setRepsString, // Convert List<Int?> to comma-separated String (use "null" marker for AMRAP sets)
-        weightPerCableKg = weightPerCableKg,
-        setWeights = setWeightsString,
-    mode = when (workoutType) {
-        is WorkoutType.Program -> when (workoutType.mode) {
-            is ProgramMode.OldSchool -> "OldSchool"
-            is ProgramMode.Pump -> "Pump"
-            is ProgramMode.TUT -> "TUT"
-            is ProgramMode.TUTBeast -> "TUTBeast"
-            is ProgramMode.EccentricOnly -> "EccentricOnly"
-        }
-        is WorkoutType.Echo -> "Echo"
-    },
-    eccentricLoad = when (workoutType) {
-        is WorkoutType.Echo -> workoutType.eccentricLoad.percentage
-        else -> eccentricLoad.percentage
-    },
-    echoLevel = when (workoutType) {
-        is WorkoutType.Echo -> workoutType.level.levelValue
-        else -> echoLevel.levelValue
-    },
-    progressionKg = progressionKg,
-    restSeconds = setRestSeconds.firstOrNull() ?: 60, // Keep for backward compatibility during migration (use first rest time or default)
-    duration = duration,
-    setRestSeconds = setRestSeconds.toJsonArray(), // Convert to JSON array
-    perSetRestTime = perSetRestTime,
-    isAMRAP = isAMRAP
-).also {
-    Timber.d("🟠 Domain→DB: ${exercise.name}, isAMRAP=$isAMRAP, setReps=${setReps} → DB string='${it.setReps}'")
-}
-}
-
-private fun RoutineEntity.toRoutine(exerciseEntities: List<RoutineExerciseEntity>) = Routine(
-    id = id,
-    name = name,
-    description = description,
-    exercises = exerciseEntities.map { it.toRoutineExercise() },
-    createdAt = createdAt,
-    lastUsed = lastUsed,
-    useCount = useCount
-)
-
-private fun RoutineExerciseEntity.toRoutineExercise(): RoutineExercise {
-    // LOG: Database values for Echo mode debugging (Issue #109)
-    if (mode == "Echo") {
-        Timber.d("━━━━━━ DATABASE → DOMAIN MAPPING (Issue #109) ━━━━━━")
-        Timber.d("Exercise: $exerciseName")
-        Timber.d("DB Values:")
-        Timber.d("  mode: '$mode'")
-        Timber.d("  echoLevel (raw): $echoLevel")
-        Timber.d("  eccentricLoad (raw): $eccentricLoad")
-
-        val mappedLevel = EchoLevel.values().find { it.levelValue == echoLevel } ?: EchoLevel.HARDER
-        val mappedEccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100
-
-        Timber.d("Mapped Values:")
-        Timber.d("  echoLevel: $echoLevel → ${mappedLevel.displayName} (levelValue=${mappedLevel.levelValue})")
-        Timber.d("  eccentricLoad: $eccentricLoad → ${mappedEccentricLoad.displayName} (${mappedEccentricLoad.percentage}%)")
-        Timber.d("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-    }
-
-    return RoutineExercise(
-        id = id,
-        // Reconstruct Exercise data class from stored fields
-        exercise = Exercise(
-            name = exerciseName,
-            muscleGroup = exerciseMuscleGroup,
-            equipment = exerciseEquipment,
-            defaultCableConfig = CableConfiguration.valueOf(exerciseDefaultCableConfig),
-            id = exerciseId  // Pass through exercise library ID
-        ),
-        cableConfig = CableConfiguration.valueOf(cableConfig), // Convert String to enum
-        orderIndex = orderIndex,
-        setReps = if (setReps.isEmpty()) listOf(null) else setReps.split(",").map { if (it.isEmpty() || it == "null") null else it.toIntOrNull() }, // Treat empty as single AMRAP set (fixes old corrupted data)
-        weightPerCableKg = weightPerCableKg,
-        setWeightsPerCableKg = if (setWeights.isEmpty()) emptyList() else setWeights.split(",").mapNotNull { it.toFloatOrNull() },
-        workoutType = when (mode) {
-            "Echo" -> WorkoutType.Echo(
-                level = EchoLevel.values().find { it.levelValue == echoLevel } ?: EchoLevel.HARDER,
-                eccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100
-            )
-            "OldSchool" -> WorkoutType.Program(ProgramMode.OldSchool)
-            "Pump" -> WorkoutType.Program(ProgramMode.Pump)
-            "TUT" -> WorkoutType.Program(ProgramMode.TUT)
-            "TUTBeast" -> WorkoutType.Program(ProgramMode.TUTBeast)
-            "EccentricOnly" -> WorkoutType.Program(ProgramMode.EccentricOnly)
-            else -> WorkoutType.Program(ProgramMode.OldSchool)
-        },
-        eccentricLoad = EccentricLoad.values().find { it.percentage == eccentricLoad } ?: EccentricLoad.LOAD_100,
-        echoLevel = EchoLevel.values().find { it.levelValue == echoLevel } ?: EchoLevel.HARDER,
-        progressionKg = progressionKg,
-        setRestSeconds = parseIntListFromJson(setRestSeconds), // Parse JSON array
-        duration = duration,
-        perSetRestTime = perSetRestTime,
-        isAMRAP = isAMRAP
-    ).also {
-        Timber.d("🔵 DB→Domain: ${exerciseName}, DB string='$setReps' → setReps=${it.setReps}, isAMRAP=$isAMRAP")
-    }.withNormalizedRestTimes() // Ensure array matches number of sets
-}
-
-// Helper functions for JSON array conversion
-private fun List<Int>.toJsonArray(): String {
-    return "[${joinToString(",")}]"
-}
-
-private fun parseIntListFromJson(json: String): List<Int> {
-    if (json.isEmpty() || json == "[]") return emptyList()
-    // Remove brackets and parse comma-separated values
-    val cleaned = json.removePrefix("[").removeSuffix("]").trim()
-    if (cleaned.isEmpty()) return emptyList()
-    return cleaned.split(",").mapNotNull { it.trim().toIntOrNull() }
 }

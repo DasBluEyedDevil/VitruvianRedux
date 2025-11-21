@@ -6,70 +6,71 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
-enum class ThemeMode { SYSTEM, LIGHT, DARK }
-
+/**
+ * Dark color scheme for the Vitruvian Project Phoenix app.
+ * Uses purple accent colors with dark grey backgrounds.
+ */
 private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryPurpleDark,               // Desaturated purple reduces eye strain
-    onPrimary = TextPrimary,                   // White text on purple
-    primaryContainer = PurpleAccentDark,       // Desaturated purple container
+    primary = PrimaryPurpleDark,
+    onPrimary = TextPrimary,
+    primaryContainer = PurpleAccentDark,
     onPrimaryContainer = TextPrimary,
-
-    secondary = SecondaryPurpleDark,           // Desaturated deeper purple
+    secondary = SecondaryPurpleDark,
     onSecondary = TextPrimary,
     secondaryContainer = SecondaryPurpleDark,
     onSecondaryContainer = TextPrimary,
-
-    tertiary = TertiaryPurpleDark,             // Soft purple for highlights
+    tertiary = TertiaryPurpleDark,
     onTertiary = TextPrimary,
     tertiaryContainer = TertiaryPurpleDark,
     onTertiaryContainer = TextPrimary,
-
     background = BackgroundBlack,
     onBackground = TextPrimary,
-
     surface = SurfaceDarkGrey,
     onSurface = TextPrimary,
     surfaceVariant = CardBackground,
     onSurfaceVariant = TextSecondary,
-
     error = ErrorRed,
     onError = TextPrimary,
-
     outline = TextTertiary,
     outlineVariant = TextDisabled
 )
 
+/**
+ * Light color scheme for the Vitruvian Project Phoenix app.
+ * Uses blue accent colors with light backgrounds.
+ */
 private val LightColorScheme = lightColorScheme(
-    primary = PrimaryBlueLight,              // Teal/cyan for light mode buttons
-    onPrimary = ColorLightSurface,           // White text on teal buttons
-    primaryContainer = TertiaryBlueLight.copy(alpha = 0.2f),  // Light teal container
-    onPrimaryContainer = ColorOnLightBackground,  // Dark text on light container
-
-    secondary = SecondaryBlueLight,          // Deeper teal for secondary elements
-    onSecondary = ColorLightSurface,         // White text
+    primary = PrimaryBlueLight,
+    onPrimary = ColorLightSurface,
+    primaryContainer = TertiaryBlueLight.copy(alpha = 0.2f),
+    onPrimaryContainer = ColorOnLightBackground,
+    secondary = SecondaryBlueLight,
+    onSecondary = ColorLightSurface,
     secondaryContainer = TertiaryBlueLight.copy(alpha = 0.15f),
-    onSecondaryContainer = ColorOnLightBackground,  // Dark text
-
-    tertiary = TertiaryBlueLight,            // Bright cyan for highlights
-    onTertiary = ColorLightSurface,          // White text
+    onSecondaryContainer = ColorOnLightBackground,
+    tertiary = TertiaryBlueLight,
+    onTertiary = ColorLightSurface,
     tertiaryContainer = TertiaryBlueLight.copy(alpha = 0.1f),
-    onTertiaryContainer = ColorOnLightBackground,  // Dark text
-
+    onTertiaryContainer = ColorOnLightBackground,
     background = ColorLightBackground,
     onBackground = ColorOnLightBackground,
-
     surface = ColorLightSurface,
     onSurface = ColorOnLightSurface,
     surfaceVariant = ColorLightSurfaceVariant,
     onSurfaceVariant = ColorOnLightSurfaceVariant,
-
     error = ErrorRed,
-    onError = ColorLightSurface,            // White text on red error
-
+    onError = ColorLightSurface,
     outline = ColorOnLightSurfaceVariant.copy(alpha = 0.6f),
     outlineVariant = ColorOnLightSurfaceVariant.copy(alpha = 0.4f)
 )
 
+/**
+ * Main theme composable for the Vitruvian Project Phoenix app.
+ * Supports system, light, and dark theme modes with Material 3 styling.
+ *
+ * @param themeMode The theme mode to use (SYSTEM, LIGHT, or DARK)
+ * @param content The composable content to be themed
+ */
 @Composable
 fun VitruvianProjectPhoenixTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
@@ -83,8 +84,8 @@ fun VitruvianProjectPhoenixTheme(
 
     MaterialTheme(
         colorScheme = if (useDarkColors) DarkColorScheme else LightColorScheme,
+        shapes = ExpressiveShapes,
         typography = Typography,
-        shapes = ExpressiveShapes, // Material 3 Expressive: More rounded shapes
         content = content
     )
 }

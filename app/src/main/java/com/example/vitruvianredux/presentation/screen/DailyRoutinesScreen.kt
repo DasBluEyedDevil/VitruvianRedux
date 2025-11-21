@@ -1,127 +1,211 @@
 package com.example.vitruvianredux.presentation.screen
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.navigation.NavController
 import com.example.vitruvianredux.data.repository.ExerciseRepository
+import com.example.vitruvianredux.domain.model.Exercise
+import com.example.vitruvianredux.domain.model.Routine
+import com.example.vitruvianredux.domain.model.RoutineExercise
+import com.example.vitruvianredux.presentation.components.AutoConnectingDialog
+import com.example.vitruvianredux.presentation.components.ConnectionErrorDialog
+import com.example.vitruvianredux.presentation.components.RoutineBuilderSheet
+import com.example.vitruvianredux.presentation.components.RoutineList
+import com.example.vitruvianredux.presentation.components.StandardScreenWrapper
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
+import com.example.vitruvianredux.ui.theme.ThemeMode
+import java.util.UUID
 
 /**
- * Daily Routines screen - view and manage pre-built routines.
- * This screen wraps the existing RoutinesTab functionality.
+ * Daily routines screen for managing and starting workout routines.
+ *
+ * @param navController Navigation controller
+ * @param viewModel Main app ViewModel
+ * @param exerciseRepository Repository for exercise data
+ * @param themeMode Current theme mode
+ * @param padding Padding values from parent scaffold
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DailyRoutinesScreen(
     navController: NavController,
     viewModel: MainViewModel,
     exerciseRepository: ExerciseRepository,
-    themeMode: com.example.vitruvianredux.ui.theme.ThemeMode
+    themeMode: ThemeMode,
+    padding: PaddingValues
 ) {
     val routines by viewModel.routines.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
     val enableVideoPlayback by viewModel.enableVideoPlayback.collectAsState()
-    val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
+    val isAutoConnecting by viewModel.isAutoConnecting().collectAsState()
     val connectionError by viewModel.connectionError.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Daily Routines") },
-                navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
+    var showRoutineBuilder by remember { mutableStateOf(false) }
+    var routineToEdit by remember { mutableStateOf<Routine?>(null) }
+
+    val backgroundGradient = if (themeMode == ThemeMode.DARK) {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFF0D1B2A),
+                Color(0xFF1B263B),
+                Color(0xFF0F1C2E)
+            )
+        )
+    } else {
+        Brush.verticalGradient(
+            colors = listOf(
+                Color(0xFFE8F0FF),
+                Color(0xFFF8F4F3),
+                Color(0xFFE3EFFF)
+            )
+        )
+    }
+
+    StandardScreenWrapper(
+        padding = padding,
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundGradient),
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    routineToEdit = null
+                    showRoutineBuilder = true
                 },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface
-                    )
-            )
-        }
-    ) { padding ->
-        // Determine actual theme (matching Theme.kt logic)
-        val useDarkColors = when (themeMode) {
-            com.example.vitruvianredux.ui.theme.ThemeMode.SYSTEM -> isSystemInDarkTheme()
-            com.example.vitruvianredux.ui.theme.ThemeMode.LIGHT -> false
-            com.example.vitruvianredux.ui.theme.ThemeMode.DARK -> true
-        }
-
-        val backgroundGradient = if (useDarkColors) {
-            Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFF0F172A), // slate-900
-                    Color(0xFF1E1B4B), // indigo-950
-                    Color(0xFF172554)  // blue-950
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = "Add Routine"
                 )
-            )
-        } else {
-            Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFFE0E7FF), // indigo-200 - soft lavender
-                    Color(0xFFFCE7F3), // pink-100 - soft pink
-                    Color(0xFFDDD6FE)  // violet-200 - soft violet
+            }
+        }
+    ) {
+        RoutineList(
+            routines = routines,
+            exerciseRepository = exerciseRepository,
+            themeMode = themeMode,
+            onStartRoutine = { routine ->
+                viewModel.ensureConnection(
+                    onConnected = {
+                        viewModel.loadRoutine(routine)
+                        viewModel.startWorkout()
+                        navController.navigate(NavigationRoutes.ActiveWorkout.route)
+                    },
+                    onError = { }
                 )
-            )
-        }
+            },
+            onEditRoutine = { routine ->
+                routineToEdit = routine
+                showRoutineBuilder = true
+            },
+            onDeleteRoutine = { routineId ->
+                viewModel.deleteRoutine(routineId)
+            },
+            onDuplicateRoutine = { routine ->
+                duplicateRoutine(routine, routines, viewModel)
+            }
+        )
+    }
 
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(backgroundGradient)
-                .padding(padding)
-        ) {
-            // Reuse RoutinesTab content
-            RoutinesTab(
-                routines = routines,
-                exerciseRepository = exerciseRepository,
-                personalRecordRepository = viewModel.personalRecordRepository,
-                formatWeight = viewModel::formatWeight,
-                weightUnit = weightUnit,
-                enableVideoPlayback = enableVideoPlayback,
-                kgToDisplay = viewModel::kgToDisplay,
-                displayToKg = viewModel::displayToKg,
-                onStartWorkout = { routine ->
-                    viewModel.ensureConnection(
-                        onConnected = {
-                            viewModel.loadRoutine(routine)
-                            viewModel.startWorkout()
-                            navController.navigate(NavigationRoutes.ActiveWorkout.route)
-                        },
-                        onFailed = { /* Error shown via StateFlow */ }
-                    )
-                },
-                onDeleteRoutine = { routineId -> viewModel.deleteRoutine(routineId) },
-                onCreateRoutine = {},
-                onSaveRoutine = { routine -> viewModel.saveRoutine(routine) },
-                onUpdateRoutine = { routine -> viewModel.updateRoutine(routine) },
-                themeMode = themeMode,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
+    // Auto-connecting dialog
+    if (isAutoConnecting) {
+        AutoConnectingDialog(
+            onCancel = { viewModel.cancelAutoConnecting() }
+        )
+    }
 
-        // Auto-connect UI overlays
-        if (isAutoConnecting) {
-            com.example.vitruvianredux.presentation.components.ConnectingOverlay(
-                onCancel = { viewModel.cancelAutoConnecting() }
-            )
-        }
+    // Connection error dialog
+    connectionError?.let { error ->
+        ConnectionErrorDialog(
+            error = error,
+            onDismiss = { viewModel.clearConnectionError() }
+        )
+    }
 
-        connectionError?.let { error ->
-            com.example.vitruvianredux.presentation.components.ConnectionErrorDialog(
-                message = error,
-                onDismiss = { viewModel.clearConnectionError() }
-            )
+    // Routine builder sheet
+    if (showRoutineBuilder) {
+        RoutineBuilderSheet(
+            existingRoutine = routineToEdit,
+            exerciseRepository = exerciseRepository,
+            weightUnit = weightUnit,
+            enableVideoPlayback = enableVideoPlayback,
+            onSave = { routine ->
+                if (routineToEdit != null) {
+                    viewModel.updateRoutine(routine)
+                } else {
+                    viewModel.saveRoutine(routine)
+                }
+                showRoutineBuilder = false
+                routineToEdit = null
+            },
+            onDismiss = {
+                showRoutineBuilder = false
+                routineToEdit = null
+            }
+        )
+    }
+}
+
+/**
+ * Creates a duplicate of a routine with a unique name.
+ */
+private fun duplicateRoutine(
+    routine: Routine,
+    existingRoutines: List<Routine>,
+    viewModel: MainViewModel
+) {
+    val newRoutineId = UUID.randomUUID().toString()
+
+    // Create new exercises with new IDs
+    val newExercises = routine.exercises.map { exercise ->
+        exercise.copy(
+            id = UUID.randomUUID().toString(),
+            exercise = exercise.exercise.copy()
+        )
+    }
+
+    // Generate unique copy name
+    val baseName = routine.name.replace(Regex(" \\(Copy( \\d+)?\\)$"), "")
+    val copyPattern = Regex("^${Regex.escape(baseName)} \\(Copy( (\\d+))?\\)$")
+
+    val existingCopyNumbers = existingRoutines.mapNotNull { r ->
+        when {
+            r.name == baseName -> 0
+            r.name == "$baseName (Copy)" -> 1
+            else -> copyPattern.find(r.name)?.groups?.get(2)?.value?.toIntOrNull()
         }
     }
+
+    val nextCopyNumber = (existingCopyNumbers.maxOrNull() ?: 0) + 1
+    val newName = if (nextCopyNumber == 1) {
+        "$baseName (Copy)"
+    } else {
+        "$baseName (Copy $nextCopyNumber)"
+    }
+
+    val duplicated = routine.copy(
+        id = newRoutineId,
+        name = newName,
+        exercises = newExercises,
+        lastModified = System.currentTimeMillis()
+    )
+
+    viewModel.saveRoutine(duplicated)
 }

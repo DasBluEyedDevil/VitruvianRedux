@@ -1,38 +1,73 @@
 package com.example.vitruvianredux.presentation.screen
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.*
-import androidx.compose.material3.SheetValue
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
-import com.example.vitruvianredux.data.local.ExerciseVideoEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
+import com.example.vitruvianredux.data.repository.PersonalRecordRepository
 import com.example.vitruvianredux.domain.model.EccentricLoad
 import com.example.vitruvianredux.domain.model.EchoLevel
 import com.example.vitruvianredux.domain.model.RoutineExercise
+import com.example.vitruvianredux.domain.model.SetConfiguration
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutMode
-import com.example.vitruvianredux.presentation.components.VideoPlayer
-import com.example.vitruvianredux.presentation.viewmodel.ExerciseConfigViewModel
-import com.example.vitruvianredux.presentation.viewmodel.ExerciseType
-import com.example.vitruvianredux.presentation.viewmodel.SetConfiguration
-import com.example.vitruvianredux.presentation.viewmodel.SetMode
-import com.example.vitruvianredux.ui.theme.*
 
+/**
+ * Bottom sheet for editing exercise configuration in a routine.
+ *
+ * @param exercise The routine exercise to edit
+ * @param weightUnit Current weight unit preference
+ * @param enableVideoPlayback Whether video playback is enabled
+ * @param kgToDisplay Function to convert kg to display units
+ * @param displayToKg Function to convert display units to kg
+ * @param exerciseRepository Repository for exercise data
+ * @param personalRecordRepository Repository for personal records
+ * @param formatWeight Function to format weight values
+ * @param onSave Callback when saving changes
+ * @param onDismiss Callback when dismissing the sheet
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExerciseEditBottomSheet(
@@ -42,137 +77,45 @@ fun ExerciseEditBottomSheet(
     kgToDisplay: (Float, WeightUnit) -> Float,
     displayToKg: (Float, WeightUnit) -> Float,
     exerciseRepository: ExerciseRepository,
-    personalRecordRepository: com.example.vitruvianredux.data.repository.PersonalRecordRepository,
+    personalRecordRepository: PersonalRecordRepository,
     formatWeight: (Float, WeightUnit) -> String,
     onSave: (RoutineExercise) -> Unit,
-    onDismiss: () -> Unit,
-    buttonText: String = "Save",
-    viewModel: ExerciseConfigViewModel = hiltViewModel()
+    onDismiss: () -> Unit
 ) {
-    // UI-specific state that doesn't need to be in the ViewModel
-    var videos by remember { mutableStateOf<List<ExerciseVideoEntity>>(emptyList()) }
-    LaunchedEffect(exercise.exercise.id) {
-        exercise.exercise.id?.let { exerciseId ->
-            try {
-                videos = exerciseRepository.getVideos(exerciseId)
-            } catch (_: Exception) {
-                // Handle error
-            }
-        }
-    }
-    val preferredVideo = videos.firstOrNull { it.angle == "FRONT" } ?: videos.firstOrNull()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    // Fetch initial PR for exercise (based on workout type from exercise config)
-    var initialPR by remember { mutableStateOf<com.example.vitruvianredux.domain.model.PersonalRecord?>(null) }
-    LaunchedEffect(exercise.exercise.id, exercise.workoutType) {
-        exercise.exercise.id?.let { exerciseId ->
-            val workoutMode = exercise.workoutType.toWorkoutMode()
-            if (workoutMode !is WorkoutMode.Echo) {
-                try {
-                    val modeString = when (workoutMode) {
-                        is WorkoutMode.OldSchool -> "Old School"
-                        is WorkoutMode.Pump -> "Pump"
-                        is WorkoutMode.TUT -> "TUT"
-                        is WorkoutMode.TUTBeast -> "TUT Beast"
-                        is WorkoutMode.EccentricOnly -> "Eccentric Only"
-                        else -> null
-                    }
-                    modeString?.let { mode ->
-                        initialPR = personalRecordRepository.getLatestPR(exerciseId, mode)
-                    }
-                } catch (_: Exception) {
-                    initialPR = null
-                }
-            }
-        }
-    }
+    // Local state for editing
+    var useIndividualSets by remember { mutableStateOf(exercise.sets.isNotEmpty()) }
+    var numberOfSets by remember { mutableIntStateOf(exercise.numberOfSets) }
+    var repsPerSet by remember { mutableIntStateOf(exercise.repsPerSet) }
+    var weightPerCable by remember { mutableFloatStateOf(exercise.weightPerCableKg) }
+    var selectedMode by remember { mutableStateOf(exercise.mode) }
+    var eccentricLoad by remember { mutableStateOf(exercise.eccentricLoad) }
+    var echoLevel by remember { mutableStateOf(exercise.echoLevel) }
+    var restTime by remember { mutableIntStateOf(exercise.restTimeSec) }
 
-    // Initialize the ViewModel with the exercise data and PR weight.
-    // This will only run once for a given exercise ID, preventing state wipes on recomposition.
-    LaunchedEffect(exercise, weightUnit, initialPR) {
-        viewModel.initialize(exercise, weightUnit, kgToDisplay, displayToKg, initialPR?.weightPerCableKg)
-    }
-
-    // Collect state from the ViewModel
-    val exerciseType by viewModel.exerciseType.collectAsState()
-    val setMode by viewModel.setMode.collectAsState()
-    val sets by viewModel.sets.collectAsState()
-    val selectedMode by viewModel.selectedMode.collectAsState()
-    val weightChange by viewModel.weightChange.collectAsState()
-    val rest by viewModel.rest.collectAsState()
-    val perSetRestTime by viewModel.perSetRestTime.collectAsState()
-    val eccentricLoad by viewModel.eccentricLoad.collectAsState()
-    val echoLevel by viewModel.echoLevel.collectAsState()
-
-    // Fetch current PR for selected mode (for display in PR card)
-    var currentPR by remember { mutableStateOf<com.example.vitruvianredux.domain.model.PersonalRecord?>(null) }
-    LaunchedEffect(exercise.exercise.id, selectedMode) {
-        exercise.exercise.id?.let { exerciseId ->
-            // Don't fetch PR for Echo mode
-            if (selectedMode !is WorkoutMode.Echo) {
-                try {
-                    val modeString = when (selectedMode) {
-                        is WorkoutMode.OldSchool -> "Old School"
-                        is WorkoutMode.Pump -> "Pump"
-                        is WorkoutMode.TUT -> "TUT"
-                        is WorkoutMode.TUTBeast -> "TUT Beast"
-                        is WorkoutMode.EccentricOnly -> "Eccentric Only"
-                        else -> null
-                    }
-                    modeString?.let { mode ->
-                        currentPR = personalRecordRepository.getLatestPR(exerciseId, mode)
-                    }
-                } catch (_: Exception) {
-                    currentPR = null
-                }
+    val individualSets = remember {
+        mutableStateListOf<SetConfiguration>().apply {
+            if (exercise.sets.isNotEmpty()) {
+                addAll(exercise.sets)
             } else {
-                currentPR = null
+                repeat(numberOfSets) {
+                    add(SetConfiguration(reps = repsPerSet, weightKg = weightPerCable))
+                }
             }
-        }
-    }
-
-    val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
-    val maxWeight = if (weightUnit == WeightUnit.LB) 220f else 100f
-    val weightStep = if (weightUnit == WeightUnit.LB) 0.5f else 0.25f
-    val maxWeightChange = if (weightUnit == WeightUnit.LB) 10 else 10
-
-    // Prevent accidental dismissal via swipe gestures while allowing button-based dismissal
-    val sheetState = rememberModalBottomSheetState(
-        skipPartiallyExpanded = true,
-        confirmValueChange = { newValue ->
-            // Only allow dismissal through explicit button clicks (onDismiss callback)
-            // Prevent swipe-to-dismiss to avoid losing unsaved changes during parameter adjustment
-            newValue != SheetValue.Hidden
-        }
-    )
-
-    // Coroutine scope for programmatic sheet dismissal via buttons
-    val scope = rememberCoroutineScope()
-
-    // Helper function to dismiss the sheet programmatically
-    val dismissSheet: () -> Unit = {
-        scope.launch {
-            sheetState.hide()
-            viewModel.onDismiss()
-            onDismiss()
         }
     }
 
     ModalBottomSheet(
-        onDismissRequest = {
-            // This will be blocked by confirmValueChange for swipe gestures
-            // Buttons will use dismissSheet() instead
-            viewModel.onDismiss()
-            onDismiss()
-        },
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp) // Material 3 Expressive: Very rounded for bottom sheets
+        onDismissRequest = onDismiss,
+        sheetState = sheetState
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(Spacing.small)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Header
             Row(
@@ -180,825 +123,535 @@ fun ExerciseEditBottomSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        "Configure Exercise",
-                        style = MaterialTheme.typography.headlineMedium, // Material 3 Expressive: Larger (was headlineSmall)
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        exercise.exercise.displayName,
-                        style = MaterialTheme.typography.bodyLarge, // Material 3 Expressive: Larger (was bodyMedium)
-                        fontWeight = FontWeight.Medium, // Material 3 Expressive: Bolder
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                IconButton(onClick = dismissSheet) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "Close",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Text(
+                    text = exercise.exercise.name,
+                    style = MaterialTheme.typography.headlineSmall
+                )
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Filled.Close, contentDescription = "Close")
                 }
             }
 
-            Spacer(modifier = Modifier.height(Spacing.small))
+            // Set mode toggle
+            SetModeToggle(
+                useIndividualSets = useIndividualSets,
+                onToggle = { useIndividualSets = it }
+            )
 
-            // Scrollable content
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(Spacing.small)
-            ) {
-                if (enableVideoPlayback) {
-                    preferredVideo?.let { video ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(16f / 9f),
-                            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 12dp)
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp) // Material 3 Expressive: Higher elevation
-                        ) {
-                            VideoPlayer(
-                                videoUrl = video.videoUrl,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
-                    }
-                }
-
-                // Personal Record Display - Material 3 Expressive
-                currentPR?.let { pr ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 12dp)
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation
-                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)) // Material 3 Expressive: Thicker border
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(Spacing.medium),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
-                            ) {
-                                Icon(
-                                    Icons.Default.Star,
-                                    contentDescription = "Personal Record",
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Column {
-                                    Text(
-                                        "Personal Record",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                    Text(
-                                        "${formatWeight(pr.weightPerCableKg, weightUnit)}/cable × ${pr.reps} reps",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
-                            }
-                            Text(
-                                java.text.SimpleDateFormat("MMM d", java.util.Locale.getDefault()).format(pr.timestamp),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
-                }
-
-                if (exerciseType == ExerciseType.STANDARD) {
-                    ModeSelector(
-                        selectedMode = selectedMode,
-                        onModeChange = viewModel::onSelectedModeChange
-                    )
-                }
-
-                val isTutMode = selectedMode is WorkoutMode.TUT || selectedMode is WorkoutMode.TUTBeast
-                if (isTutMode) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
-                        shadowElevation = 2.dp
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(Spacing.small),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                "Beast Mode",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Switch(
-                                checked = selectedMode is WorkoutMode.TUTBeast,
-                                onCheckedChange = { isBeast ->
-                                    viewModel.onSelectedModeChange(if (isBeast) WorkoutMode.TUTBeast else WorkoutMode.TUT)
-                                }
-                            )
-                        }
-                    }
-                }
-
-                val isEchoMode = selectedMode is WorkoutMode.Echo
-                if (isEchoMode) {
-                    EccentricLoadSelector(
-                        eccentricLoad = eccentricLoad,
-                        onLoadChange = viewModel::onEccentricLoadChange
-                    )
-                    EchoLevelSelector(
-                        level = echoLevel,
-                        onLevelChange = viewModel::onEchoLevelChange
-                    )
-                }
-
-                if (exerciseType == ExerciseType.STANDARD && !isEchoMode) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
-                        shadowElevation = 2.dp
-                    ) {
-                        Column(modifier = Modifier.padding(Spacing.small)) {
-                            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                                value = weightChange,
-                                onValueChange = viewModel::onWeightChange,
-                                range = -maxWeightChange..maxWeightChange,
-                                label = "Weight Change Per Rep",
-                                suffix = weightSuffix,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Text(
-                                "Negative = Regression, Positive = Progression",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.outline,
-                                modifier = Modifier.padding(top = Spacing.extraSmall)
-                            )
-                        }
-                    }
-                }
-
-                SetModeToggle(
-                    setMode = setMode,
-                    onModeChange = viewModel::onSetModeChange
-                )
-
-                // Per Set Rest Time toggle
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
-                    shadowElevation = 2.dp
+            // Sets configuration
+            if (useIndividualSets) {
+                // Individual set configuration
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(Spacing.small),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Text(
+                        text = "Sets (${individualSets.size})",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+
+                    individualSets.forEachIndexed { index, set ->
+                        CollapsibleSetRow(
+                            setNumber = index + 1,
+                            set = set,
+                            weightUnit = weightUnit,
+                            formatWeight = formatWeight,
+                            kgToDisplay = kgToDisplay,
+                            displayToKg = displayToKg,
+                            onUpdate = { updatedSet ->
+                                individualSets[index] = updatedSet
+                            },
+                            onRemove = if (individualSets.size > 1) {
+                                { individualSets.removeAt(index) }
+                            } else null
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            val lastSet = individualSets.lastOrNull()
+                            individualSets.add(
+                                SetConfiguration(
+                                    reps = lastSet?.reps ?: repsPerSet,
+                                    weightKg = lastSet?.weightKg ?: weightPerCable
+                                )
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            text = "Per Set Rest Time",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = if (perSetRestTime) FontWeight.Bold else FontWeight.Normal,
-                            color = if (perSetRestTime) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        )
-                        Switch(
-                            checked = perSetRestTime,
-                            onCheckedChange = viewModel::onPerSetRestTimeChange
-                        )
+                        Icon(Icons.Filled.Add, contentDescription = null)
+                        Text("Add Set", modifier = Modifier.padding(start = 8.dp))
                     }
                 }
-
+            } else {
+                // Simple sets configuration
                 SetsConfiguration(
-                    sets = sets,
-                    setMode = setMode,
-                    exerciseType = exerciseType,
-                    weightSuffix = weightSuffix,
-                    maxWeight = maxWeight,
-                    weightStep = weightStep,
-                    isEchoMode = isEchoMode,
-                    perSetRestTime = perSetRestTime,
-                    onRepsChange = viewModel::updateReps,
-                    onWeightChange = viewModel::updateWeight,
-                    onDurationChange = viewModel::updateDuration,
-                    onRestChange = viewModel::updateRestTime,
-                    onAddSet = viewModel::addSet,
-                    onDeleteSet = viewModel::deleteSet
+                    numberOfSets = numberOfSets,
+                    repsPerSet = repsPerSet,
+                    weightPerCable = kgToDisplay(weightPerCable, weightUnit),
+                    weightUnit = weightUnit,
+                    onSetsChange = { numberOfSets = it },
+                    onRepsChange = { repsPerSet = it },
+                    onWeightChange = { weightPerCable = displayToKg(it, weightUnit) }
                 )
+            }
 
-                // Single rest time picker (only shown when perSetRestTime is false)
-                if (!perSetRestTime) {
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
-                        shadowElevation = 2.dp
-                    ) {
-                        Column(modifier = Modifier.padding(Spacing.small)) {
-                            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                                value = rest,
-                                onValueChange = viewModel::onRestChange,
-                                range = 0..300,
-                                label = "Rest Time",
-                                suffix = "sec",
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
+            // Mode selector
+            ModeSelector(
+                selectedMode = selectedMode,
+                onModeSelected = { selectedMode = it }
+            )
+
+            // Eccentric load selector
+            EccentricLoadSelector(
+                eccentricLoad = eccentricLoad,
+                onEccentricLoadChange = { eccentricLoad = it }
+            )
+
+            // Echo level selector (only for Echo mode)
+            if (selectedMode is WorkoutMode.Echo) {
+                EchoLevelSelector(
+                    echoLevel = echoLevel,
+                    onEchoLevelChange = {
+                        echoLevel = it
+                        selectedMode = WorkoutMode.Echo(it)
                     }
+                )
+            }
+
+            // Rest time
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Rest Time", style = MaterialTheme.typography.titleMedium)
+                        Text("${restTime}s")
+                    }
+                    Slider(
+                        value = restTime.toFloat(),
+                        onValueChange = { restTime = it.toInt() },
+                        valueRange = 0f..300f,
+                        steps = 59
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(Spacing.small))
-
-            // Bottom actions
+            // Action buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                TextButton(
-                    onClick = dismissSheet,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp), // Material 3 Expressive: Taller button
-                    shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text(
-                        "Cancel",
-                        style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger text
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Cancel")
                 }
                 Button(
                     onClick = {
-                        viewModel.onSave(onSave)
+                        val updatedExercise = exercise.copy(
+                            numberOfSets = if (useIndividualSets) individualSets.size else numberOfSets,
+                            repsPerSet = if (useIndividualSets) {
+                                individualSets.firstOrNull()?.reps ?: repsPerSet
+                            } else repsPerSet,
+                            weightPerCableKg = if (useIndividualSets) {
+                                individualSets.firstOrNull()?.weightKg ?: weightPerCable
+                            } else weightPerCable,
+                            sets = if (useIndividualSets) individualSets.toList() else emptyList(),
+                            mode = selectedMode,
+                            eccentricLoad = eccentricLoad,
+                            echoLevel = echoLevel,
+                            restTimeSec = restTime
+                        )
+                        onSave(updatedExercise)
                     },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(56.dp), // Material 3 Expressive: Taller button
-                    enabled = sets.isNotEmpty(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
-                    shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-                    elevation = ButtonDefaults.buttonElevation(
-                        defaultElevation = 4.dp,
-                        pressedElevation = 2.dp
-                    )
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Text(
-                        buttonText,
-                        style = MaterialTheme.typography.titleMedium, // Fixed: Was titleLarge (too big)
-                        fontWeight = FontWeight.Bold
-                    )
+                    Text("Save")
                 }
             }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
 
+/**
+ * Toggle between individual sets and uniform sets configuration.
+ */
 @Composable
 fun SetModeToggle(
-    setMode: SetMode,
-    onModeChange: (SetMode) -> Unit
+    useIndividualSets: Boolean,
+    onToggle: (Boolean) -> Unit
 ) {
-    Column(
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(Spacing.small)
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            "Set Mode",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = Spacing.extraSmall)
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            FilterChip(
-                selected = setMode == SetMode.REPS,
-                onClick = { onModeChange(SetMode.REPS) },
-                label = { Text("Reps") },
-                modifier = Modifier.weight(1f)
+        Column {
+            Text(
+                text = "Custom Sets",
+                style = MaterialTheme.typography.titleMedium
             )
-            FilterChip(
-                selected = setMode == SetMode.DURATION,
-                onClick = { onModeChange(SetMode.DURATION) },
-                label = { Text("Duration") },
-                modifier = Modifier.weight(1f)
+            Text(
+                text = "Configure each set individually",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        Switch(
+            checked = useIndividualSets,
+            onCheckedChange = onToggle
+        )
     }
 }
 
+/**
+ * Simple sets configuration with uniform values.
+ */
 @Composable
 fun SetsConfiguration(
-    sets: List<SetConfiguration>,
-    setMode: SetMode,
-    exerciseType: ExerciseType,
-    weightSuffix: String,
-    maxWeight: Float,
-    weightStep: Float = 0.5f,
-    isEchoMode: Boolean = false,
-    perSetRestTime: Boolean = false,
-    onRepsChange: (String, Int?) -> Unit, // Changed: setId instead of index, nullable for AMRAP
-    onWeightChange: (String, Float) -> Unit, // Changed: setId instead of index
-    onDurationChange: (String, Int) -> Unit, // Changed: setId instead of index
-    onRestChange: (String, Int) -> Unit, // Per-set rest time
-    onAddSet: () -> Unit,
-    onDeleteSet: (Int) -> Unit
+    numberOfSets: Int,
+    repsPerSet: Int,
+    weightPerCable: Float,
+    weightUnit: WeightUnit,
+    onSetsChange: (Int) -> Unit,
+    onRepsChange: (Int) -> Unit,
+    onWeightChange: (Float) -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(Spacing.small)
-    ) {
-        Text(
-            "Sets & ${if (setMode == SetMode.REPS) "Reps" else "Duration"}",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = Spacing.extraSmall)
-        )
-
-        sets.forEachIndexed { index, setConfig ->
-            key(setConfig.id) { // Use stable ID as key
-                SetRow(
-                    setConfig = setConfig,
-                    setMode = setMode,
-                    exerciseType = exerciseType,
-                    weightSuffix = weightSuffix,
-                    maxWeight = maxWeight,
-                    weightStep = weightStep,
-                    isEchoMode = isEchoMode,
-                    canDelete = sets.size > 1,
-                    onRepsChange = { newReps -> onRepsChange(setConfig.id, newReps) },
-                    onWeightChange = { newWeight -> onWeightChange(setConfig.id, newWeight) },
-                    onDurationChange = { newDuration -> onDurationChange(setConfig.id, newDuration) },
-                    onRestChange = { newRest -> onRestChange(setConfig.id, newRest) },
-                    onDelete = { onDeleteSet(index) }, // Still use index for deletion since it removes by position
-                    perSetRestTime = perSetRestTime
-                )
-            }
-        }
-
-        // Add Set button - Material 3 Expressive
-        OutlinedButton(
-            onClick = onAddSet,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp), // Material 3 Expressive: Taller button
-            shape = RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
-        ) {
-            Icon(
-                Icons.Default.Add,
-                contentDescription = "Add set",
-                modifier = Modifier.size(24.dp) // Material 3 Expressive: Larger icon (was 20dp)
-            )
-            Spacer(modifier = Modifier.width(Spacing.small))
-            Text(
-                "Add Set",
-                style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger text
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
-fun SetRow(
-    setConfig: SetConfiguration,
-    setMode: SetMode,
-    exerciseType: ExerciseType,
-    weightSuffix: String,
-    maxWeight: Float,
-    weightStep: Float = 0.5f,
-    isEchoMode: Boolean = false,
-    canDelete: Boolean,
-    onRepsChange: (Int?) -> Unit,  // Changed to nullable for AMRAP support
-    onWeightChange: (Float) -> Unit,
-    onDurationChange: (Int) -> Unit,
-    onRestChange: (Int) -> Unit,  // Per-set rest time
-    onDelete: () -> Unit,
-    perSetRestTime: Boolean = false
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest), // Material 3 Expressive: Higher contrast
-        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Material 3 Expressive: Higher elevation (was 4dp)
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
-    ) {
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(Spacing.medium)
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Set label and Delete button row
+            // Sets
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "Set ${setConfig.setNumber}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold
+                Text("Sets")
+                NumberStepper(
+                    value = numberOfSets,
+                    onValueChange = onSetsChange,
+                    minValue = 1,
+                    maxValue = 20
                 )
-                IconButton(
-                    onClick = onDelete,
-                    enabled = canDelete
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = "Delete set",
-                        tint = if (canDelete) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outlineVariant
-                    )
-                }
             }
 
-            Spacer(modifier = Modifier.height(Spacing.small))
-
-            // AMRAP toggle (only shown for REPS mode, not DURATION)
-            if (setMode == SetMode.REPS) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Switch(
-                        checked = setConfig.reps == null,
-                        onCheckedChange = { isAMRAP ->
-                            onRepsChange(if (isAMRAP) null else 10)
-                        }
-                    )
-                    Text(
-                        text = "AMRAP (As Many Reps As Possible)",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (setConfig.reps == null) FontWeight.Bold else FontWeight.Normal,
-                        color = if (setConfig.reps == null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Spacer(modifier = Modifier.height(Spacing.small))
-            }
-
-            // Reps/Duration and Weight (or Bodyweight label) side-by-side
+            // Reps
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.small)
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Reps or Duration picker
-                Box(modifier = Modifier.weight(1f)) {
-                    if (setMode == SetMode.REPS) {
-                        // Show reps picker ONLY if NOT AMRAP
-                        if (setConfig.reps != null) {
-                            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                                value = setConfig.reps,
-                                onValueChange = onRepsChange,
-                                range = 1..50,
-                                label = if (setConfig.setNumber == 1) "Reps" else "",
-                                suffix = "reps",
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else {
-                            // Show AMRAP label when reps is null
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                if (setConfig.setNumber == 1) {
-                                    Text(
-                                        "Target",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(if (setConfig.setNumber == 1) 60.dp else 80.dp))
-                                Text(
-                                    "AMRAP",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    } else {
-                        com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                            value = setConfig.duration,
-                            onValueChange = onDurationChange,
-                            range = 10..300,
-                            label = if (setConfig.setNumber == 1) "Duration" else "",
-                            suffix = "sec",
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-
-                // Weight picker (for standard exercises) OR Adaptive label (for Echo mode) OR Bodyweight label
-                Box(modifier = Modifier.weight(1f)) {
-                    when {
-                        isEchoMode -> {
-                            // Echo mode: Show "Adaptive" label instead of weight picker
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                if (setConfig.setNumber == 1) {
-                                    Text(
-                                        "Force per Cable",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(if (setConfig.setNumber == 1) 60.dp else 80.dp))
-                                Text(
-                                    "Adaptive",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                        exerciseType == ExerciseType.STANDARD -> {
-                            // Standard exercises: Show weight picker
-                            com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                                value = setConfig.weightPerCable,
-                                onValueChange = onWeightChange,
-                                range = 1f..maxWeight,
-                                step = weightStep,
-                                label = if (setConfig.setNumber == 1) "Weight per Cable" else "",
-                                suffix = weightSuffix,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                        else -> {
-                            // Bodyweight exercises: Show "Bodyweight" label
-                            Column(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.Center
-                            ) {
-                                if (setConfig.setNumber == 1) {
-                                    Text(
-                                        "Weight",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(bottom = 8.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(if (setConfig.setNumber == 1) 60.dp else 80.dp))
-                                Text(
-                                    "Bodyweight",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
+                Text("Reps per Set")
+                NumberStepper(
+                    value = repsPerSet,
+                    onValueChange = onRepsChange,
+                    minValue = 1,
+                    maxValue = 50
+                )
             }
 
-            Spacer(modifier = Modifier.height(Spacing.small))
-
-            // Rest Time picker (per-set) - only shown when perSetRestTime toggle is enabled
-            if (perSetRestTime) {
-                com.example.vitruvianredux.presentation.components.CompactNumberPicker(
-                    value = setConfig.restSeconds,
-                    onValueChange = onRestChange,
-                    range = 10..300,
-                    label = if (setConfig.setNumber == 1) "Rest Time" else "",
-                    suffix = "sec",
-                    modifier = Modifier.fillMaxWidth()
+            // Weight
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Weight per Cable")
+                    Text("${weightPerCable.toInt()} ${weightUnit.name.lowercase()}")
+                }
+                Slider(
+                    value = weightPerCable,
+                    onValueChange = onWeightChange,
+                    valueRange = 0f..100f,
+                    steps = 99
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Number stepper component.
+ */
 @Composable
-fun ModeSelector(
-    selectedMode: WorkoutMode,
-    onModeChange: (WorkoutMode) -> Unit
+fun NumberStepper(
+    value: Int,
+    onValueChange: (Int) -> Unit,
+    minValue: Int = 0,
+    maxValue: Int = 100
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        IconButton(
+            onClick = { if (value > minValue) onValueChange(value - 1) },
+            enabled = value > minValue
+        ) {
+            Icon(Icons.Filled.Remove, contentDescription = "Decrease")
+        }
+        Text(
+            text = value.toString(),
+            style = MaterialTheme.typography.titleMedium
+        )
+        IconButton(
+            onClick = { if (value < maxValue) onValueChange(value + 1) },
+            enabled = value < maxValue
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = "Increase")
+        }
+    }
+}
+
+/**
+ * Collapsible row for individual set configuration.
+ */
+@Composable
+fun CollapsibleSetRow(
+    setNumber: Int,
+    set: SetConfiguration,
+    weightUnit: WeightUnit,
+    formatWeight: (Float, WeightUnit) -> String,
+    kgToDisplay: (Float, WeightUnit) -> Float,
+    displayToKg: (Float, WeightUnit) -> Float,
+    onUpdate: (SetConfiguration) -> Unit,
+    onRemove: (() -> Unit)?
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    // All available workout modes (TUTBeast excluded - handled as toggle in TUT mode)
-    val allModes = listOf(
-        WorkoutMode.OldSchool,
-        WorkoutMode.Pump,
-        WorkoutMode.TUT,
-        WorkoutMode.EccentricOnly,
-        WorkoutMode.Echo(EchoLevel.HARDER) // Default Echo level
-    )
-
-    Surface(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-        color = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)), // Material 3 Expressive: Thicker border (was 1dp)
-        shadowElevation = 8.dp // Material 3 Expressive: Higher elevation (was 4dp)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant
+        )
     ) {
-        Column(modifier = Modifier.padding(Spacing.medium)) {
-            Text(
-                "Workout Mode",
-                style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger (was titleSmall)
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = Spacing.small)
-            )
-
-            ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { expanded = !expanded }
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { expanded = !expanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedTextField(
-                    value = selectedMode.displayName,
-                    onValueChange = {},
-                    readOnly = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .menuAnchor(type = ExposedDropdownMenuAnchorType.PrimaryNotEditable),
-                    trailingIcon = {
-                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                    },
-                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors()
+                Text(
+                    text = "Set $setNumber",
+                    style = MaterialTheme.typography.titleSmall
                 )
-
-                ExposedDropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    allModes.forEach { mode ->
-                        DropdownMenuItem(
-                            text = { Text(mode.displayName) },
-                            onClick = {
-                                onModeChange(mode)
-                                expanded = false
-                            },
-                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                        )
-                    }
+                    Text("${set.reps} reps")
+                    Text(formatWeight(set.weightKg, weightUnit))
+                    Icon(
+                        imageVector = if (expanded) Icons.Filled.ExpandLess
+                        else Icons.Filled.ExpandMore,
+                        contentDescription = null
+                    )
                 }
             }
-        }
-    }
-}
 
-@Composable
-fun EccentricLoadSelector(
-    eccentricLoad: EccentricLoad,
-    onLoadChange: (EccentricLoad) -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(Spacing.small)
-    ) {
-        Text(
-            "Eccentric Load",
-            style = MaterialTheme.typography.titleMedium, // Material 3 Expressive: Larger (was titleSmall)
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = Spacing.extraSmall)
-        )
+            if (expanded) {
+                Spacer(modifier = Modifier.height(12.dp))
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-            color = MaterialTheme.colorScheme.surfaceContainerHighest, // Material 3 Expressive: Higher contrast
-            border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)), // Material 3 Expressive: Thicker border (was 1dp)
-            shadowElevation = 8.dp // Material 3 Expressive: Higher elevation (was 4dp)
-        ) {
-            Column(modifier = Modifier.padding(Spacing.medium)) {
-                // Display current percentage value
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        "Eccentric Load: ${eccentricLoad.percentage}%",
-                        style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                    Text("Reps")
+                    NumberStepper(
+                        value = set.reps,
+                        onValueChange = { onUpdate(set.copy(reps = it)) },
+                        minValue = 1,
+                        maxValue = 50
                     )
                 }
-                
-                Spacer(modifier = Modifier.height(16.dp))
 
-                // Slider with discrete values: 0%, 50%, 75%, 100%, 125%, 150% (machine hardware limit)
-                val eccentricLoadValues = listOf(
-                    EccentricLoad.LOAD_0,
-                    EccentricLoad.LOAD_50,
-                    EccentricLoad.LOAD_75,
-                    EccentricLoad.LOAD_100,
-                    EccentricLoad.LOAD_125,
-                    EccentricLoad.LOAD_150
-                )
-                val currentIndex = eccentricLoadValues.indexOf(eccentricLoad).let { 
-                    if (it < 0) 3 else it // Default to 100% if not found
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Weight")
+                        Text(formatWeight(set.weightKg, weightUnit))
+                    }
+                    Slider(
+                        value = kgToDisplay(set.weightKg, weightUnit),
+                        onValueChange = { onUpdate(set.copy(weightKg = displayToKg(it, weightUnit))) },
+                        valueRange = 0f..100f
+                    )
                 }
 
-                Slider(
-                    value = currentIndex.toFloat(),
-                    onValueChange = { value ->
-                        val index = value.toInt().coerceIn(0, eccentricLoadValues.size - 1)
-                        onLoadChange(eccentricLoadValues[index])
-                    },
-                    valueRange = 0f..(eccentricLoadValues.size - 1).toFloat(),
-                    steps = eccentricLoadValues.size - 2,
-                    modifier = Modifier.fillMaxWidth()
+                onRemove?.let {
+                    OutlinedButton(
+                        onClick = it,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.Remove, contentDescription = null)
+                        Text("Remove Set", modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Workout mode selector.
+ */
+@Composable
+fun ModeSelector(
+    selectedMode: WorkoutMode,
+    onModeSelected: (WorkoutMode) -> Unit
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Workout Mode",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ModeChip(
+                    text = "Old School",
+                    selected = selectedMode is WorkoutMode.OldSchool,
+                    onClick = { onModeSelected(WorkoutMode.OldSchool) },
+                    modifier = Modifier.weight(1f)
                 )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    "Percentage of concentric load applied during eccentric phase",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.padding(top = Spacing.small)
+                ModeChip(
+                    text = "Pump",
+                    selected = selectedMode is WorkoutMode.Pump,
+                    onClick = { onModeSelected(WorkoutMode.Pump) },
+                    modifier = Modifier.weight(1f)
+                )
+                ModeChip(
+                    text = "Echo",
+                    selected = selectedMode is WorkoutMode.Echo,
+                    onClick = { onModeSelected(WorkoutMode.Echo(EchoLevel.LEVEL_1)) },
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
     }
 }
 
+/**
+ * Mode selection chip.
+ */
 @Composable
-fun EchoLevelSelector(
-    level: EchoLevel,
-    onLevelChange: (EchoLevel) -> Unit
+private fun ModeChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(Spacing.small)
+    Box(
+        modifier = modifier
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant,
+                RoundedCornerShape(8.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        contentAlignment = Alignment.Center
     ) {
         Text(
-            "Difficulty Level",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = Spacing.extraSmall)
+            text = text,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary
+            else MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium
         )
+    }
+}
 
-        Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant),
-            shadowElevation = 4.dp
-        ) {
-            Column(modifier = Modifier.padding(Spacing.medium)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    EchoLevel.entries.forEach { echoLevel ->
-                        FilterChip(
-                            selected = level == echoLevel,
-                            onClick = { onLevelChange(echoLevel) },
-                            label = { 
-                                Text(
-                                    echoLevel.displayName, 
-                                    style = MaterialTheme.typography.bodySmall,
-                                    maxLines = 1
-                                ) 
-                            },
-                            modifier = Modifier.weight(1f)
+/**
+ * Eccentric load selector.
+ */
+@Composable
+fun EccentricLoadSelector(
+    eccentricLoad: EccentricLoad,
+    onEccentricLoadChange: (EccentricLoad) -> Unit
+) {
+    val loadValues = EccentricLoad.entries.toList()
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Eccentric Load", style = MaterialTheme.typography.titleMedium)
+                Text(eccentricLoad.displayName)
+            }
+            Slider(
+                value = loadValues.indexOf(eccentricLoad).toFloat(),
+                onValueChange = { value ->
+                    val index = value.toInt().coerceIn(0, loadValues.size - 1)
+                    onEccentricLoadChange(loadValues[index])
+                },
+                valueRange = 0f..(loadValues.size - 1).toFloat(),
+                steps = loadValues.size - 2
+            )
+        }
+    }
+}
+
+/**
+ * Echo level selector.
+ */
+@Composable
+fun EchoLevelSelector(
+    echoLevel: EchoLevel,
+    onEchoLevelChange: (EchoLevel) -> Unit
+) {
+    val echoLevels = EchoLevel.entries.toList()
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "Echo Level",
+                style = MaterialTheme.typography.titleMedium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                echoLevels.forEach { level ->
+                    val selected = echoLevel == level
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(
+                                if (selected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surfaceVariant,
+                                RoundedCornerShape(8.dp)
+                            )
+                            .clickable { onEchoLevelChange(level) }
+                            .padding(8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = level.displayName,
+                            color = if (selected) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall
                         )
                     }
                 }
-
-                Text(
-                    "Select difficulty level for Echo mode training",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline,
-                    modifier = Modifier.padding(top = Spacing.small)
-                )
             }
         }
     }

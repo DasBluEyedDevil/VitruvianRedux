@@ -1,12 +1,15 @@
 package com.example.vitruvianredux.presentation.navigation
 
-import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -14,13 +17,32 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.example.vitruvianredux.data.repository.ExerciseRepository
-import com.example.vitruvianredux.presentation.screen.*
-import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.ThemeMode
+import com.example.vitruvianredux.presentation.screen.ActiveWorkoutScreen
+import com.example.vitruvianredux.presentation.screen.AnalyticsScreen
+import com.example.vitruvianredux.presentation.screen.ConnectionLogsScreen
+import com.example.vitruvianredux.presentation.screen.DailyRoutinesScreen
+import com.example.vitruvianredux.presentation.screen.DiagnosticsScreen
+import com.example.vitruvianredux.presentation.screen.HomeScreen
+import com.example.vitruvianredux.presentation.screen.JustLiftScreen
+import com.example.vitruvianredux.presentation.screen.ProgramBuilderScreen
+import com.example.vitruvianredux.presentation.screen.SettingsScreen
+import com.example.vitruvianredux.presentation.screen.SingleExerciseScreen
+import com.example.vitruvianredux.presentation.screen.WeeklyProgramsScreen
+import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
+
+private const val TRANSITION_DURATION_MS = 300
 
 /**
- * Main navigation graph for the app.
- * Defines all routes and their composable destinations.
+ * Main navigation graph composable that defines all navigation routes and transitions.
+ *
+ * @param navController The navigation controller for managing navigation state
+ * @param viewModel The main view model containing app-wide state
+ * @param exerciseRepository Repository for exercise data
+ * @param themeMode Current theme mode (light/dark/system)
+ * @param onThemeModeChange Callback when theme mode changes
+ * @param padding Padding values from the scaffold
+ * @param modifier Optional modifier for the NavHost
  */
 @Composable
 fun NavGraph(
@@ -29,6 +51,7 @@ fun NavGraph(
     exerciseRepository: ExerciseRepository,
     themeMode: ThemeMode,
     onThemeModeChange: (ThemeMode) -> Unit,
+    padding: PaddingValues,
     modifier: Modifier = Modifier
 ) {
     NavHost(
@@ -36,117 +59,127 @@ fun NavGraph(
         startDestination = NavigationRoutes.Home.route,
         modifier = modifier
     ) {
-        // Home screen - workout type selection
-        composable(NavigationRoutes.Home.route) {
+        // Home Screen
+        composable(route = NavigationRoutes.Home.route) {
             HomeScreen(
                 navController = navController,
                 viewModel = viewModel,
-                themeMode = themeMode
+                themeMode = themeMode,
+                padding = padding
             )
         }
 
-        // Just Lift screen - quick workout configuration
+        // Just Lift Screen - with slide transitions
         composable(
             route = NavigationRoutes.JustLift.route,
             enterTransition = {
-                slideIntoContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                    animationSpec = tween(300)
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(TRANSITION_DURATION_MS)
                 )
             },
             exitTransition = {
-                slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                    animationSpec = tween(300)
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(TRANSITION_DURATION_MS)
                 )
             },
             popEnterTransition = {
-                slideIntoContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                    animationSpec = tween(300)
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(TRANSITION_DURATION_MS)
                 )
             },
             popExitTransition = {
-                slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                    animationSpec = tween(300)
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(TRANSITION_DURATION_MS)
                 )
             }
         ) {
             JustLiftScreen(
                 navController = navController,
                 viewModel = viewModel,
-                themeMode = themeMode
+                themeMode = themeMode,
+                padding = padding
             )
         }
 
-        // Single Exercise screen - choose one exercise
-        composable(NavigationRoutes.SingleExercise.route) {
+        // Single Exercise Screen
+        composable(route = NavigationRoutes.SingleExercise.route) {
             SingleExerciseScreen(
                 navController = navController,
                 viewModel = viewModel,
-                exerciseRepository = exerciseRepository
+                exerciseRepository = exerciseRepository,
+                padding = padding
             )
         }
 
-        // Daily Routines screen - pre-built routines
-        composable(NavigationRoutes.DailyRoutines.route) {
+        // Daily Routines Screen
+        composable(route = NavigationRoutes.DailyRoutines.route) {
             DailyRoutinesScreen(
                 navController = navController,
                 viewModel = viewModel,
                 exerciseRepository = exerciseRepository,
-                themeMode = themeMode
+                themeMode = themeMode,
+                padding = padding
             )
         }
 
-        // Active Workout screen - shows workout controls during active workout
+        // Active Workout Screen - with slide + fade transitions
         composable(
             route = NavigationRoutes.ActiveWorkout.route,
             enterTransition = {
-                slideIntoContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                    animationSpec = tween(300)
-                ) + fadeIn(animationSpec = tween(300))
+                slideInHorizontally(
+                    initialOffsetX = { -it },
+                    animationSpec = tween(TRANSITION_DURATION_MS)
+                ) + fadeIn(animationSpec = tween(TRANSITION_DURATION_MS))
             },
             exitTransition = {
-                slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Left,
-                    animationSpec = tween(300)
-                ) + fadeOut(animationSpec = tween(300))
+                slideOutHorizontally(
+                    targetOffsetX = { -it },
+                    animationSpec = tween(TRANSITION_DURATION_MS)
+                ) + fadeOut(animationSpec = tween(TRANSITION_DURATION_MS))
             },
             popEnterTransition = {
-                slideIntoContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                    animationSpec = tween(300)
-                ) + fadeIn(animationSpec = tween(300))
+                slideInHorizontally(
+                    initialOffsetX = { it },
+                    animationSpec = tween(TRANSITION_DURATION_MS)
+                ) + fadeIn(animationSpec = tween(TRANSITION_DURATION_MS))
             },
             popExitTransition = {
-                slideOutOfContainer(
-                    towards = AnimatedContentTransitionScope.SlideDirection.Right,
-                    animationSpec = tween(300)
-                ) + fadeOut(animationSpec = tween(300))
+                slideOutHorizontally(
+                    targetOffsetX = { it },
+                    animationSpec = tween(TRANSITION_DURATION_MS)
+                ) + fadeOut(animationSpec = tween(TRANSITION_DURATION_MS))
             }
         ) {
             ActiveWorkoutScreen(
                 navController = navController,
                 viewModel = viewModel,
-                exerciseRepository = exerciseRepository
+                exerciseRepository = exerciseRepository,
+                padding = padding
             )
         }
 
-        // Weekly Programs screen - view and manage programs
-        composable(NavigationRoutes.WeeklyPrograms.route) {
+        // Weekly Programs Screen
+        composable(route = NavigationRoutes.WeeklyPrograms.route) {
             WeeklyProgramsScreen(
                 navController = navController,
                 viewModel = viewModel,
-                themeMode = themeMode
+                themeMode = themeMode,
+                padding = padding
             )
         }
 
-        // Program Builder screen - create/edit weekly program
+        // Program Builder Screen - with programId argument
         composable(
             route = NavigationRoutes.ProgramBuilder.route,
-            arguments = listOf(navArgument("programId") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("programId") {
+                    type = NavType.StringType
+                }
+            )
         ) { backStackEntry ->
             val programId = backStackEntry.arguments?.getString("programId") ?: "new"
             ProgramBuilderScreen(
@@ -154,66 +187,82 @@ fun NavGraph(
                 viewModel = viewModel,
                 programId = programId,
                 exerciseRepository = exerciseRepository,
-                themeMode = themeMode
+                themeMode = themeMode,
+                padding = padding
             )
         }
 
-        // Analytics screen - history, PRs, trends
+        // Analytics Screen - with fade transitions
         composable(
             route = NavigationRoutes.Analytics.route,
-            enterTransition = { fadeIn(animationSpec = tween(200)) },
-            exitTransition = { fadeOut(animationSpec = tween(200)) }
+            enterTransition = {
+                fadeIn(animationSpec = tween(TRANSITION_DURATION_MS))
+            },
+            exitTransition = {
+                fadeOut(animationSpec = tween(TRANSITION_DURATION_MS))
+            }
         ) {
             AnalyticsScreen(
                 viewModel = viewModel,
-                themeMode = themeMode
+                themeMode = themeMode,
+                padding = padding
             )
         }
 
-        // Settings screen
+        // Settings Screen - with fade transitions
         composable(
             route = NavigationRoutes.Settings.route,
-            enterTransition = { fadeIn(animationSpec = tween(200)) },
-            exitTransition = { fadeOut(animationSpec = tween(200)) }
+            enterTransition = {
+                fadeIn(animationSpec = tween(TRANSITION_DURATION_MS))
+            },
+            exitTransition = {
+                fadeOut(animationSpec = tween(TRANSITION_DURATION_MS))
+            }
         ) {
             val weightUnit by viewModel.weightUnit.collectAsState()
             val userPreferences by viewModel.userPreferences.collectAsState()
             val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
             val connectionError by viewModel.connectionError.collectAsState()
-            SettingsTab(
+
+            SettingsScreen(
+                viewModel = viewModel,
                 weightUnit = weightUnit,
-                autoplayEnabled = userPreferences.autoplayEnabled,
-                stopAtTop = userPreferences.stopAtTop,
-                enableVideoPlayback = userPreferences.enableVideoPlayback,
-                strictValidationEnabled = userPreferences.strictValidationEnabled,
-                onWeightUnitChange = { viewModel.setWeightUnit(it) },
-                onAutoplayChange = { viewModel.setAutoplayEnabled(it) },
-                onStopAtTopChange = { viewModel.setStopAtTop(it) },
-                onEnableVideoPlaybackChange = { viewModel.setEnableVideoPlayback(it) },
-                onStrictValidationChange = { viewModel.setStrictValidationEnabled(it) },
-                onColorSchemeChange = { viewModel.setColorScheme(it) },
-                onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() },
-                onNavigateToConnectionLogs = { navController.navigate(NavigationRoutes.ConnectionLogs.route) },
-                onNavigateToDiagnostics = { navController.navigate(NavigationRoutes.Diagnostics.route) },
+                userPreferences = userPreferences,
                 isAutoConnecting = isAutoConnecting,
                 connectionError = connectionError,
+                onWeightUnitChange = { viewModel.setWeightUnit(it) },
+                onAutoplayEnabledChange = { viewModel.setAutoplayEnabled(it) },
+                onStopAtTopChange = { viewModel.setStopAtTop(it) },
+                onEnableVideoPlaybackChange = { viewModel.setEnableVideoPlayback(it) },
+                onStrictValidationEnabledChange = { viewModel.setStrictValidationEnabled(it) },
+                onColorSchemeChange = { viewModel.setColorScheme(it) },
+                onDeleteAllWorkouts = { viewModel.deleteAllWorkouts() },
+                onNavigateToConnectionLogs = {
+                    navController.navigate(NavigationRoutes.ConnectionLogs.route)
+                },
+                onNavigateToDiagnostics = {
+                    navController.navigate(NavigationRoutes.Diagnostics.route)
+                },
                 onClearConnectionError = { viewModel.clearConnectionError() },
-                onCancelAutoConnecting = { viewModel.cancelAutoConnecting() }
+                onCancelAutoConnecting = { viewModel.cancelAutoConnecting() },
+                padding = padding
             )
         }
 
-        // Connection Logs screen - debug BLE connections
-        composable(NavigationRoutes.ConnectionLogs.route) {
+        // Connection Logs Screen
+        composable(route = NavigationRoutes.ConnectionLogs.route) {
             ConnectionLogsScreen(
                 onNavigateBack = { navController.popBackStack() },
-                mainViewModel = viewModel
+                viewModel = viewModel,
+                padding = padding
             )
         }
 
-        // Diagnostics screen
-        composable(NavigationRoutes.Diagnostics.route) {
+        // Diagnostics Screen
+        composable(route = NavigationRoutes.Diagnostics.route) {
             DiagnosticsScreen(
-                onNavigateBack = { navController.popBackStack() }
+                onNavigateBack = { navController.popBackStack() },
+                padding = padding
             )
         }
     }

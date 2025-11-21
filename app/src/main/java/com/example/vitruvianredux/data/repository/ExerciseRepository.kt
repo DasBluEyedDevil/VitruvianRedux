@@ -1,187 +1,83 @@
 package com.example.vitruvianredux.data.repository
 
-import com.example.vitruvianredux.data.local.ExerciseDao
 import com.example.vitruvianredux.data.local.ExerciseEntity
-import com.example.vitruvianredux.data.local.ExerciseImporter
 import com.example.vitruvianredux.data.local.ExerciseVideoEntity
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.firstOrNull
-import timber.log.Timber
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
- * Repository for exercise library management
+ * Repository interface for exercise-related operations.
+ * Provides methods for retrieving, searching, and managing exercises.
  */
 interface ExerciseRepository {
+
+    /**
+     * Get all exercises as a Flow.
+     * @return Flow emitting list of all exercises
+     */
     fun getAllExercises(): Flow<List<ExerciseEntity>>
+
+    /**
+     * Search exercises by query string.
+     * @param query The search query
+     * @return Flow emitting list of matching exercises
+     */
     fun searchExercises(query: String): Flow<List<ExerciseEntity>>
+
+    /**
+     * Filter exercises by muscle group.
+     * @param muscleGroup The muscle group to filter by
+     * @return Flow emitting list of matching exercises
+     */
     fun filterByMuscleGroup(muscleGroup: String): Flow<List<ExerciseEntity>>
+
+    /**
+     * Filter exercises by equipment type.
+     * @param equipment The equipment type to filter by
+     * @return Flow emitting list of matching exercises
+     */
     fun filterByEquipment(equipment: String): Flow<List<ExerciseEntity>>
+
+    /**
+     * Get all favorite exercises.
+     * @return Flow emitting list of favorite exercises
+     */
     fun getFavorites(): Flow<List<ExerciseEntity>>
+
+    /**
+     * Toggle the favorite status of an exercise.
+     * @param id The exercise ID
+     */
     suspend fun toggleFavorite(id: String)
+
+    /**
+     * Get an exercise by its ID.
+     * @param id The exercise ID
+     * @return The exercise entity, or null if not found
+     */
     suspend fun getExerciseById(id: String): ExerciseEntity?
+
+    /**
+     * Get videos for a specific exercise.
+     * @param exerciseId The exercise ID
+     * @return List of video entities
+     */
     suspend fun getVideos(exerciseId: String): List<ExerciseVideoEntity>
+
+    /**
+     * Import exercises from bundled assets.
+     * @return Result indicating success or failure
+     */
     suspend fun importExercises(): Result<Unit>
+
+    /**
+     * Check if the exercise library is empty.
+     * @return true if empty, false otherwise
+     */
     suspend fun isExerciseLibraryEmpty(): Boolean
+
+    /**
+     * Update exercises from GitHub repository.
+     * @return Result with the number of exercises updated
+     */
     suspend fun updateFromGitHub(): Result<Int>
-}
-
-/**
- * Implementation of ExerciseRepository
- */
-@Singleton
-class ExerciseRepositoryImpl @Inject constructor(
-    private val exerciseDao: ExerciseDao,
-    private val exerciseImporter: ExerciseImporter
-) : ExerciseRepository {
-    
-    /**
-     * Get all exercises sorted by name
-     */
-    override fun getAllExercises(): Flow<List<ExerciseEntity>> {
-        return exerciseDao.getAllExercises()
-    }
-    
-    /**
-     * Search exercises by name, description, or muscles
-     */
-    override fun searchExercises(query: String): Flow<List<ExerciseEntity>> {
-        return if (query.isBlank()) {
-            getAllExercises()
-        } else {
-            exerciseDao.searchExercises(query.trim())
-        }
-    }
-    
-    /**
-     * Filter exercises by muscle group
-     */
-    override fun filterByMuscleGroup(muscleGroup: String): Flow<List<ExerciseEntity>> {
-        return if (muscleGroup.isBlank()) {
-            getAllExercises()
-        } else {
-            exerciseDao.getExercisesByMuscleGroup(muscleGroup)
-        }
-    }
-    
-    /**
-     * Filter exercises by equipment
-     */
-    override fun filterByEquipment(equipment: String): Flow<List<ExerciseEntity>> {
-        return if (equipment.isBlank()) {
-            getAllExercises()
-        } else {
-            exerciseDao.getExercisesByEquipment(equipment)
-        }
-    }
-    
-    /**
-     * Get favorite exercises
-     */
-    override fun getFavorites(): Flow<List<ExerciseEntity>> {
-        return exerciseDao.getFavorites()
-    }
-    
-    /**
-     * Toggle favorite status for an exercise
-     */
-    override suspend fun toggleFavorite(id: String) {
-        try {
-            val exercise = exerciseDao.getExerciseById(id)
-            exercise?.let {
-                exerciseDao.updateFavorite(id, !it.isFavorite)
-                Timber.d("Toggled favorite for exercise: $id")
-            }
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to toggle favorite")
-        }
-    }
-    
-    /**
-     * Get exercise by ID
-     */
-    override suspend fun getExerciseById(id: String): ExerciseEntity? {
-        return exerciseDao.getExerciseById(id)
-    }
-    
-    /**
-     * Get videos for an exercise
-     */
-    override suspend fun getVideos(exerciseId: String): List<ExerciseVideoEntity> {
-        return exerciseDao.getVideos(exerciseId)
-    }
-    
-    /**
-     * Import exercises from assets (if not already imported)
-     */
-    override suspend fun importExercises(): Result<Unit> {
-        return try {
-            // Check if exercises are already imported
-            val count = getAllExercises().firstOrNull()?.size ?: 0
-            if (count == 0) {
-                Timber.d("Importing exercises from assets...")
-                val result = exerciseImporter.importExercises()
-                if (result.isSuccess) {
-                    Result.success(Unit)
-                } else {
-                    result.exceptionOrNull()?.let { Result.failure(it) } ?: Result.failure(Exception("Import failed"))
-                }
-            } else {
-                Timber.d("Exercises already imported (count: $count)")
-                Result.success(Unit)
-            }
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to import exercises")
-            Result.failure(e)
-        }
-    }
-    
-    /**
-     * Check if exercise library is empty
-     */
-    override suspend fun isExerciseLibraryEmpty(): Boolean {
-        return getAllExercises().firstOrNull()?.isEmpty() ?: true
-    }
-
-    /**
-     * Update exercise library from GitHub
-     * Fetches the latest exercise_dump.json from the repository and updates the database
-     * @return Result with count of exercises updated, or error
-     */
-    override suspend fun updateFromGitHub(): Result<Int> {
-        return try {
-            Timber.d("Updating exercise library from GitHub...")
-
-            // Fetch JSON from GitHub (raw content URL)
-            val url = java.net.URL("https://raw.githubusercontent.com/exerciselibrary/exerciselibrary.github.io/main/exercise_dump.json")
-            val connection = url.openConnection() as java.net.HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 30000 // 30 seconds
-            connection.readTimeout = 30000
-
-            val responseCode = connection.responseCode
-            if (responseCode != 200) {
-                return Result.failure(Exception("HTTP $responseCode: Failed to fetch exercise library"))
-            }
-
-            val jsonString = connection.inputStream.bufferedReader().use { it.readText() }
-            connection.disconnect()
-
-            // Import from fetched JSON
-            val result = exerciseImporter.importFromJsonString(jsonString, clearExisting = true)
-
-            if (result.isSuccess) {
-                Timber.d("Exercise library updated successfully from GitHub")
-                result
-            } else {
-                Timber.e("Failed to import exercises from GitHub JSON")
-                result
-            }
-
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to update exercise library from GitHub")
-            Result.failure(e)
-        }
-    }
 }

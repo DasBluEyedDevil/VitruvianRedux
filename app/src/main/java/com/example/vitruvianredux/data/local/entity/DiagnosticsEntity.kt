@@ -1,13 +1,23 @@
 package com.example.vitruvianredux.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "diagnostics_history")
+/**
+ * Entity representing device diagnostics data including temperature readings and fault information.
+ */
+@Entity(tableName = "diagnostics")
 data class DiagnosticsEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+
+    @ColumnInfo(name = "runtime_seconds")
     val runtimeSeconds: Int,
-    val faultMask: Long,     // Compressed faults bitmask
+
+    @ColumnInfo(name = "fault_mask")
+    val faultMask: Long,
+
     val temp1: Byte,
     val temp2: Byte,
     val temp3: Byte,
@@ -16,6 +26,9 @@ data class DiagnosticsEntity(
     val temp6: Byte,
     val temp7: Byte,
     val temp8: Byte,
+
+    @ColumnInfo(name = "contains_faults")
     val containsFaults: Boolean,
+
     val timestamp: Long = System.currentTimeMillis()
 )
