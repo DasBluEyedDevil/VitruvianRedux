@@ -1,18 +1,6 @@
 package com.example.vitruvianredux.domain.model
 
 /**
- * Cable configuration for Vitruvian exercises
- * - SINGLE: One cable only (unilateral - e.g., one-arm row)
- * - DOUBLE: Both cables required (bilateral - e.g., bench press)
- * - EITHER: User can choose single or double (e.g., bicep curls)
- */
-enum class CableConfiguration {
-    SINGLE,
-    DOUBLE,
-    EITHER
-}
-
-/**
  * Exercise model - represents any exercise that can be performed on the Vitruvian Trainer
  *
  * MIGRATION NOTE: This was converted from an enum to a data class to support the exercise library

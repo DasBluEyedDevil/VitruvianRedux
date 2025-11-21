@@ -466,18 +466,18 @@ fun ProgramListItem(
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
-            title = { 
+            title = {
                 Text(
                     "Delete Program",
                     style = MaterialTheme.typography.headlineSmall, // Material 3 Expressive: Larger
                     fontWeight = FontWeight.Bold
-                ) 
+                )
             },
-            text = { 
+            text = {
                 Text(
                     "Are you sure you want to delete \"${program.program.title}\"? This action cannot be undone.",
                     style = MaterialTheme.typography.bodyLarge // Material 3 Expressive: Larger
-                ) 
+                )
             },
             confirmButton = {
                 TextButton(
@@ -502,17 +502,3 @@ fun ProgramListItem(
         )
     }
 }
-
-/**
- * DEPRECATED: This mock data class is no longer used.
- * Use WeeklyProgramWithDays from data.local instead.
- */
-@Deprecated(
-    message = "Use WeeklyProgramWithDays from data.local package",
-    replaceWith = ReplaceWith("com.example.vitruvianredux.data.local.WeeklyProgramWithDays")
-)
-data class WeeklyProgram(
-    val id: String,
-    val name: String,
-    val dailyRoutines: Map<DayOfWeek, com.example.vitruvianredux.domain.model.Routine?>
-)

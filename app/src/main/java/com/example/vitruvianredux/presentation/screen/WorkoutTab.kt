@@ -1285,6 +1285,19 @@ fun ConnectionCard(
                         Text("Connecting...")
                     }
                 }
+                is ConnectionState.Disconnecting -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(Spacing.small))
+                        Text("Disconnecting...")
+                    }
+                }
                 is ConnectionState.Connected -> {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         Row(

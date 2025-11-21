@@ -14,28 +14,6 @@ import timber.log.Timber
 import java.util.UUID
 import javax.inject.Inject
 
-
-// These are tightly coupled with the ExerciseEditDialog, so keeping them here is reasonable.
-// They could be moved to a dedicated file in the `presentation.screen` package if used elsewhere.
-enum class ExerciseType {
-    BODYWEIGHT,
-    STANDARD
-}
-
-enum class SetMode {
-    REPS,
-    DURATION
-}
-
-data class SetConfiguration(
-    val id: String = UUID.randomUUID().toString(), // Stable ID for Compose keys
-    val setNumber: Int,
-    val reps: Int? = 10,  // Nullable to support AMRAP (null = AMRAP)
-    val weightPerCable: Float = 15.0f,
-    val duration: Int = 30,
-    val restSeconds: Int = 60 // Add this
-)
-
 @HiltViewModel
 class ExerciseConfigViewModel @Inject constructor() : ViewModel() {
 

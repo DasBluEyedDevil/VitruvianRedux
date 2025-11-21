@@ -19,13 +19,3 @@ sealed class NavigationRoutes(val route: String) {
     object ConnectionLogs : NavigationRoutes("connection_logs")
     object Diagnostics : NavigationRoutes("diagnostics")
 }
-
-/**
- * Bottom navigation items.
- * Only 3 items are shown in the bottom navigation bar.
- */
-enum class BottomNavItem(val route: String, val label: String) {
-    WORKOUT("home", "Workout"),
-    ANALYTICS("analytics", "Analytics"),
-    SETTINGS("settings", "Settings")
-}

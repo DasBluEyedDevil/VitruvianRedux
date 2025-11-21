@@ -24,19 +24,6 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * Confetti particle for celebration animation
- */
-data class ConfettiParticle(
-    val startX: Float,
-    val startY: Float,
-    val color: Color,
-    val size: Float,
-    val rotationSpeed: Float,
-    val velocityX: Float,
-    val velocityY: Float
-)
-
-/**
  * PR Celebration Dialog - Shows animated celebration when user achieves a new Personal Record
  *
  * Features:
@@ -123,8 +110,8 @@ private fun PRCelebrationContent(
     val confettiParticles = remember {
         List(30) {
             ConfettiParticle(
-                startX = Random.nextFloat(),
-                startY = 0f,
+                x = Random.nextFloat(),
+                y = 0f,
                 color = listOf(
                     Color(0xFFFFD700), // Gold
                     Color(0xFFFFA500), // Orange
@@ -134,9 +121,10 @@ private fun PRCelebrationContent(
                     Color(0xFF10B981)  // Green
                 ).random(),
                 size = Random.nextFloat() * 8f + 4f,
-                rotationSpeed = Random.nextFloat() * 10f - 5f,
+                rotation = 0f,
                 velocityX = Random.nextFloat() * 400f - 200f,
-                velocityY = Random.nextFloat() * -800f - 400f
+                velocityY = Random.nextFloat() * -800f - 400f,
+                rotationSpeed = Random.nextFloat() * 10f - 5f
             )
         }
     }
@@ -158,8 +146,8 @@ private fun PRCelebrationContent(
                 .height(300.dp)
         ) {
             confettiParticles.forEach { particle ->
-                val x = size.width * particle.startX + particle.velocityX * confettiProgress
-                val y = particle.startY + particle.velocityY * confettiProgress + 0.5f * 980f * confettiProgress * confettiProgress
+                val x = size.width * particle.x + particle.velocityX * confettiProgress
+                val y = particle.y + particle.velocityY * confettiProgress + 0.5f * 980f * confettiProgress * confettiProgress
                 val rotation = particle.rotationSpeed * confettiProgress * 360f
 
                 if (y < size.height && x >= 0 && x <= size.width) {

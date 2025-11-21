@@ -41,44 +41,35 @@ fun PhaseAnalysisChart(
                 val concentricStats = heuristicStatistics.concentric
                 val eccentricStats = heuristicStatistics.eccentric
 
-                // Peak Force comparison
+                // Peak Weight comparison
                 PhaseMetricRow(
-                    label = "Peak Force",
-                    concentricValue = concentricStats?.peakForce ?: 0f,
-                    eccentricValue = eccentricStats?.peakForce ?: 0f,
-                    unit = "N",
-                    maxValue = maxOf(
-                        concentricStats?.peakForce ?: 0f,
-                        eccentricStats?.peakForce ?: 0f
-                    )
+                    label = "Peak Weight",
+                    concentricValue = concentricStats.kgMax,
+                    eccentricValue = eccentricStats.kgMax,
+                    unit = "kg",
+                    maxValue = maxOf(concentricStats.kgMax, eccentricStats.kgMax)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Average Force comparison
+                // Average Weight comparison
                 PhaseMetricRow(
-                    label = "Average Force",
-                    concentricValue = concentricStats?.averageForce ?: 0f,
-                    eccentricValue = eccentricStats?.averageForce ?: 0f,
-                    unit = "N",
-                    maxValue = maxOf(
-                        concentricStats?.averageForce ?: 0f,
-                        eccentricStats?.averageForce ?: 0f
-                    )
+                    label = "Avg Weight",
+                    concentricValue = concentricStats.kgAvg,
+                    eccentricValue = eccentricStats.kgAvg,
+                    unit = "kg",
+                    maxValue = maxOf(concentricStats.kgAvg, eccentricStats.kgAvg)
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Duration comparison
+                // Average Power comparison
                 PhaseMetricRow(
-                    label = "Duration",
-                    concentricValue = concentricStats?.duration ?: 0f,
-                    eccentricValue = eccentricStats?.duration ?: 0f,
-                    unit = "s",
-                    maxValue = maxOf(
-                        concentricStats?.duration ?: 0f,
-                        eccentricStats?.duration ?: 0f
-                    )
+                    label = "Avg Power",
+                    concentricValue = concentricStats.wattAvg,
+                    eccentricValue = eccentricStats.wattAvg,
+                    unit = "W",
+                    maxValue = maxOf(concentricStats.wattAvg, eccentricStats.wattAvg)
                 )
             } else {
                 Text(

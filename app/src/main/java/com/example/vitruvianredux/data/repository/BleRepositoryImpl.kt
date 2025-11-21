@@ -36,48 +36,6 @@ import timber.log.Timber
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * BLE Repository - Manages Bluetooth communication with Vitruvian device
- */
-interface BleRepository {
-    val connectionState: StateFlow<ConnectionState>
-    val monitorData: Flow<WorkoutMetric>
-    val repEvents: Flow<com.example.vitruvianredux.data.ble.RepNotification>
-    val scannedDevices: Flow<ScanResult>
-    val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState>
-    val heuristicData: StateFlow<HeuristicStatistics?>
-
-    suspend fun startScanning(): Result<Unit>
-    suspend fun stopScanning()
-    suspend fun connectToDevice(deviceAddress: String): Result<Unit>
-    suspend fun cancelConnection() // Cancel an in-progress connection attempt
-    suspend fun disconnect()
-    suspend fun sendInitSequence(): Result<Unit>
-    suspend fun startWorkout(params: WorkoutParameters): Result<Unit>
-    suspend fun stopWorkout(): Result<Unit>
-    suspend fun setColorScheme(schemeIndex: Int): Result<Unit>
-    suspend fun testOfficialAppProtocol(): Result<Unit>
-    fun enableHandleDetection() // Start monitor polling for auto-start detection
-    fun enableJustLiftWaitingMode() // Enable position-based handle detection for next exercise
-
-    /**
-     * Restart monitor polling to clear the machine's danger zone alarm state.
-     *
-     * This sends monitor commands to the Vitruvian device, which causes it to exit
-     * danger zone alarm mode (red flashing lights). Unlike enableHandleDetection(),
-     * this method is NOT intended to enable auto-start behavior.
-     *
-     * Use cases:
-     * - After AMRAP set completion to clear danger zone lights
-     * - After any workout mode that needs to clear machine alarm state without enabling auto-start
-     *
-     * Note: This calls the same underlying startMonitorPolling() as enableHandleDetection(),
-     * but the semantic separation makes the intent clear at call sites.
-     */
-    fun restartMonitorPolling()
-    fun setStrictValidationEnabled(enabled: Boolean)
-}
-
 @Singleton
 class BleRepositoryImpl @Inject constructor(
     private val bleManager: VitruvianBleManager,

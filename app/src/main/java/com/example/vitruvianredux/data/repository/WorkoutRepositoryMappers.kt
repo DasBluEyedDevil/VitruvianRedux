@@ -93,7 +93,6 @@ internal fun WorkoutMetricEntity.toWorkoutMetric(): WorkoutMetric {
  */
 internal fun WorkoutMetric.toEntity(sessionId: String, index: Int): WorkoutMetricEntity {
     return WorkoutMetricEntity(
-        id = "${sessionId}_$index",
         sessionId = sessionId,
         timestamp = timestamp,
         loadA = loadA,
@@ -286,12 +285,19 @@ internal fun RoutineExerciseEntity.toRoutineExercise(): RoutineExercise {
 internal fun HeuristicStatistics.toPhaseStatisticsEntity(sessionId: String): PhaseStatisticsEntity {
     return PhaseStatisticsEntity(
         sessionId = sessionId,
-        totalReps = totalReps,
-        concentricAvgMs = concentricAvgMs,
-        eccentricAvgMs = eccentricAvgMs,
-        pauseTopAvgMs = pauseTopAvgMs,
-        pauseBottomAvgMs = pauseBottomAvgMs,
-        timestamp = System.currentTimeMillis()
+        concentricKgAvg = concentric.kgAvg,
+        concentricKgMax = concentric.kgMax,
+        concentricVelAvg = concentric.velAvg,
+        concentricVelMax = concentric.velMax,
+        concentricWattAvg = concentric.wattAvg,
+        concentricWattMax = concentric.wattMax,
+        eccentricKgAvg = eccentric.kgAvg,
+        eccentricKgMax = eccentric.kgMax,
+        eccentricVelAvg = eccentric.velAvg,
+        eccentricVelMax = eccentric.velMax,
+        eccentricWattAvg = eccentric.wattAvg,
+        eccentricWattMax = eccentric.wattMax,
+        timestamp = timestamp
     )
 }
 

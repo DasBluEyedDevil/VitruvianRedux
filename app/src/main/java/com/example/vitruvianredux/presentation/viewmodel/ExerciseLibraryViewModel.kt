@@ -12,43 +12,6 @@ import timber.log.Timber
 import javax.inject.Inject
 
 /**
- * UI State for Exercise Library
- */
-data class ExerciseLibraryUiState(
-    val exercises: List<ExerciseEntity> = emptyList(),
-    val searchQuery: String = "",
-    val selectedMuscleGroups: Set<String> = emptySet(),
-    val selectedEquipment: Set<String> = emptySet(),
-    val isLoading: Boolean = false,
-    val error: String? = null,
-    val isImporting: Boolean = false,
-    val showFavoritesOnly: Boolean = false
-)
-
-/**
- * Available muscle group filters
- */
-enum class MuscleGroupFilter(val displayName: String) {
-    CHEST("Chest"),
-    BACK("Back"),
-    LEGS("Legs"),
-    SHOULDERS("Shoulders"),
-    ARMS("Arms"),
-    CORE("Core"),
-    FULL_BODY("Full Body")
-}
-
-/**
- * Available equipment filters
- */
-enum class EquipmentFilter(val displayName: String) {
-    BODYWEIGHT("Bodyweight"),
-    CABLE("Cable"),
-    BARBELL("Barbell"),
-    DUMBBELL("Dumbbell")
-}
-
-/**
  * ViewModel for Exercise Library screen
  */
 @HiltViewModel

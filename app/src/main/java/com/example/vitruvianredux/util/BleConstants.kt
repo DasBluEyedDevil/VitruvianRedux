@@ -50,4 +50,9 @@ object BleConstants {
     const val GATT_OPERATION_TIMEOUT_MS = 5_000L
     const val SCAN_TIMEOUT_MS = 30_000L
     const val BLE_QUEUE_DRAIN_DELAY_MS = 250L
+
+    // Init sequence configuration
+    const val INIT_RESPONSE_TIMEOUT_MS = 8_000L
+    const val INIT_MAX_RETRIES = 2
+    const val INIT_RETRY_DELAY_MS = 1_000L
 }

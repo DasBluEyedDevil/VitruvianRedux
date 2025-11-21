@@ -382,18 +382,6 @@ fun WorkoutHistoryCard(
 }
 
 /**
- * Data class to hold grouped exercise information within a routine
- */
-private data class ExerciseGroup(
-    val exerciseId: String,
-    val exerciseName: String,
-    val totalReps: Int,
-    val totalSets: Int,
-    val weightPerCableKg: Float,
-    val mode: String
-)
-
-/**
  * Card showing a grouped routine session with multiple exercises
  */
 @OptIn(ExperimentalMaterial3Api::class)

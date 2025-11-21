@@ -39,28 +39,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlin.math.ceil
 
-/**
- * Sealed class hierarchy for workout history items
- * Allows displaying both single workout sessions and grouped routine sessions
- */
-sealed class HistoryItem {
-    abstract val timestamp: Long
-}
-
-data class SingleSessionHistoryItem(val session: WorkoutSession) : HistoryItem() {
-    override val timestamp: Long = session.timestamp
-}
-
-data class GroupedRoutineHistoryItem(
-    val routineSessionId: String,
-    val routineName: String,
-    val sessions: List<WorkoutSession>,
-    val totalDuration: Long,
-    val totalReps: Int,
-    val exerciseCount: Int,
-    override val timestamp: Long
-) : HistoryItem()
-
 @HiltViewModel
 class MainViewModel @Inject constructor(
     application: Application,
@@ -2248,22 +2226,4 @@ class MainViewModel @Inject constructor(
         private const val AUTO_STOP_DURATION_SECONDS = 5f  // User preference: 5 seconds
     }
 }
-
-/**
- * UI state for the Just Lift auto-stop timer.
- */
-data class AutoStopUiState(
-    val isActive: Boolean = false,
-    val progress: Float = 0f,
-    val secondsRemaining: Int = 3  // Official app: 3 seconds
-)
-
-/**
- * Scanned device data class
- */
-data class ScannedDevice(
-    val name: String,
-    val address: String,
-    val rssi: Int = 0
-)
 

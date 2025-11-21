@@ -166,6 +166,7 @@ fun EnhancedMainScreen(
                             imageVector = when (connectionState) {
                                 is ConnectionState.Connected -> Icons.Default.Bluetooth
                                 is ConnectionState.Connecting -> Icons.AutoMirrored.Filled.BluetoothSearching
+                                is ConnectionState.Disconnecting -> Icons.AutoMirrored.Filled.BluetoothSearching
                                 is ConnectionState.Disconnected -> Icons.Default.BluetoothDisabled
                                 is ConnectionState.Scanning -> Icons.AutoMirrored.Filled.BluetoothSearching
                                 is ConnectionState.Error -> Icons.Default.BluetoothDisabled
@@ -173,6 +174,7 @@ fun EnhancedMainScreen(
                             contentDescription = when (connectionState) {
                                 is ConnectionState.Connected -> "Connected to machine. Tap to disconnect"
                                 is ConnectionState.Connecting -> "Connecting to machine"
+                                is ConnectionState.Disconnecting -> "Disconnecting from machine"
                                 is ConnectionState.Disconnected -> "Disconnected. Tap to connect"
                                 is ConnectionState.Scanning -> "Scanning for machine"
                                 is ConnectionState.Error -> "Connection error. Tap to retry"
@@ -180,6 +182,7 @@ fun EnhancedMainScreen(
                             tint = when (connectionState) {
                                 is ConnectionState.Connected -> Color(0xFF22C55E) // green-500
                                 is ConnectionState.Connecting -> Color(0xFFFBBF24) // yellow-400
+                                is ConnectionState.Disconnecting -> Color(0xFFFBBF24) // yellow-400
                                 is ConnectionState.Disconnected -> Color(0xFFEF4444) // red-500
                                 is ConnectionState.Scanning -> Color(0xFF3B82F6) // blue-500
                                 is ConnectionState.Error -> Color(0xFFEF4444) // red-500
@@ -190,6 +193,7 @@ fun EnhancedMainScreen(
                             text = when (connectionState) {
                                 is ConnectionState.Connected -> "Connected"
                                 is ConnectionState.Connecting -> "Connecting"
+                                is ConnectionState.Disconnecting -> "Disconnecting"
                                 is ConnectionState.Disconnected -> "Disconnected"
                                 is ConnectionState.Scanning -> "Scanning"
                                 is ConnectionState.Error -> "Error"
@@ -198,6 +202,7 @@ fun EnhancedMainScreen(
                             color = when (connectionState) {
                                 is ConnectionState.Connected -> Color(0xFF22C55E)
                                 is ConnectionState.Connecting -> Color(0xFFFBBF24)
+                                is ConnectionState.Disconnecting -> Color(0xFFFBBF24)
                                 is ConnectionState.Disconnected -> Color(0xFFEF4444)
                                 is ConnectionState.Scanning -> Color(0xFF3B82F6)
                                 is ConnectionState.Error -> Color(0xFFEF4444)

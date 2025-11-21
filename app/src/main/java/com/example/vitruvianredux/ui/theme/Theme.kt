@@ -6,8 +6,6 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
-enum class ThemeMode { SYSTEM, LIGHT, DARK }
-
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryPurpleDark,               // Desaturated purple reduces eye strain
     onPrimary = TextPrimary,                   // White text on purple

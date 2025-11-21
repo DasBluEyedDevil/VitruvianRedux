@@ -369,11 +369,3 @@ class ConnectionLogsViewModel @Inject constructor(
         }
     }
 }
-
-data class LogStats(
-    val total: Int,
-    val errors: Int,
-    val warnings: Int,
-    val info: Int,
-    val debug: Int
-)
