@@ -161,7 +161,7 @@ class BleRepositoryImpl @Inject constructor(
 
     override suspend fun disconnect() = withContext(Dispatchers.Main) {
         Timber.d("Disconnecting")
-        bleManager.disconnect()
+        bleManager.disconnectDevice()
         _connectionState.value = ConnectionState.Disconnected
         connectionLogger.logDisconnection()
     }

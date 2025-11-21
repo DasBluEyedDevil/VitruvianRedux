@@ -258,8 +258,8 @@ class MainViewModel @Inject constructor(
 
     private fun observeWorkoutMetrics() {
         viewModelScope.launch {
-            bleRepository.workoutMetrics.collect { metric ->
-                metric?.let { handleMonitorMetric(it) }
+            bleRepository.monitorData.collect { metric ->
+                handleMonitorMetric(metric)
             }
         }
     }
@@ -327,33 +327,40 @@ class MainViewModel @Inject constructor(
     // Scanning functions
     fun startScanning() {
         viewModelScope.launch {
-            bleRepository.startScanning { result ->
-                val device = ScannedDevice(
-                    name = result.device.name ?: "Unknown",
-                    address = result.device.address,
-                    rssi = result.rssi
-                )
-                val currentDevices = _scannedDevices.value.toMutableList()
-                val existingIndex = currentDevices.indexOfFirst { it.address == device.address }
-                if (existingIndex >= 0) {
-                    currentDevices[existingIndex] = device
-                } else {
-                    currentDevices.add(device)
+            // Start collecting scan results
+            launch {
+                bleRepository.scannedDevices.collect { result ->
+                    val device = ScannedDevice(
+                        name = result.device.name ?: "Unknown",
+                        address = result.device.address,
+                        rssi = result.rssi
+                    )
+                    val currentDevices = _scannedDevices.value.toMutableList()
+                    val existingIndex = currentDevices.indexOfFirst { it.address == device.address }
+                    if (existingIndex >= 0) {
+                        currentDevices[existingIndex] = device
+                    } else {
+                        currentDevices.add(device)
+                    }
+                    _scannedDevices.value = currentDevices.sortedByDescending { it.rssi }
                 }
-                _scannedDevices.value = currentDevices.sortedByDescending { it.rssi }
             }
+            // Start the scan
+            bleRepository.startScanning()
         }
     }
 
     fun stopScanning() {
-        bleRepository.stopScanning()
+        viewModelScope.launch {
+            bleRepository.stopScanning()
+        }
     }
 
     fun connectToDevice(deviceAddress: ScannedDevice) {
         viewModelScope.launch {
             _isAutoConnecting.value = true
             try {
-                bleRepository.connect(deviceAddress.address)
+                bleRepository.connectToDevice(deviceAddress.address)
             } catch (e: Exception) {
                 Timber.e(e, "Failed to connect to device")
                 _connectionError.value = e.message
@@ -398,15 +405,11 @@ class MainViewModel @Inject constructor(
     }
 
     fun enableHandleDetection() {
-        viewModelScope.launch {
-            bleRepository.enableHandleDetection()
-        }
+        bleRepository.enableHandleDetection()
     }
 
     fun prepareForJustLift() {
-        viewModelScope.launch {
-            bleRepository.prepareForWorkout()
-        }
+        bleRepository.enableJustLiftWaitingMode()
     }
 
     fun startWorkout(skipCountdown: Boolean = false, isJustLiftMode: Boolean = false) {
@@ -426,7 +429,8 @@ class MainViewModel @Inject constructor(
             autoStopStopRequested.set(false)
 
             _workoutState.value = WorkoutState.Active
-            bleRepository.startWorkout()
+            val params = _workoutParameters.value ?: return@launch
+            bleRepository.startWorkout(params)
         }
     }
 
@@ -441,7 +445,7 @@ class MainViewModel @Inject constructor(
 
     fun testOfficialAppProtocol() {
         viewModelScope.launch {
-            bleRepository.testProtocol()
+            bleRepository.testOfficialAppProtocol()
         }
     }
 

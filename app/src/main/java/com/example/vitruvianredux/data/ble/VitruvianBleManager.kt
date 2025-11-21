@@ -8,11 +8,13 @@ import com.example.vitruvianredux.domain.model.DiagnosticDetails
 import com.example.vitruvianredux.domain.model.HeuristicPhaseStatistics
 import com.example.vitruvianredux.domain.model.HeuristicStatistics
 import com.example.vitruvianredux.domain.model.WorkoutMetric
+import com.example.vitruvianredux.domain.model.WorkoutParameters
 import com.example.vitruvianredux.util.BleConstants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -65,9 +67,9 @@ data class RepNotification(
  * Handles connection, command sending, and data parsing.
  */
 class VitruvianBleManager(
-    context: Context,
+    private val appContext: Context,
     private val connectionLogger: ConnectionLogger? = null
-) : BleManager(context.applicationContext) {
+) : BleManager(appContext.applicationContext) {
 
     // Characteristics
     private var nusRxCharacteristic: BluetoothGattCharacteristic? = null
@@ -679,10 +681,165 @@ class VitruvianBleManager(
     }
 
     /**
+     * Connect to a device by its MAC address.
+     * @param deviceAddress The MAC address of the device
+     */
+    suspend fun connect(deviceAddress: String) {
+        val bluetoothManager = appContext.getSystemService(Context.BLUETOOTH_SERVICE) as android.bluetooth.BluetoothManager
+        val bluetoothAdapter = bluetoothManager.adapter
+            ?: throw IllegalStateException("Bluetooth not available")
+
+        val device = bluetoothAdapter.getRemoteDevice(deviceAddress)
+            ?: throw IllegalStateException("Device not found: $deviceAddress")
+
+        setDeviceInfo(device.name, deviceAddress)
+        _connectionState.value = ConnectionStatus.Connecting
+
+        connect(device)
+            .retry(3, 100)
+            .useAutoConnect(false)
+            .done {
+                Timber.i("Connected to device: ${device.name} ($deviceAddress)")
+                _connectionState.value = ConnectionStatus.Connected(device.name ?: "Unknown", deviceAddress)
+            }
+            .fail { _, status ->
+                Timber.e("Connection failed with status: $status")
+                _connectionState.value = ConnectionStatus.Error("Connection failed: status $status")
+            }
+            .suspend()
+    }
+
+    /**
+     * Cancel an ongoing connection attempt.
+     */
+    fun cancelConnection() {
+        Timber.d("Cancelling connection attempt")
+        cancelQueue()
+        _connectionState.value = ConnectionStatus.Disconnected
+    }
+
+    /**
+     * Disconnect from the currently connected device.
+     */
+    fun disconnectDevice() {
+        Timber.d("Disconnecting from device")
+        stopPolling()
+        disconnect()
+            .done { Timber.d("Disconnected successfully") }
+            .fail { _, status -> Timber.w("Disconnect failed with status: $status") }
+            .enqueue()
+        _connectionState.value = ConnectionStatus.Disconnected
+    }
+
+    /**
+     * Send the initialization sequence to the connected device.
+     * This prepares the device for workout operations.
+     */
+    suspend fun sendInitSequence() {
+        Timber.d("Sending initialization sequence")
+
+        // Standard init command structure
+        val initCommand = byteArrayOf(
+            0x11, // Init opcode
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+        )
+
+        sendCommand(initCommand).getOrThrow()
+        delay(BleConstants.BLE_QUEUE_DRAIN_DELAY_MS)
+
+        Timber.d("Initialization sequence completed")
+    }
+
+    /**
+     * Start a workout with the given parameters.
+     * @param params The workout parameters
+     */
+    suspend fun startWorkout(params: WorkoutParameters) {
+        Timber.d("Starting workout with params: $params")
+
+        // Build workout command based on parameters
+        val weightBytes = ByteBuffer.allocate(4)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .putFloat(params.weightPerCableKg)
+            .array()
+
+        val progressionBytes = ByteBuffer.allocate(4)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .putFloat(params.progressionRegressionKg)
+            .array()
+
+        // Workout start command structure
+        val workoutCommand = ByteBuffer.allocate(20)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .put(0x20.toByte()) // Workout start opcode
+            .put(params.workoutType.ordinal.toByte()) // Workout type
+            .put(params.reps.toByte()) // Rep count
+            .put(params.warmupReps.toByte()) // Warmup reps
+            .put(weightBytes) // Weight per cable
+            .put(progressionBytes) // Progression/regression
+            .put(if (params.isJustLift) 0x01 else 0x00) // Just Lift flag
+            .put(if (params.useAutoStart) 0x01 else 0x00) // Auto-start flag
+            .put(if (params.stopAtTop) 0x01 else 0x00) // Stop at top flag
+            .put(if (params.isAMRAP) 0x01 else 0x00) // AMRAP flag
+            .array()
+
+        sendCommand(workoutCommand).getOrThrow()
+        delay(BleConstants.BLE_QUEUE_DRAIN_DELAY_MS)
+
+        // Start monitor polling to track workout progress
+        startMonitorPolling()
+
+        Timber.d("Workout started successfully")
+    }
+
+    /**
+     * Stop the current workout.
+     */
+    suspend fun stopWorkout() {
+        Timber.d("Stopping workout")
+
+        // Workout stop command
+        val stopCommand = byteArrayOf(
+            0x21, // Workout stop opcode
+            0x00, 0x00, 0x00, 0x00
+        )
+
+        sendCommand(stopCommand).getOrThrow()
+        delay(BleConstants.BLE_QUEUE_DRAIN_DELAY_MS)
+
+        // Stop monitor polling
+        stopPolling()
+
+        Timber.d("Workout stopped successfully")
+    }
+
+    /**
+     * Set the LED color scheme on the device.
+     * @param schemeIndex The index of the color scheme (0-based)
+     */
+    suspend fun setColorScheme(schemeIndex: Int) {
+        Timber.d("Setting color scheme to index: $schemeIndex")
+
+        // Color scheme command
+        val colorCommand = byteArrayOf(
+            0x30, // Color scheme opcode
+            schemeIndex.toByte(),
+            0x00, 0x00, 0x00
+        )
+
+        sendCommand(colorCommand).getOrThrow()
+        delay(BleConstants.BLE_QUEUE_DRAIN_DELAY_MS)
+
+        Timber.d("Color scheme set successfully")
+    }
+
+    /**
      * Clean up resources.
+     * Cancels the pollingScope to prevent memory leaks from the SupervisorJob.
      */
     fun cleanup() {
         stopPolling()
+        pollingScope.cancel() // Cancel the scope's SupervisorJob to prevent memory leak
         disconnect().enqueue()
     }
 }

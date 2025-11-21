@@ -51,6 +51,13 @@ import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.ThemeMode
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import java.util.Calendar
 
 /**
  * Home screen with workout option cards and active program display.
@@ -322,26 +329,102 @@ fun HomeActiveProgramCard(
     kgToDisplay: (Float, WeightUnit) -> Float,
     onStartRoutine: (String) -> Unit
 ) {
-    // TODO: Implement active program card with today's scheduled workout
+    // Get current day of week (Calendar uses 1=Sunday, 7=Saturday, but our DB uses 1=Monday, 7=Sunday)
+    val calendar = remember { Calendar.getInstance() }
+    val calendarDayOfWeek = calendar.get(Calendar.DAY_OF_WEEK)
+    // Convert Calendar day (1=Sun, 2=Mon, ..., 7=Sat) to our format (1=Mon, ..., 7=Sun)
+    val todayDayOfWeek = when (calendarDayOfWeek) {
+        Calendar.SUNDAY -> 7
+        else -> calendarDayOfWeek - 1 // Mon=2->1, Tue=3->2, etc.
+    }
+
+    // Find today's scheduled routine
+    val todayProgramDay = program.days.find { it.dayOfWeek == todayDayOfWeek }
+    val todayRoutine = todayProgramDay?.let { day ->
+        routines.find { it.id == day.routineId }
+    }
+
+    // Day name for display
+    val dayNames = listOf("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+    val todayName = dayNames.getOrElse(todayDayOfWeek - 1) { "Today" }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
         ) {
+            // Program title
             Text(
-                text = program.program.name,
+                text = program.program.title,
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
+
             Text(
                 text = "Active Program",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Today's routine section
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = todayName,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                    if (todayRoutine != null) {
+                        Text(
+                            text = todayRoutine.name,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "${todayRoutine.exercises.size} exercises",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+                        )
+                    } else {
+                        Text(
+                            text = "Rest Day",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+
+                // Start Routine button (only show if there's a routine scheduled)
+                if (todayRoutine != null) {
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Button(
+                        onClick = { onStartRoutine(todayRoutine.id) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.PlayArrow,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Start Routine")
+                    }
+                }
+            }
         }
     }
 }

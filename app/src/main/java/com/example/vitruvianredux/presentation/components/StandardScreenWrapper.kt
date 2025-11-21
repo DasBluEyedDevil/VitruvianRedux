@@ -10,7 +10,7 @@ import androidx.compose.ui.Modifier
  */
 @Composable
 fun StandardScreenWrapper(
-    paddingValues: PaddingValues,
+    padding: PaddingValues = PaddingValues(0.dp),
     modifier: Modifier = Modifier,
     fab: @Composable (() -> Unit)? = null,
     content: @Composable BoxScope.() -> Unit
@@ -18,7 +18,7 @@ fun StandardScreenWrapper(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .padding(paddingValues)
+            .padding(padding)
     ) {
         content()
 
