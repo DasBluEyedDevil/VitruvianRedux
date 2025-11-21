@@ -3,6 +3,9 @@ package com.example.vitruvianredux.data.ble
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Context
+import com.example.vitruvianredux.domain.model.DiagnosticDetails
+import com.example.vitruvianredux.domain.model.HeuristicPhaseStatistics
+import com.example.vitruvianredux.domain.model.HeuristicStatistics
 import com.example.vitruvianredux.domain.model.WorkoutMetric
 import com.example.vitruvianredux.util.BleConstants
 import kotlinx.coroutines.CoroutineScope
@@ -48,11 +51,22 @@ class VitruvianBleManager(
         currentDeviceAddress = address
     }
 
+    /**
+     * Enable or disable strict validation mode for sample data.
+     * When enabled, position jumps greater than 200 units will be rejected.
+     */
+    fun setStrictValidationEnabled(enabled: Boolean) {
+        strictValidationEnabled = enabled
+        Timber.d("Strict validation enabled: $enabled")
+    }
+
     // GATT characteristics
     private var nusRxCharacteristic: BluetoothGattCharacteristic? = null
     private var monitorCharacteristic: BluetoothGattCharacteristic? = null
     private var propertyCharacteristic: BluetoothGattCharacteristic? = null
     private var repNotifyCharacteristic: BluetoothGattCharacteristic? = null
+    private var heuristicCharacteristic: BluetoothGattCharacteristic? = null
+    private var versionCharacteristic: BluetoothGattCharacteristic? = null
 
     // Official app workout command characteristics (for testing)
     private val workoutCmdCharacteristics = mutableListOf<BluetoothGattCharacteristic>()
@@ -61,6 +75,8 @@ class VitruvianBleManager(
     private val pollingScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var monitorPollingJob: Job? = null
     private var propertyPollingJob: Job? = null
+    private var heuristicPollingJob: Job? = null
+    private var diagnosticPollingJob: Job? = null
 
     // Last good positions for filtering spikes (volatile for thread safety)
     @Volatile private var lastGoodPosA = 0
@@ -70,10 +86,17 @@ class VitruvianBleManager(
     @Volatile private var lastPositionA = 0
     @Volatile private var lastPositionB = 0
     @Volatile private var lastTimestamp = 0L
+    @Volatile private var strictValidationEnabled = false
 
     // State flows
     private val _connectionState = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Disconnected)
     val connectionState: StateFlow<ConnectionStatus> = _connectionState.asStateFlow()
+
+    private val _diagnosticData = MutableStateFlow<DiagnosticDetails?>(null)
+    val diagnosticData: StateFlow<DiagnosticDetails?> = _diagnosticData.asStateFlow()
+
+    private val _heuristicData = MutableStateFlow<HeuristicStatistics?>(null)
+    val heuristicData: StateFlow<HeuristicStatistics?> = _heuristicData.asStateFlow()
 
     // Monitor data flow - CRITICAL: Need buffer for high-frequency emissions!
     private val _monitorData = MutableSharedFlow<WorkoutMetric>(
@@ -106,6 +129,13 @@ class VitruvianBleManager(
     private val HANDLE_GRABBED_THRESHOLD = 8.0  // Position > 8.0 = handles grabbed
     private val HANDLE_REST_THRESHOLD = 2.5     // Position < 2.5 = handles at rest
     private val VELOCITY_THRESHOLD = 100.0      // Velocity > 100 units/s = significant movement
+
+    // Handle detection constants for force-based grab/release detection
+    private val HANDLE_GRAB_FORCE_KG = 3.0f
+    private val HANDLE_GRAB_VELOCITY_THRESHOLD = 0.1f
+    private val HANDLE_GRAB_DURATION_MS = 100L
+    private val HANDLE_RELEASE_FORCE_KG = 1.0f
+    private val HANDLE_RELEASE_DURATION_MS = 150L
 
     // Track position range for tuning (logged at workout end)
     private var minPositionSeen = Double.MAX_VALUE
@@ -170,28 +200,43 @@ class VitruvianBleManager(
             monitorCharacteristic = nusService.getCharacteristic(BleConstants.MONITOR_CHAR_UUID)
             propertyCharacteristic = nusService.getCharacteristic(BleConstants.PROPERTY_CHAR_UUID)
             repNotifyCharacteristic = nusService.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
+            heuristicCharacteristic = nusService.getCharacteristic(BleConstants.HEURISTIC_CHAR_UUID)
+            versionCharacteristic = nusService.getCharacteristic(BleConstants.VERSION_CHAR_UUID)
 
             // DIAGNOSTIC: Log characteristic discovery with timestamp
             val timestamp = System.currentTimeMillis()
             Timber.i("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             Timber.i("✅ CHARACTERISTICS DISCOVERED! [$timestamp]")
             Timber.i("✅ RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
+            Timber.i("✅ Heuristic=${heuristicCharacteristic != null}, Version=${versionCharacteristic != null}")
             if (nusRxCharacteristic != null) {
                 Timber.i("✅ nusRxCharacteristic UUID: ${nusRxCharacteristic?.uuid}, instance: ${nusRxCharacteristic?.instanceId}")
             }
             Timber.i("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-            Timber.d("Found characteristics in NUS service: RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
+            Timber.d("Found characteristics in NUS service: RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}, Heuristic=${heuristicCharacteristic != null}, Version=${versionCharacteristic != null}")
 
-            // If rep notify not in NUS service, search all services
-            if (repNotifyCharacteristic == null) {
-                Timber.w("Rep notify characteristic not found in NUS service, searching all services...")
+            // If characteristics not in NUS service, search all services
+            if (repNotifyCharacteristic == null || heuristicCharacteristic == null || versionCharacteristic == null) {
+                Timber.w("Some characteristics not found in NUS service, searching all services...")
                 gatt.services.forEach { service ->
-                    val found = service.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
-                    if (found != null) {
-                        repNotifyCharacteristic = found
-                        Timber.d("Found rep notify characteristic in service: ${service.uuid}")
-                        return@forEach
+                    if (repNotifyCharacteristic == null) {
+                        service.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)?.let { found ->
+                            repNotifyCharacteristic = found
+                            Timber.d("Found rep notify characteristic in service: ${service.uuid}")
+                        }
+                    }
+                    if (heuristicCharacteristic == null) {
+                        service.getCharacteristic(BleConstants.HEURISTIC_CHAR_UUID)?.let { found ->
+                            heuristicCharacteristic = found
+                            Timber.d("Found heuristic characteristic in service: ${service.uuid}")
+                        }
+                    }
+                    if (versionCharacteristic == null) {
+                        service.getCharacteristic(BleConstants.VERSION_CHAR_UUID)?.let { found ->
+                            versionCharacteristic = found
+                            Timber.d("Found version characteristic in service: ${service.uuid}")
+                        }
                     }
                 }
             }
@@ -376,6 +421,8 @@ class VitruvianBleManager(
             monitorCharacteristic = null
             propertyCharacteristic = null
             repNotifyCharacteristic = null
+            heuristicCharacteristic = null
+            versionCharacteristic = null
             workoutCmdCharacteristics.clear()
             notifyCharacteristics.clear()
 
@@ -601,7 +648,61 @@ class VitruvianBleManager(
             Timber.d("🛑 Keep-alive property polling stopped (successful: $successfulReads, failed: $failedReads)")
         }
     }
-    
+
+    /**
+     * Start polling diagnostic data at 1 Hz
+     * Reads device diagnostic information including runtime, fault mask, and temperatures
+     */
+    fun startDiagnosticPolling() {
+        diagnosticPollingJob?.cancel()
+        diagnosticPollingJob = pollingScope.launch {
+            Timber.d("Starting diagnostic polling (1 Hz)")
+            while (isActive) {
+                try {
+                    propertyCharacteristic?.let { char ->
+                        readCharacteristic(char)
+                            .with { _, data ->
+                                data.value?.let { bytes ->
+                                    parseDiagnosticData(bytes)
+                                }
+                            }
+                            .enqueue()
+                    }
+                    delay(1000) // Poll every 1 second
+                } catch (e: Exception) {
+                    Timber.e(e, "Error in diagnostic polling")
+                }
+            }
+        }
+    }
+
+    /**
+     * Start polling heuristic data at 4 Hz
+     * Reads workout statistics including concentric/eccentric phase metrics
+     */
+    fun startHeuristicPolling() {
+        heuristicPollingJob?.cancel()
+        heuristicPollingJob = pollingScope.launch {
+            Timber.d("Starting heuristic polling (4 Hz)")
+            while (isActive) {
+                try {
+                    heuristicCharacteristic?.let { char ->
+                        readCharacteristic(char)
+                            .with { _, data ->
+                                data.value?.let { bytes ->
+                                    parseHeuristicData(bytes)
+                                }
+                            }
+                            .enqueue()
+                    }
+                    delay(250) // Poll at 4 Hz
+                } catch (e: Exception) {
+                    Timber.e(e, "Error in heuristic polling")
+                }
+            }
+        }
+    }
+
     /**
      * Stop all polling
      */
@@ -628,6 +729,8 @@ class VitruvianBleManager(
 
         monitorPollingJob?.cancel()
         propertyPollingJob?.cancel()
+        heuristicPollingJob?.cancel()
+        diagnosticPollingJob?.cancel()
 
         val afterCancel = System.currentTimeMillis()
         Timber.d("STOP_DEBUG: [$afterCancel] Jobs cancelled (took ${afterCancel - timestamp}ms)")
@@ -816,6 +919,89 @@ class VitruvianBleManager(
                     HandleState.Grabbed
                 }
             }
+        }
+    }
+
+    /**
+     * Parse diagnostic data from device
+     * Format: runtime (4 bytes), fault mask (4 bytes), temperatures (8 x 2 bytes)
+     */
+    private fun parseDiagnosticData(bytes: ByteArray): DiagnosticDetails? {
+        if (bytes.size < 32) {
+            Timber.w("Diagnostic data too short: ${bytes.size} bytes")
+            return null
+        }
+
+        try {
+            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+
+            val diagnostics = DiagnosticDetails(
+                runtimeSeconds = buffer.getInt(0).toLong(),
+                faultMask = buffer.getInt(4),
+                temperatures = listOf(
+                    buffer.getShort(8).toInt(),
+                    buffer.getShort(10).toInt(),
+                    buffer.getShort(12).toInt(),
+                    buffer.getShort(14).toInt(),
+                    buffer.getShort(16).toInt(),
+                    buffer.getShort(18).toInt(),
+                    buffer.getShort(20).toInt(),
+                    buffer.getShort(22).toInt()
+                )
+            )
+
+            _diagnosticData.value = diagnostics
+            Timber.v("Parsed diagnostic data: runtime=${diagnostics.runtimeSeconds}s, faultMask=0x${diagnostics.faultMask.toString(16)}")
+            return diagnostics
+        } catch (e: Exception) {
+            Timber.w("Failed to parse diagnostic data: ${e.message}")
+            return null
+        }
+    }
+
+    /**
+     * Parse heuristic statistics from device
+     * Format: concentric phase (24 bytes) + eccentric phase (24 bytes) = 48+ bytes
+     * Each phase: kgAvg, kgMax, velAvg, velMax, wattAvg, wattMax (6 floats x 4 bytes)
+     */
+    private fun parseHeuristicData(bytes: ByteArray): HeuristicStatistics? {
+        if (bytes.size < 48) {
+            Timber.w("Heuristic data too short: ${bytes.size} bytes")
+            return null
+        }
+
+        try {
+            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+
+            val concentric = HeuristicPhaseStatistics(
+                kgAvg = buffer.getFloat(0),
+                kgMax = buffer.getFloat(4),
+                velAvg = buffer.getFloat(8),
+                velMax = buffer.getFloat(12),
+                wattAvg = buffer.getFloat(16),
+                wattMax = buffer.getFloat(20)
+            )
+
+            val eccentric = HeuristicPhaseStatistics(
+                kgAvg = buffer.getFloat(24),
+                kgMax = buffer.getFloat(28),
+                velAvg = buffer.getFloat(32),
+                velMax = buffer.getFloat(36),
+                wattAvg = buffer.getFloat(40),
+                wattMax = buffer.getFloat(44)
+            )
+
+            val statistics = HeuristicStatistics(
+                concentric = concentric,
+                eccentric = eccentric
+            )
+
+            _heuristicData.value = statistics
+            Timber.v("Parsed heuristic data: concentric kgMax=${concentric.kgMax}, eccentric kgMax=${eccentric.kgMax}")
+            return statistics
+        } catch (e: Exception) {
+            Timber.w("Failed to parse heuristic data: ${e.message}")
+            return null
         }
     }
 
@@ -1024,6 +1210,8 @@ class VitruvianBleManager(
         Timber.d("Cleaning up BleManager resources")
         monitorPollingJob?.cancel()
         propertyPollingJob?.cancel()
+        heuristicPollingJob?.cancel()
+        diagnosticPollingJob?.cancel()
         pollingScope.coroutineContext[Job]?.cancel()
     }
 

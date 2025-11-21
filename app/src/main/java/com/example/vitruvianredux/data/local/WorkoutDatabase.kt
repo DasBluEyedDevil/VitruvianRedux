@@ -3,11 +3,14 @@ package com.example.vitruvianredux.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
+import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
 
 /**
  * Room database for workout history
  *
  * Version history:
+ * - v23: Added PhaseStatisticsEntity, DiagnosticsEntity, and safety event columns to workout_sessions
  * - v22: Added aliases and defaultCableConfig to exercises, isTutorial to exercise_videos
  * - v21: Added exerciseName to WorkoutSessionEntity
  * - v20: Added isAMRAP to routine_exercises for AMRAP workout mode
@@ -38,9 +41,11 @@ import androidx.room.TypeConverters
         PersonalRecordEntity::class,
         WeeklyProgramEntity::class,
         ProgramDayEntity::class,
-        ConnectionLogEntity::class
+        ConnectionLogEntity::class,
+        PhaseStatisticsEntity::class,
+        DiagnosticsEntity::class
     ],
-    version = 22,  // Added aliases, defaultCableConfig to exercises, isTutorial to exercise_videos
+    version = 23,  // Added PhaseStatisticsEntity, DiagnosticsEntity, and safety event columns
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -49,4 +54,6 @@ abstract class WorkoutDatabase : RoomDatabase() {
     abstract fun exerciseDao(): ExerciseDao
     abstract fun personalRecordDao(): PersonalRecordDao
     abstract fun connectionLogDao(): ConnectionLogDao
+    abstract fun phaseStatisticsDao(): PhaseStatisticsDao
+    abstract fun diagnosticsDao(): DiagnosticsDao
 }

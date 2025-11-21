@@ -40,6 +40,7 @@ interface BleRepository {
     val repEvents: Flow<com.example.vitruvianredux.data.ble.RepNotification>
     val scannedDevices: Flow<ScanResult>
     val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState>
+    val heuristicData: StateFlow<com.example.vitruvianredux.domain.model.HeuristicStatistics?>
 
     suspend fun startScanning(): Result<Unit>
     suspend fun stopScanning()
@@ -69,18 +70,22 @@ interface BleRepository {
      * but the semantic separation makes the intent clear at call sites.
      */
     fun restartMonitorPolling()
+
+    /**
+     * Enable or disable strict validation mode for BLE data parsing.
+     */
+    fun setStrictValidationEnabled(enabled: Boolean)
 }
 
 @Singleton
 class BleRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val connectionLogger: com.example.vitruvianredux.data.logger.ConnectionLogger
+    private val connectionLogger: com.example.vitruvianredux.data.logger.ConnectionLogger,
+    private val bleManager: VitruvianBleManager
 ) : BleRepository {
 
     private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
     private val bluetoothAdapter: BluetoothAdapter? = bluetoothManager.adapter
-    private var bleManager: VitruvianBleManager? = null
-    private var connectingBleManager: VitruvianBleManager? = null  // Track manager being created during connection
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
@@ -103,6 +108,9 @@ class BleRepositoryImpl @Inject constructor(
 
     private val _handleState = MutableStateFlow(com.example.vitruvianredux.data.ble.HandleState.Released)
     override val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState> = _handleState.asStateFlow()
+
+    override val heuristicData: StateFlow<com.example.vitruvianredux.domain.model.HeuristicStatistics?>
+        get() = bleManager.heuristicData
 
     private var isScanning = false
 
@@ -243,77 +251,65 @@ class BleRepositoryImpl @Inject constructor(
             _connectionState.value = ConnectionState.Connecting
             Timber.d("Connection state set to Connecting")
 
-            // Create BLE manager and track it for potential cancellation
-            val newBleManager = VitruvianBleManager(context, connectionLogger).apply {
-                setDeviceInfo(device.name, device.address)
-                Timber.d("Created VitruvianBleManager")
+            // Configure injected BLE manager with device info
+            bleManager.setDeviceInfo(device.name, device.address)
+            Timber.d("Configured VitruvianBleManager with device info")
 
-                // Set up connection observer
-                scope.launch {
-                    connectionState.collect { status ->
-                        Timber.d("BLE Manager connection status changed: $status")
-                        when (status) {
-                            is com.example.vitruvianredux.data.ble.ConnectionStatus.Ready -> {
-                                Timber.d("Device ready! Setting state to Connected")
-                                connectionLogger.logConnectionSuccess(deviceName, deviceAddress)
-                                _connectionState.value = ConnectionState.Connected(
-                                    deviceName = device.name ?: "Vitruvian",
-                                    deviceAddress = device.address
-                                )
-                                // Connection succeeded, clear the connecting reference
-                                connectingBleManager = null
-                            }
-                            is com.example.vitruvianredux.data.ble.ConnectionStatus.Disconnected -> {
-                                Timber.d("Device disconnected")
-                                connectionLogger.logDisconnected(deviceName, deviceAddress)
-                                _connectionState.value = ConnectionState.Disconnected
-                                // Connection failed, clear the connecting reference
-                                connectingBleManager = null
-                            }
-                            is com.example.vitruvianredux.data.ble.ConnectionStatus.Error -> {
-                                Timber.e("Connection error: ${status.message}")
-                                connectionLogger.logConnectionFailed(deviceName, deviceAddress, status.message)
-                                _connectionState.value = ConnectionState.Error(status.message)
-                                // Connection failed, clear the connecting reference
-                                connectingBleManager = null
-                            }
+            // Set up connection observer
+            scope.launch {
+                bleManager.connectionState.collect { status ->
+                    Timber.d("BLE Manager connection status changed: $status")
+                    when (status) {
+                        is com.example.vitruvianredux.data.ble.ConnectionStatus.Ready -> {
+                            Timber.d("Device ready! Setting state to Connected")
+                            connectionLogger.logConnectionSuccess(deviceName, deviceAddress)
+                            _connectionState.value = ConnectionState.Connected(
+                                deviceName = device.name ?: "Vitruvian",
+                                deviceAddress = device.address
+                            )
                         }
-                    }
-                }
-
-                // Collect monitor data and forward to repository flow
-                scope.launch {
-                    Timber.d("Starting monitor data collection from BleManager")
-                    monitorData.collect { metric ->
-                        Timber.d("BleRepository forwarding monitor metric: pos=(${metric.positionA},${metric.positionB})")
-                        _monitorData.emit(metric)
-                    }
-                }
-
-                // Collect rep events and forward to repository flow
-                scope.launch {
-                    Timber.d("?? Starting rep event collection from BleManager")
-                    repEvents.collect { repNotification ->
-                        Timber.d("?? BleRepository forwarding rep event: top=${repNotification.topCounter}, complete=${repNotification.completeCounter}")
-                        _repEvents.emit(repNotification)
-                    }
-                }
-
-                // Collect handle state and forward to repository flow
-                scope.launch {
-                    handleState.collect { state ->
-                        _handleState.value = state
+                        is com.example.vitruvianredux.data.ble.ConnectionStatus.Disconnected -> {
+                            Timber.d("Device disconnected")
+                            connectionLogger.logDisconnected(deviceName, deviceAddress)
+                            _connectionState.value = ConnectionState.Disconnected
+                        }
+                        is com.example.vitruvianredux.data.ble.ConnectionStatus.Error -> {
+                            Timber.e("Connection error: ${status.message}")
+                            connectionLogger.logConnectionFailed(deviceName, deviceAddress, status.message)
+                            _connectionState.value = ConnectionState.Error(status.message)
+                        }
                     }
                 }
             }
 
-            // Store references to the new BLE manager
-            bleManager = newBleManager
-            connectingBleManager = newBleManager
+            // Collect monitor data and forward to repository flow
+            scope.launch {
+                Timber.d("Starting monitor data collection from BleManager")
+                bleManager.monitorData.collect { metric ->
+                    Timber.d("BleRepository forwarding monitor metric: pos=(${metric.positionA},${metric.positionB})")
+                    _monitorData.emit(metric)
+                }
+            }
+
+            // Collect rep events and forward to repository flow
+            scope.launch {
+                Timber.d("Starting rep event collection from BleManager")
+                bleManager.repEvents.collect { repNotification ->
+                    Timber.d("BleRepository forwarding rep event: top=${repNotification.topCounter}, complete=${repNotification.completeCounter}")
+                    _repEvents.emit(repNotification)
+                }
+            }
+
+            // Collect handle state and forward to repository flow
+            scope.launch {
+                bleManager.handleState.collect { state ->
+                    _handleState.value = state
+                }
+            }
 
             // Connect to device
             Timber.d("Initiating connection to device...")
-            newBleManager.connect(device)
+            bleManager.connect(device)
                 ?.timeout(BleConstants.CONNECTION_TIMEOUT_MS)
                 ?.retry(3, 100)
                 ?.useAutoConnect(false)
@@ -338,7 +334,7 @@ class BleRepositoryImpl @Inject constructor(
                                 initResult.exceptionOrNull()
                             )
                             // Disconnect the device to force user to reconnect
-                            newBleManager.disconnect().enqueue()
+                            bleManager.disconnect().enqueue()
                         }
                     }
                 }
@@ -357,23 +353,11 @@ class BleRepositoryImpl @Inject constructor(
         try {
             Timber.d("Cancelling in-progress connection...")
 
-            // Cancel the connecting BLE manager if one exists
-            val managerToCancel = connectingBleManager
-            if (managerToCancel != null) {
-                Timber.d("Cleaning up connecting BLE manager...")
-                managerToCancel.stopPolling()
-                managerToCancel.cleanup()
-                managerToCancel.disconnect()?.enqueue()
-
-                // Only clear bleManager if it's the same instance we're cancelling
-                // (i.e., connection hasn't succeeded yet)
-                if (bleManager === managerToCancel) {
-                    bleManager = null
-                }
-                connectingBleManager = null
-            } else {
-                Timber.d("No connecting BLE manager to cancel")
-            }
+            // Stop and cleanup the BLE manager
+            Timber.d("Cleaning up BLE manager...")
+            bleManager.stopPolling()
+            bleManager.cleanup()
+            bleManager.disconnect()?.enqueue()
 
             // Reset connection state only if we're still connecting
             if (_connectionState.value is ConnectionState.Connecting ||
@@ -390,11 +374,9 @@ class BleRepositoryImpl @Inject constructor(
     override suspend fun disconnect() = withContext(Dispatchers.Main) {
         try {
             Timber.d("Disconnecting from device...")
-            bleManager?.stopPolling()
-            bleManager?.cleanup()  // Clean up resources and cancel polling jobs
-            bleManager?.disconnect()?.enqueue()
-            bleManager = null
-            connectingBleManager = null
+            bleManager.stopPolling()
+            bleManager.cleanup()  // Clean up resources and cancel polling jobs
+            bleManager.disconnect()?.enqueue()
             _connectionState.value = ConnectionState.Disconnected
             Timber.d("Disconnected from device")
         } catch (e: Exception) {
@@ -410,12 +392,6 @@ class BleRepositoryImpl @Inject constructor(
 
             Timber.d("=== Starting INIT sequence (with retry logic) ===")
             connectionLogger.logInitStarted(deviceName ?: "Unknown", deviceAddress ?: "")
-
-            val manager = bleManager
-            if (manager == null) {
-                Timber.e("BLE manager is null, cannot send INIT sequence")
-                return@withContext Result.failure(Exception("BLE manager not available"))
-            }
 
             // Retry logic for INIT sequence with exponential backoff
             var lastException: Exception? = null
@@ -443,10 +419,10 @@ class BleRepositoryImpl @Inject constructor(
                     if (attempt == 0) {
                         connectionLogger.logCommandSent("INIT_COMMAND", deviceName, deviceAddress, initCommand)
                     }
-                    manager.sendCommand(initCommand).getOrThrow()
-                    
+                    bleManager.sendCommand(initCommand).getOrThrow()
+
                     Timber.d("Step 1: Waiting for INIT_RESPONSE (0x0B) with ${BleConstants.INIT_RESPONSE_TIMEOUT_MS}ms timeout...")
-                    val received0x0B = manager.awaitResponse(0x0Bu, timeoutMs = BleConstants.INIT_RESPONSE_TIMEOUT_MS)
+                    val received0x0B = bleManager.awaitResponse(0x0Bu, timeoutMs = BleConstants.INIT_RESPONSE_TIMEOUT_MS)
                     if (!received0x0B) {
                         throw Exception("Timeout waiting for INIT_RESPONSE (0x0B) after ${BleConstants.INIT_RESPONSE_TIMEOUT_MS}ms")
                     }
@@ -458,10 +434,10 @@ class BleRepositoryImpl @Inject constructor(
                     if (attempt == 0) {
                         connectionLogger.logCommandSent("INIT_PRESET", deviceName, deviceAddress, initPreset)
                     }
-                    manager.sendCommand(initPreset).getOrThrow()
-                    
+                    bleManager.sendCommand(initPreset).getOrThrow()
+
                     Timber.d("Step 2: Waiting for INIT_PRESET_RESPONSE (0x12) with ${BleConstants.INIT_RESPONSE_TIMEOUT_MS}ms timeout...")
-                    val received0x12 = manager.awaitResponse(0x12u, timeoutMs = BleConstants.INIT_RESPONSE_TIMEOUT_MS)
+                    val received0x12 = bleManager.awaitResponse(0x12u, timeoutMs = BleConstants.INIT_RESPONSE_TIMEOUT_MS)
                     if (!received0x12) {
                         throw Exception("Timeout waiting for INIT_PRESET_RESPONSE (0x12) after ${BleConstants.INIT_RESPONSE_TIMEOUT_MS}ms")
                     }
@@ -529,7 +505,7 @@ class BleRepositoryImpl @Inject constructor(
                         echoFrame,
                         "Mode=${params.workoutType.displayName}, Level=${params.workoutType.level}, Eccentric=${params.workoutType.eccentricLoad.percentage}%, Reps=${params.reps}, JustLift=${params.isJustLift}"
                     )
-                    bleManager?.sendCommand(echoFrame)?.getOrThrow()
+                    bleManager.sendCommand(echoFrame).getOrThrow()
                     delay(100)
                 }
                 is com.example.vitruvianredux.domain.model.WorkoutType.Program -> {
@@ -558,7 +534,7 @@ class BleRepositoryImpl @Inject constructor(
                         programFrame,
                         additionalInfo
                     )
-                    bleManager?.sendCommand(programFrame)?.getOrThrow()
+                    bleManager.sendCommand(programFrame).getOrThrow()
                     delay(100)
                 }
             }
@@ -570,7 +546,7 @@ class BleRepositoryImpl @Inject constructor(
             // Property polling already running as keep-alive from connection time
             Timber.d("Starting monitor polling for workout...")
             connectionLogger.logPollingStarted("MONITOR", deviceName, deviceAddress)
-            bleManager?.startMonitorPolling()
+            bleManager.startMonitorPolling()
 
             Result.success(Unit)
         } catch (e: Exception) {
@@ -600,7 +576,7 @@ class BleRepositoryImpl @Inject constructor(
             Timber.d("STOP_DEBUG: [$beforePollingStop] BEFORE stopping polling jobs")
             Timber.d("STOP_DEBUG: Cancelling polling jobs...")
             connectionLogger.logPollingStopped("ALL", deviceName, deviceAddress)
-            bleManager?.stopPolling()
+            bleManager.stopPolling()
             val afterPollingStop = System.currentTimeMillis()
             Timber.d("STOP_DEBUG: [$afterPollingStop] AFTER stopping polling jobs (took ${afterPollingStop - beforePollingStop}ms)")
 
@@ -622,7 +598,7 @@ class BleRepositoryImpl @Inject constructor(
             Timber.d("STOP_DEBUG: INIT command size: ${initCommand.size} bytes")
             Timber.d("STOP_DEBUG: Sending INIT command to release tension...")
             connectionLogger.logCommandSent("STOP_WORKOUT", deviceName, deviceAddress, initCommand)
-            bleManager?.sendCommand(initCommand)?.getOrThrow()
+            bleManager.sendCommand(initCommand).getOrThrow()
             val afterInitSend = System.currentTimeMillis()
             Timber.d("STOP_DEBUG: [$afterInitSend] AFTER sending INIT command (took ${afterInitSend - beforeInitSend}ms)")
             Timber.d("STOP_DEBUG: INIT command sent successfully")
@@ -663,7 +639,7 @@ class BleRepositoryImpl @Inject constructor(
                 colorFrame,
                 "Scheme=${scheme.name}, Brightness=${scheme.brightness}, Colors=${scheme.colors.size}"
             )
-            bleManager?.sendCommand(colorFrame)?.getOrThrow()
+            bleManager.sendCommand(colorFrame).getOrThrow()
 
             Timber.d("Color scheme set to: ${scheme.name}")
             connectionLogger.logCommandSuccess("SET_LED_COLOR", deviceName, deviceAddress)
@@ -681,7 +657,7 @@ class BleRepositoryImpl @Inject constructor(
     override suspend fun testOfficialAppProtocol(): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             Timber.d("Repository: Starting official app protocol test")
-            bleManager?.testOfficialAppProtocol()?.getOrThrow()
+            bleManager.testOfficialAppProtocol().getOrThrow()
             Result.success(Unit)
         } catch (e: Exception) {
             Timber.e(e, "Failed to test official app protocol")
@@ -691,21 +667,22 @@ class BleRepositoryImpl @Inject constructor(
 
     override fun enableHandleDetection() {
         Timber.d("Enabling handle detection - starting monitor polling for auto-start")
-        bleManager?.startMonitorPolling()
+        bleManager.startMonitorPolling()
     }
 
     override fun enableJustLiftWaitingMode() {
         Timber.d("Enabling Just Lift waiting mode - position-based handle detection")
-        bleManager?.enableJustLiftWaitingMode()
+        bleManager.enableJustLiftWaitingMode()
     }
 
     override fun restartMonitorPolling() {
-        if (bleManager == null) {
-            Timber.w("Cannot restart monitor polling - BLE manager is null")
-        } else {
-            Timber.d("Restarting monitor polling - clearing danger zone alarm state on machine")
-            bleManager?.startMonitorPolling()
-        }
+        Timber.d("Restarting monitor polling - clearing danger zone alarm state on machine")
+        bleManager.startMonitorPolling()
+    }
+
+    override fun setStrictValidationEnabled(enabled: Boolean) {
+        Timber.d("Setting strict validation enabled: $enabled")
+        bleManager.setStrictValidationEnabled(enabled)
     }
 }
 
