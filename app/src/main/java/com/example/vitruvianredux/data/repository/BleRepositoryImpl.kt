@@ -110,8 +110,8 @@ class BleRepositoryImpl @Inject constructor(
     private val _handleState = MutableStateFlow(com.example.vitruvianredux.data.ble.HandleState.Released)
     override val handleState: StateFlow<com.example.vitruvianredux.data.ble.HandleState> = _handleState.asStateFlow()
 
-    private val _heuristicData = MutableStateFlow<HeuristicStatistics?>(null)
-    override val heuristicData: StateFlow<HeuristicStatistics?> = _heuristicData.asStateFlow()
+    override val heuristicData: StateFlow<HeuristicStatistics?>
+        get() = bleManager.heuristicData
 
     private var isScanning = false
 
@@ -296,9 +296,9 @@ class BleRepositoryImpl @Inject constructor(
 
                 // Collect rep events and forward to repository flow
                 scope.launch {
-                    Timber.d("?? Starting rep event collection from BleManager")
+                    Timber.d("Starting rep event collection from BleManager")
                     repEvents.collect { repNotification ->
-                        Timber.d("?? BleRepository forwarding rep event: ROM=${repNotification.repsRomCount}/${repNotification.repsRomTotal}, Set=${repNotification.repsSetCount}/${repNotification.repsSetTotal}")
+                        Timber.d("BleRepository forwarding rep event: ROM=${repNotification.repsRomCount}/${repNotification.repsRomTotal}, Set=${repNotification.repsSetCount}/${repNotification.repsSetTotal}")
                         _repEvents.emit(repNotification)
                     }
                 }
@@ -415,7 +415,7 @@ class BleRepositoryImpl @Inject constructor(
                         echoFrame,
                         "Mode=${params.workoutType.displayName}, Level=${params.workoutType.level}, Eccentric=${params.workoutType.eccentricLoad.percentage}%, Reps=${params.reps}, JustLift=${params.isJustLift}"
                     )
-                    bleManager?.sendCommand(echoFrame)?.getOrThrow()
+                    bleManager.sendCommand(echoFrame).getOrThrow()
                     delay(100)
                 }
                 is com.example.vitruvianredux.domain.model.WorkoutType.Program -> {
@@ -592,4 +592,3 @@ class BleRepositoryImpl @Inject constructor(
         bleManager.setStrictValidationEnabled(enabled)
     }
 }
-

@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PhaseStatisticsDao {
@@ -20,5 +21,5 @@ interface PhaseStatisticsDao {
     suspend fun deleteBySessionId(sessionId: String)
 
     @Query("SELECT * FROM phase_statistics ORDER BY timestamp DESC")
-    fun getAll(): kotlinx.coroutines.flow.Flow<List<PhaseStatisticsEntity>>
+    fun getAll(): Flow<List<PhaseStatisticsEntity>>
 }

@@ -3,6 +3,10 @@ package com.example.vitruvianredux.data.local
 import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
+import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
+import com.example.vitruvianredux.data.local.entity.DiagnosticsEntity
+import com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity
 
 /**
  * Room database for workout history
@@ -40,8 +44,8 @@ import androidx.room.TypeConverters
         WeeklyProgramEntity::class,
         ProgramDayEntity::class,
         ConnectionLogEntity::class,
-        com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity::class,
-        com.example.vitruvianredux.data.local.entity.DiagnosticsEntity::class
+        PhaseStatisticsEntity::class,
+        DiagnosticsEntity::class
     ],
     version = 23,  // Added safety tracking, phase statistics, diagnostics
     exportSchema = false
@@ -52,6 +56,6 @@ abstract class WorkoutDatabase : RoomDatabase() {
     abstract fun exerciseDao(): ExerciseDao
     abstract fun personalRecordDao(): PersonalRecordDao
     abstract fun connectionLogDao(): ConnectionLogDao
-    abstract fun phaseStatisticsDao(): com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
-    abstract fun diagnosticsDao(): com.example.vitruvianredux.data.local.dao.DiagnosticsDao
+    abstract fun phaseStatisticsDao(): PhaseStatisticsDao
+    abstract fun diagnosticsDao(): DiagnosticsDao
 }
