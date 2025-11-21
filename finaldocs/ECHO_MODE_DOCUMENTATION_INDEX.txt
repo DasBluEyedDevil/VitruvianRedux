@@ -1,0 +1,328 @@
+================================================================================
+              ECHO MODE DOCUMENTATION - COMPLETE INDEX
+================================================================================
+
+This directory contains comprehensive documentation of the Echo Mode 
+implementation in the Vitruvian Deobfuscated codebase.
+
+================================================================================
+                           DOCUMENTATION FILES
+================================================================================
+
+1. ECHO_MODE_EXECUTIVE_SUMMARY.txt (258 lines)
+   Quick reference guide with:
+   - High-level overview of Echo Mode functionality
+   - Core algorithm explanation (50.0f / velocity formula)
+   - Velocity levels (HARD/HARDER/HARDEST/EPIC: 50/40/30/15°/s)
+   - Key safety mechanisms
+   - Implementation flow diagram
+   - Device protocol details
+   - Motor control loop explanation
+   - Critical code locations with file and line numbers
+   - Key metrics and technical requirements
+   
+   START HERE for a quick understanding
+
+2. ECHO_MODE_COMPLETE_ANALYSIS.md (537 lines)
+   In-depth technical analysis covering all 10 requested areas:
+   
+   Section 1: What Echo Mode Is (Purpose, Features, Benefits)
+   Section 2: Complete Implementation Details (Packet Structure, Configuration)
+   Section 3: Differences from Other Training Modes (Comparison Table)
+   Section 4: Isokinetic Principles (Velocity Levels, Duration Calculation)
+   Section 5: Strength Curve Recording and Playback (Capture, Storage, Reapplication)
+   Section 6: Position-Based Force Matching (Algorithm, Blending, Data Collection)
+   Section 7: Data Collection and Processing (Session Data, Pipeline, Protocol)
+   Section 8: User Interaction Patterns (Setup, During Workout, Feedback)
+   Section 9: Safety Mechanisms (Auto-deload Triggers, Spotter, ROM, Delay)
+   Section 10: Device Hardware Integration (Protocol, Motor Control, Sensors)
+   
+   ALSO INCLUDES:
+   - Implementation files summary table
+   - Code examples with explanations
+   - Detailed algorithm descriptions
+   - BLE serialization explanation
+   
+   READ THIS for complete understanding of all aspects
+
+3. ECHO_MODE_FILE_REFERENCE.md (295 lines)
+   Code-level reference with exact file locations and line numbers:
+   
+   Section 1: Core Protocol and Packet Definitions
+   - EchoPacket.java (lines 19, 115-116)
+   - Ek/P.java (lines 44, 46, 48)
+   
+   Section 2: Force and Phase Configuration
+   - Ek/C1516m.java (lines 15-30, 54-61, 79-98)
+   - Ek/C1517n.java (lines 12-15, 35-38, 61)
+   
+   Section 3: Echo Mode Properties and Velocity Levels
+   - dk/c.java (lines 24-33, 39-45, 48-54, 70, 88-89)
+   - dk/d.java (lines 32, 34, 40-42)
+   
+   Section 4: Echo Configuration and Algorithm Implementation
+   - Yj/d.java (lines 13-40, 42-53, 56-59, 82-96)
+   - dk/e.java (lines 370-372) **CRITICAL LINE**
+   
+   Section 5: Echo Mode UI and User Interaction
+   - Ij/O.java (lines 57, 59-62, 64-73, 74-95)
+   - xj/C7502e.java (lines 27, 61)
+   - EchoModePromoScreenViewModel.java (lines 19, 142-178)
+   
+   Section 6: Device Hardware Communication
+   - BLE serialization details
+   - Packet structure explanation
+   
+   Section 7: Safety Mechanisms and Range of Motion
+   - ROM tracking (EchoPacket.java line 22)
+   - Safety documentation (trainingmodes.md lines 153-180)
+   
+   Section 8: Echo Mode Algorithm Parameters Summary
+   - Parameter table with file locations
+   
+   PLUS:
+   - Code walkthrough steps
+   - File dependencies map
+   - Complete file list with absolute paths
+   - Search strategy tips
+   
+   USE THIS as a navigation guide when diving into specific code
+
+4. res/raw/trainingmodes.md (existing user documentation)
+   - Lines 152-180: Echo Mode user guide
+   - Contains: description, user instructions, safety information
+   - Written for end-users, not developers
+
+================================================================================
+                           KEY LOCATIONS SUMMARY
+================================================================================
+
+CRITICAL ALGORITHM (THE MAIN FORMULA)
+File: dk/e.java, Lines 370-372
+Code: concentricDurationSeconds = 50.0f / cVar.b().f43595a
+
+This one line shows the core Echo Mode algorithm: duration is calculated by
+dividing 50.0 by the selected velocity level, resulting in constant speed.
+
+VELOCITY LEVELS
+File: dk/d.java, Lines 32-34
+- HARD: 50.0°/s → 1.0 second per rep
+- HARDER: 40.0°/s → 1.25 seconds per rep
+- HARDEST: 30.0°/s → 1.67 seconds per rep
+- EPIC: 15.0°/s → 3.33 seconds per rep
+
+FORCE CONFIGURATION
+File: Ek/C1516m.java, Lines 15-30
+- spotter (safety threshold): 0-65535
+- eccentricOverload (load override): 0-100%
+- referenceMapBlend (curve blend): 0-50
+- concentricDelayS (load delay): 0.1s default
+- concentric and eccentric phases with duration and velocity
+
+PACKET DEFINITION
+File: com/vitruvian/formtrainer/EchoPacket.java, Lines 19-22
+- mode: EchoForceConfig (C1516m)
+- repCount: 0-255 total reps
+- romRepCount: 0-255 valid reps within ROM
+
+================================================================================
+                        ALL 13 IMPLEMENTATION FILES
+================================================================================
+
+1. /home/user/VitruvianDeobfuscated/java-decompiled/sources/com/vitruvian/formtrainer/EchoPacket.java
+   - Defines EchoPacket data structure
+   - Contains ROM rep tracking
+   - Implements BLE serialization
+
+2. /home/user/VitruvianDeobfuscated/java-decompiled/sources/Ek/P.java
+   - Protocol identifiers (78 = ECHO mode)
+   - Mode enumeration
+
+3. /home/user/VitruvianDeobfuscated/java-decompiled/sources/Ek/C1516m.java
+   - EchoForceConfig structure
+   - All force parameters
+   - Phase configuration
+
+4. /home/user/VitruvianDeobfuscated/java-decompiled/sources/Ek/C1517n.java
+   - EchoPhase structure
+   - Duration and velocity per phase
+
+5. /home/user/VitruvianDeobfuscated/java-decompiled/sources/dk/c.java
+   - EchoModeProperties class
+   - Stores load % and velocity level
+   - Serialization definition
+
+6. /home/user/VitruvianDeobfuscated/java-decompiled/sources/dk/d.java
+   - EchoVelocity enum
+   - HARD/HARDER/HARDEST/EPIC constants
+   - Velocity values in °/s
+
+7. /home/user/VitruvianDeobfuscated/java-decompiled/sources/dk/e.java
+   - ExerciseSetUiModel
+   - Mode selection logic
+   - **CRITICAL: Duration calculation formula (line 372)**
+
+8. /home/user/VitruvianDeobfuscated/java-decompiled/sources/Yj/d.java
+   - EchoConfiguration class
+   - Builds echo packets with all parameters
+
+9. /home/user/VitruvianDeobfuscated/java-decompiled/sources/Yj/r.java
+   - RegularConfiguration (for comparison)
+
+10. /home/user/VitruvianDeobfuscated/java-decompiled/sources/Ij/O.java
+    - ModeSettingsComponent
+    - UI for displaying Echo Mode settings
+    - Line 57: Mode detection (ordinal == 8)
+
+11. /home/user/VitruvianDeobfuscated/java-decompiled/sources/xj/C7502e.java
+    - Echo promo screen implementation
+
+12. /home/user/VitruvianDeobfuscated/java-decompiled/sources/com/vitruvian/app/ui/coaching/classes/EchoModePromoScreenViewModel.java
+    - ViewModel for Echo Mode promo
+
+13. /home/user/VitruvianDeobfuscated/res/raw/trainingmodes.md
+    - User-facing documentation (lines 152-180)
+
+================================================================================
+                        HOW TO USE THIS DOCUMENTATION
+================================================================================
+
+FOR QUICK UNDERSTANDING:
+1. Read ECHO_MODE_EXECUTIVE_SUMMARY.txt (5-10 minutes)
+2. Focus on "CORE ALGORITHM" and "KEY METRICS" sections
+3. Review "CRITICAL CODE LOCATIONS" for key file references
+
+FOR DETAILED UNDERSTANDING:
+1. Read ECHO_MODE_COMPLETE_ANALYSIS.md sections in order (30-45 minutes)
+2. Follow the 10-section breakdown covering all aspects
+3. Reference line numbers and code examples
+
+FOR CODE NAVIGATION:
+1. Use ECHO_MODE_FILE_REFERENCE.md as your guide
+2. Go directly to specific files and line numbers
+3. Follow "Code Walkthrough: Echo Mode Execution" section
+4. Use "File Dependencies Map" to understand relationships
+
+FOR IMPLEMENTATION:
+1. Start with EchoPacket.java to understand data structure
+2. Read dk/d.java to see velocity levels
+3. Study dk/e.java line 372 for the core algorithm
+4. Review Ek/C1516m.java for force configuration
+
+FOR SAFETY:
+1. Read Section 9 of ECHO_MODE_COMPLETE_ANALYSIS.md
+2. Review trainingmodes.md lines 153-180 for user perspective
+3. Understand spotter parameter and ROM tracking
+
+FOR DEVICE INTEGRATION:
+1. Read Section 10 of ECHO_MODE_COMPLETE_ANALYSIS.md
+2. Review BLE serialization in EchoPacket.java
+3. Understand motor control loop from EXECUTIVE_SUMMARY
+
+================================================================================
+                          SEARCH QUICK REFERENCE
+================================================================================
+
+To find Echo Mode code:
+  grep -r "ordinal == 8" *.java
+  grep -r "EchoPacket\|EchoMode" *.java
+  grep -r "50\.0f / " *.java
+  grep -r "HARD\|HARDER\|HARDEST\|EPIC" *.java
+  grep -r "concentricDuration" *.java
+
+To find velocity configuration:
+  grep -r "f43595a" *.java
+  grep -r "EchoVelocity" *.java
+
+To find safety mechanisms:
+  grep -r "romRepCount\|auto.*deload\|spotter" *.java
+
+To find UI elements:
+  grep -r "eccentricLoad\|eccentric.*Load" *.java
+
+================================================================================
+                             GLOSSARY
+================================================================================
+
+ROM (Range of Motion)
+  - User's calibrated safe movement limits
+  - Device monitors position relative to ROM
+  - Auto-deloads if exceeded
+
+Isokinetic
+  - Constant velocity training
+  - Speed of movement stays the same regardless of force applied
+  - Device adjusts load to maintain target velocity
+
+Strength Curve
+  - Force output at each position in range of motion
+  - Recorded during concentric (lifting) phase
+  - Applied to eccentric (lowering) phase
+
+Echo Effect
+  - The "echo" is the eccentric phase loading that mirrors the concentric effort
+  - Force applied during lowering matches force during lifting at same position
+
+Concentric Phase
+  - The lifting/raising portion of the movement
+  - Where strength is recorded
+  - Duration = 50.0f / velocity
+
+Eccentric Phase
+  - The lowering/returning portion of the movement
+  - Where recorded force is applied
+  - Provides feedback through matching force
+
+BLE (Bluetooth Low Energy)
+  - Wireless protocol used to communicate with device
+  - EchoPacket serialized to BLE bytes
+  - Mode ID 78 identifies Echo Mode transmission
+
+Spotter Parameter
+  - Safety threshold preventing overload
+  - Range: 0-65535 (linear scale)
+  - Auto-deload triggers if exceeded
+
+Velocity Level
+  - User-selected speed: HARD/HARDER/HARDEST/EPIC
+  - Determines duration via formula: 50.0f / velocity
+  - Affects training intensity and ROM coverage
+
+================================================================================
+                        ANALYSIS METADATA
+================================================================================
+
+Analysis Date: 2025-11-19
+Exploration Level: Very Thorough
+Total Documentation Lines: 1090
+Source Files Analyzed: 13
+Code Files Analyzed: 12
+Documentation Files Analyzed: 1
+Generated Documentation Files: 3
+
+Primary Algorithm Location:
+  File: dk/e.java
+  Lines: 370-372
+  Formula: concentricDurationSeconds = 50.0f / cVar.b().f43595a
+
+Protocol Identifier: 78 (0x4E) for Echo Mode
+
+Documentation Completeness:
+  ✓ What Echo Mode is and purpose/features
+  ✓ Complete implementation details and algorithms
+  ✓ Differences from other training modes
+  ✓ Isokinetic principles and constant speed control
+  ✓ Strength curve recording and playback
+  ✓ Position-based force matching
+  ✓ Data collection and processing
+  ✓ User interaction patterns
+  ✓ Safety mechanisms
+  ✓ Device hardware integration
+
+================================================================================
+
+For questions or clarifications, refer to the appropriate documentation file
+based on the level of detail required.
+
+END OF INDEX
+================================================================================

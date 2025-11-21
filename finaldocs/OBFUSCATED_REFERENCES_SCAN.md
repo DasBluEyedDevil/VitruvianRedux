@@ -1,0 +1,597 @@
+# Obfuscated References Scan Report
+
+## Summary Statistics
+- Files scanned: 953
+- Obfuscated imports found: 3429
+- Obfuscated type references found: 771
+  - Single letter: 1383
+  - Two letter: 0
+  - AbstractC pattern: 116
+  - C-number pattern: 1930
+
+## Single Letter Imports (262)
+- `A0.c`
+- `Am.G`
+- `Am.H`
+- `Am.K`
+- `Am.n`
+- `Am.p`
+- `B0.b`
+- `B2.a`
+- `Be.O`
+- `Bi.l`
+- `C6.Y`
+- `D0.q`
+- `D1.Y`
+- `D2.c`
+- `D8.y`
+- `Di.W`
+- `E6.F`
+- `Ei.O`
+- `Ei.P`
+- `Ej.o`
+- `Ej.q`
+- `Ej.r`
+- `Ej.s`
+- `Ej.t`
+- `Ej.u`
+- `Ej.w`
+- `Ej.x`
+- `Ej.y`
+- `Ek.H`
+- `Ek.K`
+- `Ek.N`
+- `Ek.P`
+- `Ek.T`
+- `Ek.U`
+- `Ek.V`
+- `Ek.W`
+- `Ek.r`
+- `F0.b`
+- `F0.d`
+- `Fi.B`
+- `Fj.c`
+- `Fj.f`
+- `Fk.A`
+- `Fk.B`
+- `Fk.G`
+- `Fk.H`
+- `Fk.I`
+- `Fk.J`
+- `Fk.K`
+- `Fk.L`
+- `Fk.M`
+- `Fk.N`
+- `Fk.O`
+- `Fk.P`
+- `Fk.Q`
+- `Fk.T`
+- `Fk.U`
+- `Fk.V`
+- `Fk.W`
+- `Fk.Y`
+- `Fk.r`
+- `Fk.z`
+- `Gk.a`
+- `Gm.i`
+- `Gm.o`
+- `Gn.V`
+- `Hi.A`
+- `Hi.y`
+- `Hi.z`
+- `Hm.d`
+- `Hm.l`
+- `I0.X`
+- `Ii.Y`
+- `Ij.C`
+- `Ij.Q`
+- `Ij.Y`
+- `Ji.k`
+- `Ji.q`
+- `Ji.r`
+- `Ji.s`
+- `Ji.t`
+- `Ji.u`
+- `Jj.m`
+- `JustLiftLambda4.A`
+- `JustLiftLambda4.B`
+- `JustLiftLambda4.E`
+- `JustLiftLambda4.V`
+- `JustLiftLambda4.r`
+- `Kj.A`
+- `Kj.c`
+- `L0.f`
+- `L6.a`
+- `LeaderboardScreenViewModel.V`
+- `Lj.Q`
+- `Lj.S`
+- `Lj.T`
+- `M0.Z`
+- `Mj.g`
+- `Mj.j`
+- `Mj.k`
+- ... and 162 more
+
+## AbstractC Pattern Imports (27)
+- `Fi.AbstractC1554o`
+- `Qi.AbstractC2082a`
+- `V3.AbstractC2372v`
+- `androidx.lifecycle.AbstractC2826k`
+- `bl.AbstractC2995d`
+- `com.vitruvian.app.ui.coaching.classes.AbstractC3712a`
+- `com.vitruvian.app.ui.coaching.classes.AbstractC3718c`
+- `com.vitruvian.app.ui.coaching.classes.AbstractC3772x`
+- `com.vitruvian.app.ui.coaching.programs.AbstractC3778a`
+- `com.vitruvian.app.ui.device.AbstractC3804b`
+- `com.vitruvian.app.ui.experimental.AbstractC3815i`
+- `com.vitruvian.app.ui.settings.AbstractC3873z`
+- `com.vitruvian.app.ui.settings.v2.AbstractC3854a`
+- `com.vitruvian.app.ui.settings.v2.AbstractC3861h`
+- `com.vitruvian.app.ui.settings.v2.AbstractC3868o`
+- `com.vitruvian.app.ui.workouts.builder.AbstractC3911o`
+- `com.vitruvian.app.ui.workouts.builder.AbstractC3913p`
+- `com.vitruvian.app.ui.workouts.justLift.v2.AbstractC3936c`
+- `com.vitruvian.app.ui.workouts.overview.AbstractC3966u`
+- `ko.AbstractC5536b`
+- `lk.AbstractC5609a`
+- `lm.AbstractC5626c`
+- `qi.AbstractC6499a`
+- `rk.AbstractC6760l`
+- `sm.AbstractC6880c`
+- `xj.AbstractC7505h`
+- `yk.AbstractC7610g`
+
+## C-Number Pattern Imports (289)
+- `Am.C1249f`
+- `Am.C1250g`
+- `Am.C1253j`
+- `Am.C1254k`
+- `Am.C1255l`
+- `D1.C1385b`
+- `DeviceScreenLambda17.C1372p`
+- `DeviceScreenLambda20.C1291e`
+- `DeviceScreenLambda20.C1305t`
+- `Di.C1405b`
+- `Di.C1409d`
+- `Di.C1415g`
+- `Di.C1417h`
+- `Di.C1419i`
+- `Di.C1421j`
+- `Di.C1423k`
+- `Di.C1425l`
+- `Di.C1427m`
+- `Di.C1429n`
+- `Di.C1433p`
+- `Di.C1435q`
+- `Di.C1438s`
+- `Di.C1440t`
+- `Di.C1444v`
+- `Di.C1446w`
+- `Di.C1448x`
+- `Di.C1450y`
+- `Di.C1452z`
+- `Ei.C1482d`
+- `Ei.C1485g`
+- `Ei.C1486h`
+- `Ei.C1487i`
+- `Ei.C1488j`
+- `Ei.C1489k`
+- `Ei.C1490l`
+- `Ei.C1491m`
+- `Ei.C1493o`
+- `Ei.C1497t`
+- `Ei.C1499v`
+- `Ei.C1501x`
+- `Ei.C1502y`
+- `Ei.C1503z`
+- `Ek.C1505b`
+- `Ek.C1511h`
+- `Ek.C1512i`
+- `Ek.C1513j`
+- `Ek.C1515l`
+- `Ek.C1516m`
+- `Ek.C1519p`
+- `Fi.C1528b`
+- `Fi.C1530c`
+- `Fi.C1534e`
+- `Fi.C1567v`
+- `Fi.C1570y`
+- `Fk.C1573b`
+- `Fk.C1574c`
+- `Fk.C1575d`
+- `Fk.C1576e`
+- `Fk.C1578g`
+- `Fk.C1579h`
+- `Fk.C1583l`
+- `Fk.C1585n`
+- `Fk.C1589s`
+- `Fk.C1591u`
+- `Fk.C1595y`
+- `Gi.C1606f`
+- `I0.C2245m`
+- `I0.C2251t`
+- `I0.C2252u`
+- `JustLiftLambda4.C1931a`
+- `JustLiftLambda4.C1939i`
+- `JustLiftLambda4.C2450a`
+- `JustLiftLambda4.C2458e`
+- `JustLiftLambda4.C2470k`
+- `JustLiftLambda4.C2485s`
+- `JustLiftLambda4.C2487u`
+- `LeaderboardScreenViewModel.C7333y`
+- `Lj.C1846a`
+- `Lj.C1847b`
+- `Lj.C1850e`
+- `Lj.C1855j`
+- `Nj.C1929b`
+- `Nj.C1930c`
+- `Oi.C1958c`
+- `Pi.C1993o`
+- `Q0.C2592c`
+- `Q0.C2597h`
+- `Qe.C2079j`
+- `Qi.C2089h`
+- `Qi.C2090i`
+- `Qi.C2091j`
+- `Qj.C2094a`
+- `R.C2126b`
+- `R.C2128c`
+- `R.C2134f`
+- `R.C2140i`
+- `R.C2152o`
+- `S3.C2269l`
+- `U5.C2344e`
+- `V3.C2354d`
+- ... and 189 more
+
+## Files with Most Obfuscated Imports (Top 50)
+- java-decompiled/sources/com/vitruvian/app/ui/leaderboard/LeaderboardLambda23.java: 49 obfuscated imports
+  - `B2.a`
+  - `Be.O`
+  - `DeviceScreenLambda20.C1291e`
+  - `F0.b`
+  - `F0.d`
+  - ... and 44 more
+- java-decompiled/sources/com/vitruvian/formtrainer/ble/AndroidPeripheral.java: 40 obfuscated imports
+  - `Am.C1250g`
+  - `Am.n`
+  - `Am.p`
+  - `Fk.A`
+  - `Fk.B`
+  - ... and 35 more
+- java-decompiled/sources/com/vitruvian/app/ui/workouts/justLift/taggingExercise/JustLiftTaggingExerciseViewModel.java: 40 obfuscated imports
+  - `Am.p`
+  - `Di.W`
+  - `Ej.o`
+  - `Ej.q`
+  - `Ej.r`
+  - ... and 35 more
+- java-decompiled/sources/com/vitruvian/app/ui/dashboard/ExerciseDetailEvent.java: 37 obfuscated imports
+  - `B2.a`
+  - `DeviceScreenLambda20.C1291e`
+  - `DeviceScreenLambda20.C1305t`
+  - `Ek.C1515l`
+  - `F0.b`
+  - ... and 32 more
+- java-decompiled/sources/com/vitruvian/app/ui/login/e.java: 36 obfuscated imports
+  - `B2.a`
+  - `Be.O`
+  - `C6.Y`
+  - `DeviceScreenLambda20.C1291e`
+  - `F0.b`
+  - ... and 31 more
+- java-decompiled/sources/com/vitruvian/app/ui/coaching/classes/C3744k1.java: 35 obfuscated imports
+  - `Am.C1255l`
+  - `B2.a`
+  - `D1.C1385b`
+  - `Di.C1405b`
+  - `Ek.C1515l`
+  - ... and 30 more
+- java-decompiled/sources/com/vitruvian/app/ui/profile/ProfileScreenViewModel.java: 33 obfuscated imports
+  - `Am.n`
+  - `Am.p`
+  - `Mj.j`
+  - `Mj.k`
+  - `Mj.l`
+  - ... and 28 more
+- java-decompiled/sources/com/vitruvian/app/ui/coaching/programs/J.java: 32 obfuscated imports
+  - `B2.a`
+  - `DeviceScreenLambda20.C1291e`
+  - `Ei.C1497t`
+  - `F0.b`
+  - `F0.d`
+  - ... and 27 more
+- java-decompiled/sources/com/vitruvian/app/ui/workouts/j.java: 31 obfuscated imports
+  - `Am.C1255l`
+  - `Am.p`
+  - `B2.a`
+  - `DeviceScreenLambda20.C1291e`
+  - `F0.b`
+  - ... and 26 more
+- java-decompiled/sources/com/vitruvian/app/ui/workouts/WorkoutsAndExercisesScreenViewModel.java: 31 obfuscated imports
+  - `Am.C1253j`
+  - `Am.p`
+  - `Di.W`
+  - `Gn.V`
+  - `Qj.v`
+  - ... and 26 more
+- java-decompiled/sources/com/vitruvian/app/ui/assessment/StrengthAssessmentViewModel.java: 30 obfuscated imports
+  - `Ek.C1519p`
+  - `Nj.C`
+  - `Q0.N`
+  - `Qj.u`
+  - `Vn.F`
+  - ... and 25 more
+- java-decompiled/sources/com/vitruvian/app/ui/experimental/C3816j.java: 30 obfuscated imports
+  - `B2.a`
+  - `D1.C1385b`
+  - `DeviceScreenLambda20.C1291e`
+  - `Ek.C1519p`
+  - `F0.b`
+  - ... and 25 more
+- java-decompiled/sources/com/vitruvian/app/ui/profile/edit/b.java: 30 obfuscated imports
+  - `B2.a`
+  - `F0.b`
+  - `F0.d`
+  - `Fi.C1530c`
+  - `JustLiftLambda4.A`
+  - ... and 25 more
+- java-decompiled/sources/com/vitruvian/app/MainActivity.java: 29 obfuscated imports
+  - `Am.n`
+  - `Am.p`
+  - `Oi.t`
+  - `Pj.g`
+  - `Qj.f`
+  - ... and 24 more
+- java-decompiled/sources/com/vitruvian/app/ui/shared/j.java: 29 obfuscated imports
+  - `B2.a`
+  - `DeviceScreenLambda20.C1291e`
+  - `F0.b`
+  - `F0.d`
+  - `Fi.C1530c`
+  - ... and 24 more
+- java-decompiled/sources/com/vitruvian/app/ui/workouts/viewWorkout/WorkoutViewModel.java: 29 obfuscated imports
+  - `Am.C1255l`
+  - `Am.n`
+  - `Am.p`
+  - `Ei.O`
+  - `Ei.P`
+  - ... and 24 more
+- java-decompiled/sources/com/vitruvian/app/ui/firmware/b.java: 29 obfuscated imports
+  - `Am.n`
+  - `Am.p`
+  - `B2.a`
+  - `Ek.V`
+  - `F0.b`
+  - ... and 24 more
+- java-decompiled/sources/com/vitruvian/app/ui/device/C3805c.java: 29 obfuscated imports
+  - `B2.a`
+  - `DeviceScreenLambda20.C1291e`
+  - `F0.b`
+  - `F0.d`
+  - `Fi.C1530c`
+  - ... and 24 more
+- java-decompiled/sources/com/vitruvian/app/ui/workouts/exercise/ViewExerciseViewModel.java: 28 obfuscated imports
+  - `Am.C1253j`
+  - `Am.C1255l`
+  - `Am.n`
+  - `Am.p`
+  - `Hm.l`
+  - ... and 23 more
+- java-decompiled/sources/com/vitruvian/app/ui/settings/G.java: 27 obfuscated imports
+  - `B2.a`
+  - `F0.b`
+  - `F0.d`
+  - `Fi.AbstractC1554o`
+  - `Fi.C1530c`
+  - ... and 22 more
+- java-decompiled/sources/com/vitruvian/app/ui/settings/v2/C3863j.java: 27 obfuscated imports
+  - `B2.a`
+  - `DeviceScreenLambda20.C1291e`
+  - `F0.b`
+  - `Fi.C1530c`
+  - `JustLiftLambda4.C2458e`
+  - ... and 22 more
+- java-decompiled/sources/com/vitruvian/app/ui/shared/d.java: 25 obfuscated imports
+  - `Be.O`
+  - `DeviceScreenLambda20.C1291e`
+  - `F0.b`
+  - `F0.d`
+  - `JustLiftLambda4.C2458e`
+  - ... and 20 more
+- java-decompiled/sources/com/vitruvian/app/ui/workouts/viewWorkout/ViewWorkoutViewModel.java: 25 obfuscated imports
+  - `Am.C1253j`
+  - `Am.C1255l`
+  - `Am.G`
+  - `Am.n`
+  - `Am.p`
+  - ... and 20 more
+- java-decompiled/sources/com/vitruvian/app/ui/coaching/classes/CoachingClassesCallback14.java: 25 obfuscated imports
+  - `B2.a`
+  - `D1.C1385b`
+  - `F0.b`
+  - `F0.d`
+  - `Fi.C1530c`
+  - ... and 20 more
+- java-decompiled/sources/com/vitruvian/app/ui/settings/v2/C.java: 24 obfuscated imports
+  - `B2.a`
+  - `D1.C1385b`
+  - `DeviceScreenLambda20.C1291e`
+  - `F0.b`
+  - `F0.d`
+  - ... and 19 more
+- java-decompiled/sources/com/vitruvian/app/ui/workouts/builder/Y.java: 23 obfuscated imports
+  - `B2.a`
+  - `DeviceScreenLambda20.C1291e`
+  - `F0.b`
+  - `Fi.B`
+  - `Fi.C1530c`
+  - ... and 18 more
+- java-decompiled/sources/com/vitruvian/app/ui/coaching/classes/K.java: 23 obfuscated imports
+  - `B2.a`
+  - `Di.C1409d`
+  - `Di.C1440t`
+  - `Di.C1452z`
+  - `F0.b`
+  - ... and 18 more
+- java-decompiled/sources/com/vitruvian/app/ui/workouts/exercise/ViewExerciseScreenViewModel.java: 22 obfuscated imports
+  - `Am.n`
+  - `Am.p`
+  - `Qj.u`
+  - `Vn.F`
+  - `Xj.C2518j`
+  - ... and 17 more
+- java-decompiled/sources/com/vitruvian/app/ui/firmware/UpdateFirmwareScreenViewModel.java: 22 obfuscated imports
+  - `Am.G`
+  - `Am.n`
+  - `Am.p`
+  - `E6.F`
+  - `Ek.T`
+  - ... and 17 more
+- java-decompiled/sources/com/vitruvian/formtrainer/FormTrainer.java: 21 obfuscated imports
+  - `Am.n`
+  - `Ek.C1512i`
+  - `Ek.r`
+  - `Fk.C1595y`
+  - `Fk.T`
+  - ... and 16 more
+- java-decompiled/sources/com/vitruvian/app/ui/settings/C3833a.java: 21 obfuscated imports
+  - `B2.a`
+  - `F0.b`
+  - `F0.d`
+  - `Fi.C1530c`
+  - `JustLiftLambda4.C2458e`
+  - ... and 16 more
+- java-decompiled/sources/com/vitruvian/app/ui/dashboard/ExerciseDetailLambda3.java: 20 obfuscated imports
+  - `Be.O`
+  - `DeviceScreenLambda20.C1291e`
+  - `F0.b`
+  - `F0.d`
+  - `I0.C2245m`
+  - ... and 15 more
+- java-decompiled/sources/com/vitruvian/app/ui/dashboard/ExerciseHistoryScreenViewModel.java: 20 obfuscated imports
+  - `Am.C1253j`
+  - `Di.W`
+  - `Gn.V`
+  - `Vn.F`
+  - `Xj.T`
+  - ... and 15 more
+- java-decompiled/sources/com/vitruvian/app/ui/workouts/builder/WorkoutBuilderViewModel.java: 20 obfuscated imports
+  - `Am.C1253j`
+  - `Xj.C2517i`
+  - `Xj.C2518j`
+  - `km.C5519o`
+  - `li.C5589f`
+  - ... and 15 more
+- java-decompiled/sources/com/vitruvian/app/ui/workouts/justLift/v2/C3937d.java: 20 obfuscated imports
+  - `Am.C1253j`
+  - `Am.C1254k`
+  - `B2.a`
+  - `F0.b`
+  - `Ij.Q`
+  - ... and 15 more
+- java-decompiled/sources/com/vitruvian/app/ui/coaching/classes/CoachingClassesCallback22.java: 20 obfuscated imports
+  - `B2.a`
+  - `Fi.AbstractC1554o`
+  - `Fi.C1530c`
+  - `Fi.C1534e`
+  - `JustLiftLambda4.C2450a`
+  - ... and 15 more
+- java-decompiled/sources/com/vitruvian/app/ui/shared/p.java: 19 obfuscated imports
+  - `F0.b`
+  - `F0.d`
+  - `Fi.C1530c`
+  - `I0.X`
+  - `JustLiftLambda4.C2458e`
+  - ... and 14 more
+- java-decompiled/sources/com/vitruvian/app/ui/workouts/overview/C3968w.java: 19 obfuscated imports
+  - `Am.C1253j`
+  - `B2.a`
+  - `DeviceScreenLambda20.C1291e`
+  - `F0.b`
+  - `Fi.C1530c`
+  - ... and 14 more
+- java-decompiled/sources/com/vitruvian/app/ui/assessment/instructions/StrengthAssessmentInstructionsViewModel.java: 19 obfuscated imports
+  - `Am.n`
+  - `Am.p`
+  - `Di.C1405b`
+  - `Qj.f`
+  - `Vn.F`
+  - ... and 14 more
+- java-decompiled/sources/com/vitruvian/app/ui/onboarding/completeProfile/CompleteProfileViewModel.java: 19 obfuscated imports
+  - `A0.c`
+  - `Am.p`
+  - `Qi.AbstractC2082a`
+  - `Qi.L`
+  - `Qi.n`
+  - ... and 14 more
+- java-decompiled/sources/com/vitruvian/app/ui/settings/v2/r.java: 18 obfuscated imports
+  - `B2.a`
+  - `F0.b`
+  - `F0.d`
+  - `Fi.C1530c`
+  - `JustLiftLambda4.C2458e`
+  - ... and 13 more
+- java-decompiled/sources/com/vitruvian/app/ui/assessment/d.java: 18 obfuscated imports
+  - `Am.C1253j`
+  - `Am.C1254k`
+  - `B2.a`
+  - `Nj.C`
+  - `androidx.lifecycle.N`
+  - ... and 13 more
+- java-decompiled/sources/com/vitruvian/app/ui/coaching/programs/C3796t.java: 18 obfuscated imports
+  - `B2.a`
+  - `F0.b`
+  - `Fi.C1530c`
+  - `JustLiftLambda4.C2458e`
+  - `JustLiftLambda4.C2470k`
+  - ... and 13 more
+- java-decompiled/sources/com/vitruvian/app/ui/coaching/programs/C3799w.java: 17 obfuscated imports
+  - `Am.C1255l`
+  - `Ei.C1502y`
+  - `F0.b`
+  - `F0.d`
+  - `JustLiftLambda4.C2458e`
+  - ... and 12 more
+- java-decompiled/sources/com/vitruvian/app/ui/coaching/programs/C3783f.java: 17 obfuscated imports
+  - `B2.a`
+  - `Ei.C1499v`
+  - `Ei.C1503z`
+  - `F0.b`
+  - `Fi.C1530c`
+  - ... and 12 more
+- java-decompiled/sources/com/vitruvian/app/ui/onboarding/completed/OnboardingCompleteViewModel.java: 17 obfuscated imports
+  - `Qi.K`
+  - `Qi.n`
+  - `Qj.f`
+  - `Si.c`
+  - `Si.d`
+  - ... and 12 more
+- java-decompiled/sources/com/vitruvian/app/ui/shared/q.java: 16 obfuscated imports
+  - `DeviceScreenLambda20.C1305t`
+  - `F0.b`
+  - `F0.d`
+  - `JustLiftLambda4.C2458e`
+  - `JustLiftLambda4.C2485s`
+  - ... and 11 more
+- java-decompiled/sources/com/vitruvian/app/ui/settings/v2/C3857d.java: 16 obfuscated imports
+  - `B2.a`
+  - `F0.b`
+  - `F0.d`
+  - `Fi.C1530c`
+  - `JustLiftLambda4.C2458e`
+  - ... and 11 more
+- java-decompiled/sources/com/vitruvian/app/ui/workouts/justLift/v2/JustLiftWorkoutViewModelV2.java: 16 obfuscated imports
+  - `Oi.C1958c`
+  - `Xj.P`
+  - `Yn.Z`
+  - `a6.C2718a`
+  - `ac.C2742a`
+  - ... and 11 more
+- java-decompiled/sources/com/vitruvian/app/ui/device/DeviceScreenViewModel.java: 16 obfuscated imports
+  - `Vn.F`
+  - `Xj.C2520l`
+  - `Yn.C2587x`
+  - `ak.C2755a`
+  - `androidx.lifecycle.N`
+  - ... and 11 more
