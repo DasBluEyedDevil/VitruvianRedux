@@ -1,14 +1,21 @@
 package com.example.vitruvianredux.data.ble
 
 /**
- * Exception thrown when Bluetooth is disabled on the device.
+ * Specific BLE exception types matching official Vitruvian app implementation
+ * These provide granular error handling for different BLE failure scenarios
+ */
+
+/**
+ * Thrown when Bluetooth is disabled on the device
+ * User needs to enable Bluetooth in system settings
  */
 class BluetoothDisabledException(
     message: String = "Bluetooth is disabled. Please enable Bluetooth and try again."
 ) : Exception(message)
 
 /**
- * General Bluetooth exception with an optional cause.
+ * General Bluetooth/BLE exception for errors that don't fit other categories
+ * Base exception for BLE-related errors
  */
 class BluetoothException(
     message: String,
@@ -16,7 +23,8 @@ class BluetoothException(
 ) : Exception(message, cause)
 
 /**
- * Exception thrown when the connection to the device is lost.
+ * Thrown when an established connection is unexpectedly lost
+ * Usually indicates device went out of range or powered off
  */
 class ConnectionLostException(
     message: String = "Connection to device was lost",
@@ -24,7 +32,8 @@ class ConnectionLostException(
 ) : Exception(message, cause)
 
 /**
- * Exception thrown when a connection attempt is rejected by the device.
+ * Thrown when a connection attempt is rejected by the device
+ * Device may be busy, paired to another device, or refusing connections
  */
 class ConnectionRejectedException(
     message: String = "Connection was rejected by device",
@@ -32,7 +41,8 @@ class ConnectionRejectedException(
 ) : Exception(message, cause)
 
 /**
- * Exception thrown when a GATT request is rejected.
+ * Thrown when a GATT operation (read/write/notify) is rejected
+ * Characteristic may not support the operation or device is in wrong state
  */
 class GattRequestRejectedException(
     message: String,
@@ -41,7 +51,8 @@ class GattRequestRejectedException(
 ) : Exception(message, cause)
 
 /**
- * Exception thrown when a GATT operation fails with a specific status code.
+ * Thrown when a GATT operation fails with a specific status code
+ * Includes the GATT status code for detailed error analysis
  */
 class GattStatusException(
     message: String,
@@ -50,14 +61,16 @@ class GattStatusException(
 ) : Exception("$message (GATT status: $gattStatus)", cause)
 
 /**
- * Exception thrown when the device is not ready for the requested operation.
+ * Thrown when attempting an operation before the device is ready
+ * Device may still be initializing, discovering services, or setting up MTU
  */
 class NotReadyException(
     message: String = "Device is not ready for this operation. Please wait for initialization to complete."
 ) : Exception(message)
 
 /**
- * Exception thrown when a BLE scan fails.
+ * Thrown when BLE scanning fails to start or encounters an error
+ * May be due to permissions, Bluetooth state, or hardware issues
  */
 class ScanFailedException(
     message: String,

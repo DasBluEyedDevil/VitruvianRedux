@@ -14,13 +14,16 @@ object ProtocolBuilder {
 
     /**
      * Build the initial 4-byte command sent before INIT
+     * @deprecated Not used by official Android app (legacy web protocol)
      */
+    @Deprecated("Not used by official Android app")
     fun buildInitCommand(): ByteArray {
         return byteArrayOf(0x0A, 0x00, 0x00, 0x00)
     }
 
     /**
      * Build the INIT preset frame with coefficient table (34 bytes)
+     * Note: This is actually a Color Scheme packet (0x11)
      */
     fun buildInitPreset(): ByteArray {
         return byteArrayOf(
@@ -377,9 +380,19 @@ object ProtocolBuilder {
 
     /**
      * Build the STOP command (4 bytes)
+     * @deprecated Use buildStopPacket() instead - official app uses 0x50
      */
+    @Deprecated("Use buildStopPacket() instead - official app uses 0x50")
     fun buildStopCommand(): ByteArray {
         return byteArrayOf(0x05, 0x00, 0x00, 0x00)
+    }
+
+    /**
+     * Build the STOP packet used by official app (0x50)
+     */
+    fun buildStopPacket(): ByteArray {
+        // Matches official StopPacket: 0x50 0x00
+        return byteArrayOf(0x50, 0x00)
     }
 
     /**

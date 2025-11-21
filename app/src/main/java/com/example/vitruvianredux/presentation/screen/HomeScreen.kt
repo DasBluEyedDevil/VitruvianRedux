@@ -6,12 +6,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -25,9 +27,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.example.vitruvianredux.domain.model.ConnectionState
 import com.example.vitruvianredux.domain.model.WeightUnit
-import com.example.vitruvianredux.presentation.components.StatsCard
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.Spacing
@@ -92,84 +92,95 @@ fun HomeScreen(
             .fillMaxSize()
             .background(backgroundGradient)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            contentPadding = PaddingValues(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxSize()
         ) {
-            // Simple header with just "Start a workout" title
-            Text(
-                "Start a workout",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            // Active Program Widget - shows today's routine from active program
-            activeProgram?.let { program ->
-                HomeActiveProgramCard(
-                    program = program,
-                    routines = routines,
-                    weightUnit = weightUnit,
-                    formatWeight = viewModel::formatWeight,
-                    kgToDisplay = viewModel::kgToDisplay,
-                    onStartRoutine = { routineId ->
-                        viewModel.ensureConnection(
-                            onConnected = {
-                                viewModel.loadRoutineById(routineId)
-                                viewModel.startWorkout()
-                                navController.navigate(NavigationRoutes.DailyRoutines.route)
-                            },
-                            onFailed = { /* Error shown via StateFlow */ }
-                        )
-                    }
+            // Header
+            item(span = { GridItemSpan(2) }) {
+                Text(
+                    "Start a workout",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(bottom = 8.dp)
                 )
             }
 
-            // Stats overview hidden (not needed per user request)
-            // Future: can be re-enabled by changing condition to: if (hasStats)
+            // Active Program Widget (Full Width)
+            if (activeProgram != null) {
+                item(span = { GridItemSpan(2) }) {
+                    HomeActiveProgramCard(
+                        program = activeProgram!!,
+                        routines = routines,
+                        weightUnit = weightUnit,
+                        formatWeight = viewModel::formatWeight,
+                        kgToDisplay = viewModel::kgToDisplay,
+                        onStartRoutine = { routineId ->
+                            viewModel.ensureConnection(
+                                onConnected = {
+                                    viewModel.loadRoutineById(routineId)
+                                    viewModel.startWorkout()
+                                    navController.navigate(NavigationRoutes.DailyRoutines.route)
+                                },
+                                onFailed = { /* Error shown via StateFlow */ }
+                            )
+                        }
+                    )
+                }
+            }
 
-            WorkoutCard(
-                title = "Just Lift",
-                description = "Quick setup, start lifting immediately",
-                icon = Icons.Default.FitnessCenter,
-                gradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE)) // purple-500 to purple-700
-                ),
-                onClick = { navController.navigate(NavigationRoutes.JustLift.route) }
-            )
+            // Workout Cards (Grid Items)
+            item {
+                WorkoutCard(
+                    title = "Just Lift",
+                    description = "Quick start",
+                    icon = Icons.Default.FitnessCenter,
+                    gradient = Brush.linearGradient(
+                        colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE))
+                    ),
+                    onClick = { navController.navigate(NavigationRoutes.JustLift.route) }
+                )
+            }
 
-            WorkoutCard(
-                title = "Single Exercise",
-                description = "Perform one exercise with custom configuration",
-                icon = Icons.Default.PlayArrow,
-                gradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFF8B5CF6), Color(0xFF9333EA)) // violet-500 to purple-600
-                ),
-                onClick = { navController.navigate(NavigationRoutes.SingleExercise.route) }
-            )
+            item {
+                WorkoutCard(
+                    title = "Single Exercise",
+                    description = "Custom setup",
+                    icon = Icons.Default.PlayArrow,
+                    gradient = Brush.linearGradient(
+                        colors = listOf(Color(0xFF8B5CF6), Color(0xFF9333EA))
+                    ),
+                    onClick = { navController.navigate(NavigationRoutes.SingleExercise.route) }
+                )
+            }
 
-            WorkoutCard(
-                title = "Daily Routines",
-                description = "Choose from your saved multi-exercise routines",
-                icon = Icons.Default.CalendarToday,
-                gradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6)) // indigo-500 to violet-600
-                ),
-                onClick = { navController.navigate(NavigationRoutes.DailyRoutines.route) }
-            )
+            item {
+                WorkoutCard(
+                    title = "Daily Routines",
+                    description = "Saved routines",
+                    icon = Icons.Default.CalendarToday,
+                    gradient = Brush.linearGradient(
+                        colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6))
+                    ),
+                    onClick = { navController.navigate(NavigationRoutes.DailyRoutines.route) }
+                )
+            }
 
-            WorkoutCard(
-                title = "Weekly Programs",
-                description = "Follow a structured weekly training schedule",
-                icon = Icons.Default.DateRange,
-                gradient = Brush.linearGradient(
-                    colors = listOf(Color(0xFF3B82F6), Color(0xFF6366F1)) // blue-500 to indigo-600
-                ),
-                onClick = { navController.navigate(NavigationRoutes.WeeklyPrograms.route) }
-            )
+            item {
+                WorkoutCard(
+                    title = "Weekly Programs",
+                    description = "Structured plans",
+                    icon = Icons.Default.DateRange,
+                    gradient = Brush.linearGradient(
+                        colors = listOf(Color(0xFF3B82F6), Color(0xFF6366F1))
+                    ),
+                    onClick = { navController.navigate(NavigationRoutes.WeeklyPrograms.route) }
+                )
+            }
         }
 
         // Auto-connect UI overlays (same as exercise start screens)

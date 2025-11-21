@@ -32,7 +32,9 @@ import android.widget.VideoView
 import com.example.vitruvianredux.data.local.ExerciseEntity
 import com.example.vitruvianredux.data.repository.ExerciseRepository
 import com.example.vitruvianredux.domain.model.*
+import com.example.vitruvianredux.domain.model.HeuristicStatistics
 import com.example.vitruvianredux.presentation.components.ExercisePickerDialog
+import com.example.vitruvianredux.presentation.components.SafetyEventSummary
 import com.example.vitruvianredux.presentation.viewmodel.AutoStopUiState
 import com.example.vitruvianredux.ui.theme.*
 import kotlin.math.abs
@@ -70,7 +72,9 @@ fun WorkoutTab(
     onHideWorkoutSetupDialog: () -> Unit = {},
     modifier: Modifier = Modifier,
     showConnectionCard: Boolean = true,
-    showWorkoutSetupCard: Boolean = true
+    showWorkoutSetupCard: Boolean = true,
+    heuristicStatistics: HeuristicStatistics? = null,
+    safetyEventSummary: SafetyEventSummary? = null
 ) {
     // Haptic feedback effect
     hapticEvents?.let {
@@ -159,6 +163,13 @@ fun WorkoutTab(
         }
 
         if (connectionState is ConnectionState.Connected) {
+            // Show safety warnings if present
+            currentMetric?.let { metric ->
+                if (metric.statusFlags.isNotEmpty()) {
+                    SafetyStatusCard(metric.statusFlags)
+                }
+            }
+
             // Show setup button when in Idle state, otherwise show workout controls
             when (workoutState) {
                 is WorkoutState.Idle -> {
@@ -458,7 +469,9 @@ fun WorkoutTab(
                     formatWeight = formatWeight,
                     onContinue = onProceedFromSummary,
                     autoplayEnabled = autoplayEnabled,
-                    configuredPerCableKg = workoutParameters.weightPerCableKg
+                    configuredPerCableKg = workoutParameters.weightPerCableKg,
+                    heuristics = heuristicStatistics,
+                    safetyEvents = safetyEventSummary
                 )
             }
             is WorkoutState.Resting -> {
@@ -1872,5 +1885,69 @@ fun VerticalCablePositionBar(
             color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp)
         )
+    }
+}
+
+@Composable
+fun SafetyStatusCard(statusFlags: Set<SampleStatus>) {
+    val hasCritical = statusFlags.any { 
+        it == SampleStatus.DELOAD_OCCURRED 
+    }
+    
+    val cardColor = if (hasCritical) {
+        MaterialTheme.colorScheme.errorContainer
+    } else {
+        MaterialTheme.colorScheme.tertiaryContainer
+    }
+    
+    val contentColor = if (hasCritical) {
+        MaterialTheme.colorScheme.onErrorContainer
+    } else {
+        MaterialTheme.colorScheme.onTertiaryContainer
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (hasCritical) Icons.Default.Warning else Icons.Default.Info,
+                    contentDescription = "Safety Alert",
+                    tint = contentColor
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (hasCritical) "Safety Intervention" else "Safety Warning",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            statusFlags.forEach { flag ->
+                val message = when(flag) {
+                    SampleStatus.DELOAD_WARN -> "Force cap approaching - Ease off!"
+                    SampleStatus.DELOAD_OCCURRED -> "Force released due to overload/safety."
+                    SampleStatus.ROM_OUTSIDE_HIGH -> "Extension limit reached (Top)."
+                    SampleStatus.ROM_OUTSIDE_LOW -> "Retraction limit reached (Bottom)."
+                    SampleStatus.SPOTTER_ACTIVE -> "Spotter active."
+                    SampleStatus.ROM_UNLOAD_ACTIVE -> "Unload active."
+                    else -> null
+                }
+                
+                if (message != null) {
+                    Text(
+                        text = "• $message",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = contentColor
+                    )
+                }
+            }
+        }
     }
 }

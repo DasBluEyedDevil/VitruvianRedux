@@ -1,5 +1,6 @@
 package com.example.vitruvianredux.domain.model
 
+import com.example.vitruvianredux.presentation.components.SafetyEventSummary
 import com.example.vitruvianredux.util.VitruvianModel
 import com.example.vitruvianredux.util.HardwareDetection
 
@@ -42,7 +43,9 @@ sealed class WorkoutState {
         val metrics: List<WorkoutMetric>,
         val peakPower: Float,
         val averagePower: Float,
-        val repCount: Int
+        val repCount: Int,
+        val heuristicStatistics: HeuristicStatistics? = null,
+        val safetyEventSummary: com.example.vitruvianredux.presentation.components.SafetyEventSummary? = null
     ) : WorkoutState()
     object Paused : WorkoutState()
     object Completed : WorkoutState()
@@ -195,7 +198,8 @@ data class WorkoutMetric(
     val positionB: Int,
     val ticks: Int = 0,
     val velocityA: Double = 0.0,  // Velocity for handle detection (official app protocol)
-    val velocityB: Double = 0.0   // Velocity for right handle detection (for single-handle exercises)
+    val velocityB: Double = 0.0,   // Velocity for right handle detection (for single-handle exercises)
+    val statusFlags: Set<SampleStatus> = emptySet()
 ) {
     val totalLoad: Float get() = loadA + loadB
 }
@@ -266,7 +270,12 @@ data class WorkoutSession(
     val exerciseName: String? = null,  // Exercise name for display (avoids DB lookups)
     // Routine tracking (for grouping sets from the same routine)
     val routineSessionId: String? = null,  // Unique ID for this routine session
-    val routineName: String? = null  // Name of the routine being performed
+    val routineName: String? = null,  // Name of the routine being performed
+    // Safety tracking
+    val safetyFlags: Int = 0,
+    val deloadWarningCount: Int = 0,
+    val romViolationCount: Int = 0,
+    val spotterActivations: Int = 0
 )
 
 /**

@@ -128,6 +128,12 @@ fun ActiveWorkoutScreen(
             )
         }
     ) { padding ->
+        val heuristicStatistics = remember(workoutState) {
+            (workoutState as? WorkoutState.SetSummary)?.heuristicStatistics
+        }
+        val safetyEventSummary = remember(workoutState) {
+            (workoutState as? WorkoutState.SetSummary)?.safetyEventSummary
+        }
         WorkoutTab(
             connectionState = connectionState,
             workoutState = workoutState,
@@ -165,6 +171,8 @@ fun ActiveWorkoutScreen(
             onHideWorkoutSetupDialog = { /* Not used in ActiveWorkoutScreen */ },
             showConnectionCard = false,
             showWorkoutSetupCard = false,
+            heuristicStatistics = heuristicStatistics,
+            safetyEventSummary = safetyEventSummary,
             modifier = Modifier.padding(padding)
         )
     }

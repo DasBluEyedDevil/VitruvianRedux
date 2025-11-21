@@ -211,6 +211,68 @@ object AppModule {
     }
 
     /**
+     * Migration from version 7 to 8: Fix routine_exercises schema
+     * Removes old columns (sets, reps, equipment) using create/copy/drop/rename strategy
+     */
+    private val MIGRATION_7_8 = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            val database = db
+            // 1. Create new table with correct schema (13 columns)
+            database.execSQL("""
+                CREATE TABLE `routine_exercises_new` (
+                    `id` TEXT NOT NULL,
+                    `routineId` TEXT NOT NULL,
+                    `exerciseName` TEXT NOT NULL,
+                    `exerciseMuscleGroup` TEXT NOT NULL,
+                    `exerciseEquipment` TEXT NOT NULL,
+                    `exerciseDefaultCableConfig` TEXT NOT NULL,
+                    `cableConfig` TEXT NOT NULL,
+                    `orderIndex` INTEGER NOT NULL,
+                    `setReps` TEXT NOT NULL,
+                    `weightPerCableKg` REAL NOT NULL,
+                    `progressionKg` REAL NOT NULL,
+                    `restSeconds` INTEGER NOT NULL,
+                    `notes` TEXT NOT NULL,
+                    PRIMARY KEY(`id`),
+                    FOREIGN KEY(`routineId`) REFERENCES `routines`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+            """.trimIndent())
+
+            // 2. Copy data (IFNULL handles NULL values from failed v7 migration)
+            database.execSQL("""
+                INSERT INTO `routine_exercises_new` (
+                    id, routineId, exerciseName, exerciseMuscleGroup, exerciseEquipment, exerciseDefaultCableConfig,
+                    cableConfig, orderIndex, setReps, weightPerCableKg, progressionKg, restSeconds, notes
+                )
+                SELECT
+                    id,
+                    routineId,
+                    exerciseName,
+                    IFNULL(exerciseMuscleGroup, ''),
+                    IFNULL(exerciseEquipment, ''),
+                    IFNULL(exerciseDefaultCableConfig, ''),
+                    cableConfig,
+                    orderIndex,
+                    setReps,
+                    weightPerCableKg,
+                    progressionKg,
+                    restSeconds,
+                    notes
+                FROM `routine_exercises`
+            """.trimIndent())
+
+            // 3. Drop old table
+            database.execSQL("DROP TABLE `routine_exercises`")
+
+            // 4. Rename new table
+            database.execSQL("ALTER TABLE `routine_exercises_new` RENAME TO `routine_exercises`")
+
+            // 5. Recreate index
+            database.execSQL("CREATE INDEX `index_routine_exercises_routineId` ON `routine_exercises` (`routineId`)")
+        }
+    }
+
+    /**
      * Migration from version 8 to 9: Rename progressionKg to progressionRegressionKg in workout_sessions
      * and add personal_records table
      */
@@ -648,68 +710,6 @@ object AppModule {
         }
     }
 
-    /**
-     * Migration from version 7 to 8: Fix routine_exercises schema
-     * Removes old columns (sets, reps, equipment) using create/copy/drop/rename strategy
-     */
-    private val MIGRATION_7_8 = object : Migration(7, 8) {
-        override fun migrate(db: SupportSQLiteDatabase) {
-            val database = db
-            // 1. Create new table with correct schema (13 columns)
-            database.execSQL("""
-                CREATE TABLE `routine_exercises_new` (
-                    `id` TEXT NOT NULL,
-                    `routineId` TEXT NOT NULL,
-                    `exerciseName` TEXT NOT NULL,
-                    `exerciseMuscleGroup` TEXT NOT NULL,
-                    `exerciseEquipment` TEXT NOT NULL,
-                    `exerciseDefaultCableConfig` TEXT NOT NULL,
-                    `cableConfig` TEXT NOT NULL,
-                    `orderIndex` INTEGER NOT NULL,
-                    `setReps` TEXT NOT NULL,
-                    `weightPerCableKg` REAL NOT NULL,
-                    `progressionKg` REAL NOT NULL,
-                    `restSeconds` INTEGER NOT NULL,
-                    `notes` TEXT NOT NULL,
-                    PRIMARY KEY(`id`),
-                    FOREIGN KEY(`routineId`) REFERENCES `routines`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE
-                )
-            """.trimIndent())
-
-            // 2. Copy data (IFNULL handles NULL values from failed v7 migration)
-            database.execSQL("""
-                INSERT INTO `routine_exercises_new` (
-                    id, routineId, exerciseName, exerciseMuscleGroup, exerciseEquipment, exerciseDefaultCableConfig,
-                    cableConfig, orderIndex, setReps, weightPerCableKg, progressionKg, restSeconds, notes
-                )
-                SELECT
-                    id,
-                    routineId,
-                    exerciseName,
-                    IFNULL(exerciseMuscleGroup, ''),
-                    IFNULL(exerciseEquipment, ''),
-                    IFNULL(exerciseDefaultCableConfig, ''),
-                    cableConfig,
-                    orderIndex,
-                    setReps,
-                    weightPerCableKg,
-                    progressionKg,
-                    restSeconds,
-                    notes
-                FROM `routine_exercises`
-            """.trimIndent())
-
-            // 3. Drop old table
-            database.execSQL("DROP TABLE `routine_exercises`")
-
-            // 4. Rename new table
-            database.execSQL("ALTER TABLE `routine_exercises_new` RENAME TO `routine_exercises`")
-
-            // 5. Recreate index
-            database.execSQL("CREATE INDEX `index_routine_exercises_routineId` ON `routine_exercises` (`routineId`)")
-        }
-    }
-
     @Provides
     @Singleton
     fun provideConnectionLogDao(database: WorkoutDatabase): ConnectionLogDao {
@@ -724,13 +724,18 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideBleRepository(
+    fun provideVitruvianBleManager(
         @ApplicationContext context: Context,
-        connectionLogger: ConnectionLogger,
-        vitruvianBleManager: VitruvianBleManager
-    ): BleRepository {
-        return BleRepositoryImpl(context, connectionLogger, vitruvianBleManager)
+        connectionLogger: ConnectionLogger
+    ): VitruvianBleManager {
+        return VitruvianBleManager(context, connectionLogger)
     }
+
+    @Provides
+    @Singleton
+    fun provideBleRepository(
+        impl: BleRepositoryImpl
+    ): BleRepository = impl
 
     @Provides
     @Singleton
@@ -758,9 +763,11 @@ object AppModule {
     @Singleton
     fun provideWorkoutRepository(
         workoutDao: WorkoutDao,
-        personalRecordDao: PersonalRecordDao
+        personalRecordDao: PersonalRecordDao,
+        phaseStatisticsDao: PhaseStatisticsDao,
+        diagnosticsDao: DiagnosticsDao
     ): WorkoutRepository {
-        return WorkoutRepository(workoutDao, personalRecordDao)
+        return WorkoutRepository(workoutDao, personalRecordDao, phaseStatisticsDao, diagnosticsDao)
     }
 
     @Provides
@@ -775,13 +782,13 @@ object AppModule {
     ): PreferencesManager {
         return PreferencesManager(context)
     }
-    
+
     @Provides
     @Singleton
     fun provideExerciseDao(database: WorkoutDatabase): ExerciseDao {
         return database.exerciseDao()
     }
-    
+
     @Provides
     @Singleton
     fun provideExerciseImporter(
@@ -790,7 +797,7 @@ object AppModule {
     ): ExerciseImporter {
         return ExerciseImporter(context, exerciseDao)
     }
-    
+
     @Provides
     @Singleton
     fun provideExerciseRepository(
@@ -816,12 +823,6 @@ object AppModule {
     @Singleton
     fun provideDiagnosticsDao(database: WorkoutDatabase): DiagnosticsDao {
         return database.diagnosticsDao()
-    }
-
-    @Provides
-    @Singleton
-    fun provideVitruvianBleManager(@ApplicationContext context: Context): VitruvianBleManager {
-        return VitruvianBleManager(context)
     }
 
     @Provides

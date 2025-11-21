@@ -40,7 +40,7 @@ class WorkoutRepository @Inject constructor(
     private val phaseStatisticsDao: PhaseStatisticsDao,
     private val diagnosticsDao: DiagnosticsDao
 ) {
-    
+
     /**
      * Save a workout session
      */
@@ -74,7 +74,7 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     /**
      * Save workout metrics (batch insert for performance)
      */
@@ -99,7 +99,37 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
+    /**
+     * Save phase statistics
+     */
+    suspend fun savePhaseStatistics(sessionId: String, stats: HeuristicStatistics): Result<Unit> {
+        return try {
+            val entity = PhaseStatisticsEntity(
+                sessionId = sessionId,
+                concentricKgAvg = stats.concentric.kgAvg,
+                concentricKgMax = stats.concentric.kgMax,
+                concentricVelAvg = stats.concentric.velAvg,
+                concentricVelMax = stats.concentric.velMax,
+                concentricWattAvg = stats.concentric.wattAvg,
+                concentricWattMax = stats.concentric.wattMax,
+                eccentricKgAvg = stats.eccentric.kgAvg,
+                eccentricKgMax = stats.eccentric.kgMax,
+                eccentricVelAvg = stats.eccentric.velAvg,
+                eccentricVelMax = stats.eccentric.velMax,
+                eccentricWattAvg = stats.eccentric.wattAvg,
+                eccentricWattMax = stats.eccentric.wattMax,
+                timestamp = stats.timestamp
+            )
+            phaseStatisticsDao.insert(entity)
+            Timber.d("Saved phase statistics for session $sessionId")
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to save phase statistics")
+            Result.failure(e)
+        }
+    }
+
     /**
      * Get all workout sessions
      */
@@ -108,7 +138,7 @@ class WorkoutRepository @Inject constructor(
             entities.map { it.toWorkoutSession() }
         }
     }
-    
+
     /**
      * Get recent workout sessions
      */
@@ -117,14 +147,14 @@ class WorkoutRepository @Inject constructor(
             entities.map { it.toWorkoutSession() }
         }
     }
-    
+
     /**
      * Get a specific workout session
      */
     suspend fun getSession(sessionId: String): WorkoutSession? {
         return workoutDao.getSession(sessionId)?.toWorkoutSession()
     }
-    
+
     /**
      * Get metrics for a workout session
      */
@@ -133,21 +163,34 @@ class WorkoutRepository @Inject constructor(
             entities.map { it.toWorkoutMetric() }
         }
     }
-    
+
     /**
      * Get metrics for a workout session synchronously (for export)
      */
     suspend fun getMetricsForSessionSync(sessionId: String): List<WorkoutMetric> {
         return workoutDao.getMetricsForSessionSync(sessionId).map { it.toWorkoutMetric() }
     }
-    
+
     /**
      * Get recent workout sessions synchronously (for export)
      */
     suspend fun getRecentSessionsSync(limit: Int = 10): List<WorkoutSession> {
         return workoutDao.getRecentSessionsSync(limit).map { it.toWorkoutSession() }
     }
-    
+
+    /**
+     * Get all phase statistics
+     */
+    fun getAllPhaseStatistics(): Flow<List<PhaseStatisticsEntity>> {
+        return phaseStatisticsDao.getAll()
+    }
+
+    /**
+     * Get phase statistics for a specific session
+     */
+    suspend fun getPhaseStatisticsForSession(sessionId: String): PhaseStatisticsEntity? =
+        phaseStatisticsDao.getBySessionId(sessionId)
+
     /**
      * Delete a workout
      */
@@ -161,7 +204,7 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     /**
      * Delete all workouts
      */
@@ -175,9 +218,9 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     // ========== Routine Operations ==========
-    
+
     /**
      * Save a routine with exercises
      */
@@ -193,7 +236,7 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     /**
      * Update a routine
      */
@@ -209,7 +252,7 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     /**
      * Get all routines
      */
@@ -221,7 +264,7 @@ class WorkoutRepository @Inject constructor(
             }
         }
     }
-    
+
     /**
      * Get a specific routine
      */
@@ -235,7 +278,7 @@ class WorkoutRepository @Inject constructor(
             null
         }
     }
-    
+
     /**
      * Delete a routine
      */
@@ -249,7 +292,7 @@ class WorkoutRepository @Inject constructor(
             Result.failure(e)
         }
     }
-    
+
     /**
      * Mark routine as used (updates lastUsed and increments useCount)
      */
@@ -375,41 +418,6 @@ class WorkoutRepository @Inject constructor(
             false
         }
     }
-
-    // ========== Phase Statistics ==========
-
-    /**
-     * Save phase statistics for a workout session
-     */
-    suspend fun savePhaseStatistics(sessionId: String, stats: HeuristicStatistics) {
-        val entity = PhaseStatisticsEntity(
-            sessionId = sessionId,
-            concentricKgAvg = stats.concentric.kgAvg,
-            concentricKgMax = stats.concentric.kgMax,
-            concentricVelAvg = stats.concentric.velAvg,
-            concentricVelMax = stats.concentric.velMax,
-            concentricWattAvg = stats.concentric.wattAvg,
-            concentricWattMax = stats.concentric.wattMax,
-            eccentricKgAvg = stats.eccentric.kgAvg,
-            eccentricKgMax = stats.eccentric.kgMax,
-            eccentricVelAvg = stats.eccentric.velAvg,
-            eccentricVelMax = stats.eccentric.velMax,
-            eccentricWattAvg = stats.eccentric.wattAvg,
-            eccentricWattMax = stats.eccentric.wattMax
-        )
-        phaseStatisticsDao.insert(entity)
-    }
-
-    /**
-     * Get all phase statistics
-     */
-    fun getAllPhaseStatistics(): Flow<List<PhaseStatisticsEntity>> = phaseStatisticsDao.getAll()
-
-    /**
-     * Get phase statistics for a specific session
-     */
-    suspend fun getPhaseStatisticsForSession(sessionId: String): PhaseStatisticsEntity? =
-        phaseStatisticsDao.getBySessionId(sessionId)
 }
 
 // Extension functions for mapping between entities and domain models

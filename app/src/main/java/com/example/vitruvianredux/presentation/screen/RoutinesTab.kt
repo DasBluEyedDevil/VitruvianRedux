@@ -30,6 +30,8 @@ import com.example.vitruvianredux.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
+import com.example.vitruvianredux.presentation.components.CollapsibleRoutineCard
+
 @Composable
 fun RoutinesTab(
     routines: List<Routine>,
@@ -100,11 +102,12 @@ fun RoutinesTab(
                 )
             } else {
                 LazyColumn(
+                    modifier = Modifier.fillMaxHeight(), // Fill remaining vertical space
                     verticalArrangement = Arrangement.spacedBy(Spacing.small),
-                    contentPadding = PaddingValues(bottom = 80.dp) // Space for FAB (56dp + padding)
+                    contentPadding = PaddingValues(bottom = 16.dp) // Minimal bottom padding (FAB overlays naturally)
                 ) {
                     items(routines, key = { it.id }) { routine ->
-                        RoutineCard(
+                        CollapsibleRoutineCard(
                             routine = routine,
                             onStartWorkout = { onStartWorkout(routine) },
                             onEdit = {
@@ -214,175 +217,6 @@ fun RoutinesTab(
             displayToKg = displayToKg,
             themeMode = themeMode
         )
-    }
-}
-
-@Composable
-fun RoutineCard(
-    routine: Routine,
-    onStartWorkout: () -> Unit,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onDuplicate: () -> Unit
-) {
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f, // Material 3 Expressive: More scale (was 0.99f)
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy, // Material 3 Expressive: More bouncy (was MediumBouncy)
-            stiffness = Spring.StiffnessLow // Material 3 Expressive: Springy feel (was 400f)
-        ),
-        label = "scale"
-    )
-
-    Card(
-        onClick = onStartWorkout,
-        modifier = Modifier
-            .fillMaxWidth()
-            .scale(scale),
-        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest // Material 3 Expressive: Higher contrast
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isPressed) 4.dp else 8.dp // Material 3 Expressive: Higher elevation (was 2/4dp)
-        ),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)) // Material 3 Expressive: Thicker border (was 1dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp), // Material 3 Expressive: More padding (was 16dp)
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Material 3 Expressive: Larger Gradient Icon (72dp)
-            Box(
-                modifier = Modifier
-                    .size(72.dp) // Material 3 Expressive: Larger (was 64dp)
-                    .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE))
-                            ),
-                            RoundedCornerShape(20.dp) // Material 3 Expressive: More rounded (was 16dp)
-                        ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.FitnessCenter,
-                    contentDescription = "Fitness routine",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(36.dp) // Material 3 Expressive: Larger icon (was 32dp)
-                )
-            }
-
-            // Content Column
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = routine.name,
-                    style = MaterialTheme.typography.titleLarge, // Material 3 Expressive: Larger (was titleMedium)
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = routine.description.ifEmpty { "${routine.exercises.size} exercises" },
-                    style = MaterialTheme.typography.bodyMedium, // Material 3 Expressive: Larger (was bodySmall)
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                // Exercise list with set/rep configuration
-                val exercisesToShow = routine.exercises.take(4)
-                val remainingCount = (routine.exercises.size - exercisesToShow.size).coerceAtLeast(0)
-
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    exercisesToShow.forEach { routineExercise ->
-                        Text(
-                            text = "${routineExercise.exercise.name} - ${formatSetReps(routineExercise.setReps)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (remainingCount > 0) {
-                        Text(
-                            text = "+ $remainingCount more",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-
-                Text(
-                    text = "${routine.exercises.size} exercises • ${formatEstimatedDuration(routine)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-
-            // Material 3 Expressive: Larger Arrow Icon
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = MaterialTheme.colorScheme.primaryContainer, // Material 3 Expressive: Use theme color
-                modifier = Modifier.size(40.dp) // Material 3 Expressive: Larger (was 36dp)
-            ) {
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = "Navigate",
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer, // Material 3 Expressive: Use theme color
-                        modifier = Modifier.size(20.dp) // Material 3 Expressive: Larger icon (was 16dp)
-                    )
-                }
-            }
-        }
-
-        // Overflow menu (top-right) for edit/duplicate/delete
-        var showMenu by remember { mutableStateOf(false) }
-        Box(modifier = Modifier.fillMaxWidth()) {
-            IconButton(
-                onClick = { showMenu = !showMenu },
-                modifier = Modifier.align(Alignment.TopEnd)
-            ) {
-                Icon(Icons.Default.MoreVert, contentDescription = "Menu")
-            }
-
-            DropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = { showMenu = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Edit") },
-                    onClick = { showMenu = false; onEdit() },
-                    leadingIcon = { Icon(Icons.Default.Edit, null) }
-                )
-                DropdownMenuItem(
-                    text = { Text("Duplicate") },
-                    onClick = { showMenu = false; onDuplicate() },
-                    leadingIcon = { Icon(Icons.Default.ContentCopy, null) }
-                )
-                DropdownMenuItem(
-                    text = { Text("Delete") },
-                    onClick = { showMenu = false; onDelete() },
-                    leadingIcon = { Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error) }
-                )
-            }
-        }
-    }
-
-    LaunchedEffect(isPressed) {
-        if (isPressed) {
-            kotlinx.coroutines.delay(100)
-            isPressed = false
-        }
     }
 }
 

@@ -5,12 +5,14 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.example.vitruvianredux.data.local.dao.DiagnosticsDao
 import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
+import com.example.vitruvianredux.data.local.entity.DiagnosticsEntity
+import com.example.vitruvianredux.data.local.entity.PhaseStatisticsEntity
 
 /**
  * Room database for workout history
  *
  * Version history:
- * - v23: Added PhaseStatisticsEntity, DiagnosticsEntity, and safety event columns to workout_sessions
+ * - v23: Added safety tracking to workout_sessions, phase_statistics table, and diagnostics_history table
  * - v22: Added aliases and defaultCableConfig to exercises, isTutorial to exercise_videos
  * - v21: Added exerciseName to WorkoutSessionEntity
  * - v20: Added isAMRAP to routine_exercises for AMRAP workout mode
@@ -45,7 +47,7 @@ import com.example.vitruvianredux.data.local.dao.PhaseStatisticsDao
         PhaseStatisticsEntity::class,
         DiagnosticsEntity::class
     ],
-    version = 23,  // Added PhaseStatisticsEntity, DiagnosticsEntity, and safety event columns
+    version = 23,  // Added safety tracking, phase statistics, diagnostics
     exportSchema = false
 )
 @TypeConverters(Converters::class)

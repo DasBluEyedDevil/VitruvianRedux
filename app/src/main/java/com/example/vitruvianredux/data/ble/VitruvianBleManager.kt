@@ -3,9 +3,13 @@ package com.example.vitruvianredux.data.ble
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.content.Context
+import com.example.vitruvianredux.data.ble.GattRequestRejectedException
+import com.example.vitruvianredux.data.ble.GattStatusException
+import com.example.vitruvianredux.data.ble.NotReadyException
 import com.example.vitruvianredux.domain.model.DiagnosticDetails
 import com.example.vitruvianredux.domain.model.HeuristicPhaseStatistics
 import com.example.vitruvianredux.domain.model.HeuristicStatistics
+import com.example.vitruvianredux.domain.model.SampleStatus
 import com.example.vitruvianredux.domain.model.WorkoutMetric
 import com.example.vitruvianredux.util.BleConstants
 import kotlinx.coroutines.CoroutineScope
@@ -25,6 +29,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import no.nordicsemi.android.ble.ConnectionPriorityRequest
 import no.nordicsemi.android.ble.BleManager
 import no.nordicsemi.android.ble.data.Data
 import timber.log.Timber
@@ -63,7 +68,7 @@ class VitruvianBleManager(
     // GATT characteristics
     private var nusRxCharacteristic: BluetoothGattCharacteristic? = null
     private var monitorCharacteristic: BluetoothGattCharacteristic? = null
-    private var propertyCharacteristic: BluetoothGattCharacteristic? = null
+    private var propertyCharacteristic: BluetoothGattCharacteristic? = null // Diagnostic
     private var repNotifyCharacteristic: BluetoothGattCharacteristic? = null
     private var heuristicCharacteristic: BluetoothGattCharacteristic? = null
     private var versionCharacteristic: BluetoothGattCharacteristic? = null
@@ -76,7 +81,6 @@ class VitruvianBleManager(
     private var monitorPollingJob: Job? = null
     private var propertyPollingJob: Job? = null
     private var heuristicPollingJob: Job? = null
-    private var diagnosticPollingJob: Job? = null
 
     // Last good positions for filtering spikes (volatile for thread safety)
     @Volatile private var lastGoodPosA = 0
@@ -86,7 +90,9 @@ class VitruvianBleManager(
     @Volatile private var lastPositionA = 0
     @Volatile private var lastPositionB = 0
     @Volatile private var lastTimestamp = 0L
-    @Volatile private var strictValidationEnabled = false
+
+    // Validation mode
+    @Volatile private var strictValidationEnabled: Boolean = false
 
     // State flows
     private val _connectionState = MutableStateFlow<ConnectionStatus>(ConnectionStatus.Disconnected)
@@ -198,7 +204,7 @@ class VitruvianBleManager(
             // Get required characteristics
             nusRxCharacteristic = nusService.getCharacteristic(BleConstants.NUS_RX_CHAR_UUID)
             monitorCharacteristic = nusService.getCharacteristic(BleConstants.MONITOR_CHAR_UUID)
-            propertyCharacteristic = nusService.getCharacteristic(BleConstants.PROPERTY_CHAR_UUID)
+            propertyCharacteristic = nusService.getCharacteristic(BleConstants.DIAGNOSTIC_CHAR_UUID) // Also known as PROPERTY_CHAR
             repNotifyCharacteristic = nusService.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
             heuristicCharacteristic = nusService.getCharacteristic(BleConstants.HEURISTIC_CHAR_UUID)
             versionCharacteristic = nusService.getCharacteristic(BleConstants.VERSION_CHAR_UUID)
@@ -207,37 +213,22 @@ class VitruvianBleManager(
             val timestamp = System.currentTimeMillis()
             Timber.i("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             Timber.i("✅ CHARACTERISTICS DISCOVERED! [$timestamp]")
-            Timber.i("✅ RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
+            Timber.i("✅ RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Diagnostic=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
             Timber.i("✅ Heuristic=${heuristicCharacteristic != null}, Version=${versionCharacteristic != null}")
             if (nusRxCharacteristic != null) {
                 Timber.i("✅ nusRxCharacteristic UUID: ${nusRxCharacteristic?.uuid}, instance: ${nusRxCharacteristic?.instanceId}")
             }
             Timber.i("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
-            Timber.d("Found characteristics in NUS service: RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Property=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}, Heuristic=${heuristicCharacteristic != null}, Version=${versionCharacteristic != null}")
+            Timber.d("Found characteristics in NUS service: RX=${nusRxCharacteristic != null}, Monitor=${monitorCharacteristic != null}, Diagnostic=${propertyCharacteristic != null}, RepNotify=${repNotifyCharacteristic != null}")
 
             // If characteristics not in NUS service, search all services
-            if (repNotifyCharacteristic == null || heuristicCharacteristic == null || versionCharacteristic == null) {
-                Timber.w("Some characteristics not found in NUS service, searching all services...")
+            if (repNotifyCharacteristic == null) {
                 gatt.services.forEach { service ->
-                    if (repNotifyCharacteristic == null) {
-                        service.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)?.let { found ->
-                            repNotifyCharacteristic = found
-                            Timber.d("Found rep notify characteristic in service: ${service.uuid}")
-                        }
-                    }
-                    if (heuristicCharacteristic == null) {
-                        service.getCharacteristic(BleConstants.HEURISTIC_CHAR_UUID)?.let { found ->
-                            heuristicCharacteristic = found
-                            Timber.d("Found heuristic characteristic in service: ${service.uuid}")
-                        }
-                    }
-                    if (versionCharacteristic == null) {
-                        service.getCharacteristic(BleConstants.VERSION_CHAR_UUID)?.let { found ->
-                            versionCharacteristic = found
-                            Timber.d("Found version characteristic in service: ${service.uuid}")
-                        }
-                    }
+                    if (repNotifyCharacteristic == null) repNotifyCharacteristic = service.getCharacteristic(BleConstants.REP_NOTIFY_CHAR_UUID)
+                    if (heuristicCharacteristic == null) heuristicCharacteristic = service.getCharacteristic(BleConstants.HEURISTIC_CHAR_UUID)
+                    if (versionCharacteristic == null) versionCharacteristic = service.getCharacteristic(BleConstants.VERSION_CHAR_UUID)
+                    if (propertyCharacteristic == null) propertyCharacteristic = service.getCharacteristic(BleConstants.DIAGNOSTIC_CHAR_UUID)
                 }
             }
 
@@ -475,11 +466,21 @@ class VitruvianBleManager(
                     _connectionState.value = ConnectionStatus.Ready
                     Timber.d("All initialization operations complete! Device ready.")
 
+                    // Log enabled characteristics to ConnectionLogger for debugging
+                    val uuidList = notifyCharacteristics.joinToString(", ") { it.uuid.toString().take(8) + "..." }
+                    connectionLogger?.log(
+                        eventType = "NOTIFICATIONS_ACTIVE",
+                        level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.INFO,
+                        deviceName = currentDeviceName,
+                        deviceAddress = currentDeviceAddress,
+                        message = "Notifications enabled on: $uuidList"
+                    )
+
                     // Start property polling immediately to keep machine alive (keep-alive mechanism)
-                    // The official app/web app does this - property polling at 500ms intervals
+                    // The official app does this - property polling at 500ms intervals (matches official app)
                     // Monitor polling (100ms) only starts when workout begins
-                    Timber.d("Starting keep-alive property polling (500ms)...")
-                    startPropertyPolling()
+                    Timber.d("Starting keep-alive diagnostic polling (500ms - official app interval)...")
+                    startDiagnosticPolling()
                 }
             }
 
@@ -487,7 +488,7 @@ class VitruvianBleManager(
             // This ensures fast, reliable communication and prevents early disconnections
             // that were causing 5-second disconnect issues (Issue #131)
             Timber.d("Requesting HIGH connection priority for stable connection...")
-            requestConnectionPriority(android.bluetooth.BluetoothGatt.CONNECTION_PRIORITY_HIGH)
+            requestConnectionPriority(ConnectionPriorityRequest.CONNECTION_PRIORITY_HIGH)
                 .done { _ ->
                     Timber.d("✅ Connection priority set to HIGH")
                     checkAllOperationsComplete()
@@ -533,7 +534,7 @@ class VitruvianBleManager(
                             // Parse opcode from first byte (command responses start with opcode)
                             val opcode = bytes[0].toUByte()
                             Timber.d("[notify ${characteristic.uuid}] ${bytes.size} bytes, opcode=0x${opcode.toString(16).uppercase().padStart(2, '0')}")
-                            
+
                             // Emit opcode to response flow for awaitResponse() to catch
                             _commandResponses.tryEmit(opcode)
                         } else {
@@ -555,7 +556,7 @@ class VitruvianBleManager(
             }
         }
     }
-    
+
     /**
      * Start polling monitor characteristic every 100ms
      * This is how the official app reads position/force data
@@ -568,6 +569,9 @@ class VitruvianBleManager(
 
         // Start with handles released; wait for actual grab detection from data
         _handleState.value = HandleState.Released
+
+        // Start heuristic polling alongside monitor
+        startHeuristicPolling()
 
         monitorPollingJob?.cancel()
         monitorPollingJob = pollingScope.launch {
@@ -590,16 +594,15 @@ class VitruvianBleManager(
             }
         }
     }
-    
+
     /**
-     * Start polling property characteristic every 500ms
-     * This acts as a keep-alive mechanism to maintain BLE connection stability
-     * CRITICAL: Without this, some devices may disconnect after ~5 seconds
+     * Start polling diagnostic characteristic every 500ms (keep-alive + health monitoring)
+     * Matches official app interval - Renamed from startPropertyPolling
      */
-    fun startPropertyPolling() {
+    fun startDiagnosticPolling() {
         propertyPollingJob?.cancel()
         propertyPollingJob = pollingScope.launch {
-            Timber.d("🔄 Starting keep-alive property polling (500ms interval)")
+            Timber.d("🔄 Starting diagnostic polling (500ms interval - matches official app)")
             var successfulReads = 0
             var failedReads = 0
 
@@ -607,7 +610,7 @@ class VitruvianBleManager(
                 try {
                     val char = propertyCharacteristic
                     if (char == null) {
-                        Timber.w("⚠️ Property characteristic is null - cannot maintain keep-alive!")
+                        Timber.w("⚠️ Diagnostic characteristic is null - cannot maintain keep-alive!")
                         delay(500)
                         continue
                     }
@@ -615,92 +618,127 @@ class VitruvianBleManager(
                     readCharacteristic(char)
                         .with { _, data ->
                             successfulReads++
-                            if (successfulReads % 20 == 0) {
-                                Timber.d("✅ Keep-alive active: $successfulReads successful reads, $failedReads failed")
+                            val bytes = data.value
+                            if (bytes != null) {
+                                parseDiagnosticData(bytes)
                             }
-                            Timber.v("Property data: ${data.value?.joinToString(" ") { "%02X".format(it) } ?: "null"}")
                         }
                         .fail { _, status ->
                             failedReads++
-                            Timber.w("⚠️ Keep-alive read failed (status: $status) - total failures: $failedReads")
-
-                            // Log to connection logger if failures are frequent
-                            if (failedReads % 5 == 0) {
-                                connectionLogger?.log(
-                                    eventType = "KEEP_ALIVE_FAILING",
-                                    level = com.example.vitruvianredux.data.logger.ConnectionLogger.Level.WARNING,
-                                    deviceName = currentDeviceName,
-                                    deviceAddress = currentDeviceAddress,
-                                    message = "Keep-alive reads failing: $failedReads failures out of ${successfulReads + failedReads} attempts"
-                                )
-                            }
+                            Timber.w("⚠️ Diagnostic read failed (status: $status)")
                         }
                         .enqueue()
 
-                    delay(500) // Poll every 500ms (matches web app)
+                    delay(500) // Poll every 500ms (Official app interval - verified)
                 } catch (e: Exception) {
                     failedReads++
-                    Timber.e(e, "❌ Exception in property polling (keep-alive)")
-                    delay(500) // Still delay to avoid tight loop on persistent errors
-                }
-            }
-
-            Timber.d("🛑 Keep-alive property polling stopped (successful: $successfulReads, failed: $failedReads)")
-        }
-    }
-
-    /**
-     * Start polling diagnostic data at 1 Hz
-     * Reads device diagnostic information including runtime, fault mask, and temperatures
-     */
-    fun startDiagnosticPolling() {
-        diagnosticPollingJob?.cancel()
-        diagnosticPollingJob = pollingScope.launch {
-            Timber.d("Starting diagnostic polling (1 Hz)")
-            while (isActive) {
-                try {
-                    propertyCharacteristic?.let { char ->
-                        readCharacteristic(char)
-                            .with { _, data ->
-                                data.value?.let { bytes ->
-                                    parseDiagnosticData(bytes)
-                                }
-                            }
-                            .enqueue()
-                    }
-                    delay(1000) // Poll every 1 second
-                } catch (e: Exception) {
-                    Timber.e(e, "Error in diagnostic polling")
+                    Timber.e(e, "❌ Exception in diagnostic polling")
+                    delay(500)
                 }
             }
         }
     }
 
-    /**
-     * Start polling heuristic data at 4 Hz
-     * Reads workout statistics including concentric/eccentric phase metrics
-     */
     fun startHeuristicPolling() {
         heuristicPollingJob?.cancel()
         heuristicPollingJob = pollingScope.launch {
-            Timber.d("Starting heuristic polling (4 Hz)")
+            Timber.d("Starting heuristic polling (1000ms interval)")
             while (isActive) {
                 try {
                     heuristicCharacteristic?.let { char ->
                         readCharacteristic(char)
                             .with { _, data ->
-                                data.value?.let { bytes ->
+                                val bytes = data.value
+                                if (bytes != null) {
                                     parseHeuristicData(bytes)
                                 }
                             }
                             .enqueue()
                     }
-                    delay(250) // Poll at 4 Hz
+                    delay(1000) // Poll every 1s
                 } catch (e: Exception) {
                     Timber.e(e, "Error in heuristic polling")
                 }
             }
         }
+    }
+
+    private fun parseDiagnosticData(bytes: ByteArray) {
+        try {
+            if (bytes.size < 20) return
+
+            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+            val seconds = buffer.getInt()
+
+            val faults = mutableListOf<Short>()
+            repeat(4) { faults.add(buffer.getShort()) }
+
+            val temps = mutableListOf<Byte>()
+            repeat(8) { temps.add(buffer.get()) }
+
+            val containsFaults = faults.any { it != 0.toShort() }
+
+            _diagnosticData.value = DiagnosticDetails(
+                seconds = seconds,
+                faults = faults,
+                temps = temps,
+                containsFaults = containsFaults
+            )
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to parse diagnostic data")
+        }
+    }
+
+    private fun parseHeuristicData(bytes: ByteArray) {
+        try {
+            if (bytes.size < 48) return
+
+            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+
+            // Concentric
+            val concentric = HeuristicPhaseStatistics(
+                kgAvg = buffer.getFloat(),
+                kgMax = buffer.getFloat(),
+                velAvg = buffer.getFloat(),
+                velMax = buffer.getFloat(),
+                wattAvg = buffer.getFloat(),
+                wattMax = buffer.getFloat()
+            )
+
+            // Eccentric
+            val eccentric = HeuristicPhaseStatistics(
+                kgAvg = buffer.getFloat(),
+                kgMax = buffer.getFloat(),
+                velAvg = buffer.getFloat(),
+                velMax = buffer.getFloat(),
+                wattAvg = buffer.getFloat(),
+                wattMax = buffer.getFloat()
+            )
+
+            _heuristicData.value = HeuristicStatistics(concentric, eccentric)
+        } catch (e: Exception) {
+            Timber.e(e, "Failed to parse heuristic data")
+        }
+    }
+
+    private fun validateSample(posA: Short, loadA: Short, posB: Short, loadB: Short): Boolean {
+        if (!strictValidationEnabled) return true
+
+        // Official App Validation Ranges
+        // Position: -1000.0 to 1000.0
+        // Force: 0.0 to 100.0
+
+        val posADbl = posA / 10.0
+        val posBDbl = posB / 10.0
+        val loadADbl = loadA / 100.0
+        val loadBDbl = loadB / 100.0
+
+        if (posADbl !in -1000.0..1000.0) return false
+        if (posBDbl !in -1000.0..1000.0) return false
+        if (loadADbl !in 0.0..100.0) return false
+        if (loadBDbl !in 0.0..100.0) return false
+
+        return true
     }
 
     /**
@@ -722,20 +760,22 @@ class VitruvianBleManager(
         }
 
         val monitorJobState = monitorPollingJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
-        val propertyJobState = propertyPollingJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
+        val diagnosticJobState = propertyPollingJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
+        val heuristicJobState = heuristicPollingJob?.run { "Active=${isActive}, Cancelled=${isCancelled}, Completed=${isCompleted}" } ?: "NULL"
 
         Timber.d("STOP_DEBUG: Monitor polling job state BEFORE cancel: $monitorJobState")
-        Timber.d("STOP_DEBUG: Property polling job state BEFORE cancel: $propertyJobState")
+        Timber.d("STOP_DEBUG: Diagnostic polling job state BEFORE cancel: $diagnosticJobState")
+        Timber.d("STOP_DEBUG: Heuristic polling job state BEFORE cancel: $heuristicJobState")
 
         monitorPollingJob?.cancel()
         propertyPollingJob?.cancel()
         heuristicPollingJob?.cancel()
-        diagnosticPollingJob?.cancel()
 
         val afterCancel = System.currentTimeMillis()
         Timber.d("STOP_DEBUG: [$afterCancel] Jobs cancelled (took ${afterCancel - timestamp}ms)")
         Timber.d("STOP_DEBUG: Monitor job cancelled: ${monitorPollingJob?.isCancelled}")
-        Timber.d("STOP_DEBUG: Property job cancelled: ${propertyPollingJob?.isCancelled}")
+        Timber.d("STOP_DEBUG: Diagnostic job cancelled: ${propertyPollingJob?.isCancelled}")
+        Timber.d("STOP_DEBUG: Heuristic job cancelled: ${heuristicPollingJob?.isCancelled}")
     }
 
     /**
@@ -789,7 +829,7 @@ class VitruvianBleManager(
                 Timber.d("STOP_DEBUG: [$afterWrite] Write enqueued (took ${afterWrite - beforeWrite}ms)")
                 Timber.d("STOP_DEBUG: === COMMAND SENT ===")
                 Result.success(Unit)
-            } ?: Result.failure(Exception("NUS RX characteristic not available"))
+            } ?: Result.failure(NotReadyException("NUS RX characteristic not available"))
         } catch (e: Exception) {
             Timber.e(e, "STOP_DEBUG: Failed to send command")
             Result.failure(e)
@@ -808,7 +848,7 @@ class VitruvianBleManager(
 
             if (workoutCmdCharacteristics.isEmpty()) {
                 Timber.e("No workout command characteristics found!")
-                return@withContext Result.failure(Exception("No workout command characteristics available"))
+                return@withContext Result.failure(NotReadyException("No workout command characteristics available"))
             }
 
             // Build PROGRAM frame for Old School workout: 20kg per cable, 5 reps
@@ -922,89 +962,6 @@ class VitruvianBleManager(
         }
     }
 
-    /**
-     * Parse diagnostic data from device
-     * Format: runtime (4 bytes), fault mask (4 bytes), temperatures (8 x 2 bytes)
-     */
-    private fun parseDiagnosticData(bytes: ByteArray): DiagnosticDetails? {
-        if (bytes.size < 32) {
-            Timber.w("Diagnostic data too short: ${bytes.size} bytes")
-            return null
-        }
-
-        try {
-            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-
-            val diagnostics = DiagnosticDetails(
-                runtimeSeconds = buffer.getInt(0).toLong(),
-                faultMask = buffer.getInt(4),
-                temperatures = listOf(
-                    buffer.getShort(8).toInt(),
-                    buffer.getShort(10).toInt(),
-                    buffer.getShort(12).toInt(),
-                    buffer.getShort(14).toInt(),
-                    buffer.getShort(16).toInt(),
-                    buffer.getShort(18).toInt(),
-                    buffer.getShort(20).toInt(),
-                    buffer.getShort(22).toInt()
-                )
-            )
-
-            _diagnosticData.value = diagnostics
-            Timber.v("Parsed diagnostic data: runtime=${diagnostics.runtimeSeconds}s, faultMask=0x${diagnostics.faultMask.toString(16)}")
-            return diagnostics
-        } catch (e: Exception) {
-            Timber.w("Failed to parse diagnostic data: ${e.message}")
-            return null
-        }
-    }
-
-    /**
-     * Parse heuristic statistics from device
-     * Format: concentric phase (24 bytes) + eccentric phase (24 bytes) = 48+ bytes
-     * Each phase: kgAvg, kgMax, velAvg, velMax, wattAvg, wattMax (6 floats x 4 bytes)
-     */
-    private fun parseHeuristicData(bytes: ByteArray): HeuristicStatistics? {
-        if (bytes.size < 48) {
-            Timber.w("Heuristic data too short: ${bytes.size} bytes")
-            return null
-        }
-
-        try {
-            val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-
-            val concentric = HeuristicPhaseStatistics(
-                kgAvg = buffer.getFloat(0),
-                kgMax = buffer.getFloat(4),
-                velAvg = buffer.getFloat(8),
-                velMax = buffer.getFloat(12),
-                wattAvg = buffer.getFloat(16),
-                wattMax = buffer.getFloat(20)
-            )
-
-            val eccentric = HeuristicPhaseStatistics(
-                kgAvg = buffer.getFloat(24),
-                kgMax = buffer.getFloat(28),
-                velAvg = buffer.getFloat(32),
-                velMax = buffer.getFloat(36),
-                wattAvg = buffer.getFloat(40),
-                wattMax = buffer.getFloat(44)
-            )
-
-            val statistics = HeuristicStatistics(
-                concentric = concentric,
-                eccentric = eccentric
-            )
-
-            _heuristicData.value = statistics
-            Timber.v("Parsed heuristic data: concentric kgMax=${concentric.kgMax}, eccentric kgMax=${eccentric.kgMax}")
-            return statistics
-        } catch (e: Exception) {
-            Timber.w("Failed to parse heuristic data: ${e.message}")
-            return null
-        }
-    }
-
     private fun handleMonitorData(data: Data) {
         try {
             Timber.v("handleMonitorData called")
@@ -1023,16 +980,28 @@ class VitruvianBleManager(
 
             // Parse the monitor data packet (matching device.js parseMonitorData)
             // Format: u16[0-1]=ticks, u16[2]=posA, u16[4]=loadA*100, u16[5]=posB, u16[7]=loadB*100
+
+            // Strict Validation (Official App Logic)
+            val sPosA = buffer.getShort(4)
+            val sLoadA = buffer.getShort(8)
+            val sPosB = buffer.getShort(10)
+            val sLoadB = buffer.getShort(14)
+
+            if (!validateSample(sPosA, sLoadA, sPosB, sLoadB)) {
+                Timber.w("Strict Validation: Sample rejected. PosA=$sPosA, LoadA=$sLoadA, PosB=$sPosB, LoadB=$sLoadB")
+                return
+            }
+
             val f0 = buffer.getShort(0).toInt() and 0xFFFF
             val f1 = buffer.getShort(2).toInt() and 0xFFFF
             val f2 = buffer.getShort(4).toInt() and 0xFFFF
             val f4 = buffer.getShort(8).toInt() and 0xFFFF
             val f5 = buffer.getShort(10).toInt() and 0xFFFF
             val f7 = buffer.getShort(14).toInt() and 0xFFFF
-            
+
             // Reconstruct 32-bit tick counter
             val ticks = f0 + (f1 shl 16)
-            
+
             // Position values (filter spikes > 50000)
             var positionA = f2
             var positionB = f5
@@ -1046,10 +1015,18 @@ class VitruvianBleManager(
             } else {
                 lastGoodPosB = positionB
             }
-            
+
             // Load in kg (device sends kg * 100)
             val loadA = f4 / 100.0f
             val loadB = f7 / 100.0f
+
+            // Parse Status Flags (Safety) - Bytes 16-17
+            val statusFlags = if (bytes.size >= 18) {
+                val rawFlags = buffer.getShort(16).toInt() and 0xFFFF
+                SampleStatus.fromBitfield(rawFlags)
+            } else {
+                emptySet()
+            }
 
             // Calculate velocity for handle detection (official app protocol)
             val currentTime = System.currentTimeMillis()
@@ -1107,7 +1084,8 @@ class VitruvianBleManager(
                 positionB = positionB,
                 ticks = ticks,
                 velocityA = velocityA,
-                velocityB = velocityB
+                velocityB = velocityB,
+                statusFlags = statusFlags
             )
 
             // Log monitor data to ConnectionLogger (sampled)
@@ -1140,29 +1118,51 @@ class VitruvianBleManager(
 
     /**
      * Handle rep notification data
-     * Based on reference web app: parses u16 array with top counter and complete counter
-     * u16[0] = top counter (reached top of range)
-     * u16[2] = complete counter (rep complete at bottom)
+     * Parses full 24-byte Reps characteristic structure (matches official app)
+     *
+     * Structure (Little-Endian):
+     * - Bytes 0-3: up (int32) - upward movement counter
+     * - Bytes 4-7: down (int32) - downward movement counter
+     * - Bytes 8-11: rangeTop (float) - upper range threshold (default 300.0)
+     * - Bytes 12-15: rangeBottom (float) - lower range threshold (default 0.0)
+     * - Bytes 16-17: repsRomCount (short) - Current ROM (Range of Motion) rep count
+     * - Bytes 18-19: repsRomTotal (short) - Total ROM reps
+     * - Bytes 20-21: repsSetCount (short) - Current set rep count
+     * - Bytes 22-23: repsSetTotal (short) - Total set reps
      */
     private fun handleRepNotification(data: Data) {
         try {
             val bytes = data.value ?: return
-            
-            if (bytes.size < 6) {
-                Timber.w("Rep notification too short: ${bytes.size} bytes")
+
+            if (bytes.size < 24) {
+                Timber.w("Rep notification too short: ${bytes.size} bytes (expected 24)")
                 return
             }
 
-            // Parse as u16 little-endian array
             val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
-            val topCounter = buffer.getShort(0).toInt() and 0xFFFF
-            val completeCounter = buffer.getShort(4).toInt() and 0xFFFF
-            
-            Timber.d("Rep notification: top=$topCounter, complete=$completeCounter, hex=${bytes.joinToString(" ") { "%02X".format(it) }}")
+
+            // Parse full structure
+            val up = buffer.getInt(0)
+            val down = buffer.getInt(4)
+            val rangeTop = buffer.getFloat(8)
+            val rangeBottom = buffer.getFloat(12)
+            val repsRomCount = buffer.getShort(16)
+            val repsRomTotal = buffer.getShort(18)
+            val repsSetCount = buffer.getShort(20)
+            val repsSetTotal = buffer.getShort(22)
+
+            Timber.d("Rep notification: up=$up, down=$down, rangeTop=$rangeTop, rangeBottom=$rangeBottom")
+            Timber.d("  ROM: $repsRomCount/$repsRomTotal, Set: $repsSetCount/$repsSetTotal")
 
             val repData = RepNotification(
-                topCounter = topCounter,
-                completeCounter = completeCounter,
+                up = up,
+                down = down,
+                rangeTop = rangeTop,
+                rangeBottom = rangeBottom,
+                repsRomCount = repsRomCount,
+                repsRomTotal = repsRomTotal,
+                repsSetCount = repsSetCount,
+                repsSetTotal = repsSetTotal,
                 rawData = bytes,
                 timestamp = System.currentTimeMillis()
             )
@@ -1176,11 +1176,12 @@ class VitruvianBleManager(
     /**
      * Wait for a specific command response opcode
      * Used during initialization handshake to ensure proper protocol ordering
-     * 
+     *
      * @param expectedOpcode The opcode to wait for (e.g., 0x0Bu for INIT_RESPONSE)
      * @param timeoutMs Timeout in milliseconds (default 5 seconds)
      * @return true if response received, false if timeout
      */
+    @Suppress("unused")
     suspend fun awaitResponse(expectedOpcode: UByte, timeoutMs: Long = 5000L): Boolean {
         return try {
             val opcodeHex = expectedOpcode.toString(16).uppercase().padStart(2, '0')
@@ -1211,8 +1212,8 @@ class VitruvianBleManager(
         monitorPollingJob?.cancel()
         propertyPollingJob?.cancel()
         heuristicPollingJob?.cancel()
-        diagnosticPollingJob?.cancel()
-        pollingScope.coroutineContext[Job]?.cancel()
+        // Do NOT cancel the scope itself, as it needs to be reused for future connections
+        // pollingScope.coroutineContext[Job]?.cancel()
     }
 
 }
@@ -1234,12 +1235,26 @@ enum class HandleState {
 
 /**
  * Rep notification data class
- * Parsed from device notifications on characteristic 0x0036
- * Format: u16 array with [topCounter, ?, completeCounter, ...]
+ * Parsed from device notifications on characteristic 8308f2a6-0875-4a94-a86f-5c5c5e1b068a
+ * Full 24-byte structure from official app:
+ * - Bytes 0-3: up (int32) - upward movement counter
+ * - Bytes 4-7: down (int32) - downward movement counter
+ * - Bytes 8-11: rangeTop (float) - upper range threshold
+ * - Bytes 12-15: rangeBottom (float) - lower range threshold
+ * - Bytes 16-17: repsRomCount (short) - Current ROM rep count
+ * - Bytes 18-19: repsRomTotal (short) - Total ROM reps
+ * - Bytes 20-21: repsSetCount (short) - Current set rep count
+ * - Bytes 22-23: repsSetTotal (short) - Total set reps
  */
 data class RepNotification(
-    val topCounter: Int,        // Counter increments when reaching top of range
-    val completeCounter: Int,   // Counter increments when rep completes (bottom)
+    val up: Int,                // Upward movement counter (int32 from bytes 0-3)
+    val down: Int,              // Downward movement counter (int32 from bytes 4-7)
+    val rangeTop: Float,        // Upper range threshold (float from bytes 8-11, default 300.0)
+    val rangeBottom: Float,     // Lower range threshold (float from bytes 12-15, default 0.0)
+    val repsRomCount: Short?,   // Current ROM rep count (short from bytes 16-17)
+    val repsRomTotal: Short?,   // Total ROM reps (short from bytes 18-19)
+    val repsSetCount: Short?,   // Current set rep count (short from bytes 20-21)
+    val repsSetTotal: Short?,   // Total set reps (short from bytes 22-23)
     val rawData: ByteArray,
     val timestamp: Long
 ) {
@@ -1249,8 +1264,14 @@ data class RepNotification(
 
         other as RepNotification
 
-        if (topCounter != other.topCounter) return false
-        if (completeCounter != other.completeCounter) return false
+        if (up != other.up) return false
+        if (down != other.down) return false
+        if (rangeTop != other.rangeTop) return false
+        if (rangeBottom != other.rangeBottom) return false
+        if (repsRomCount != other.repsRomCount) return false
+        if (repsRomTotal != other.repsRomTotal) return false
+        if (repsSetCount != other.repsSetCount) return false
+        if (repsSetTotal != other.repsSetTotal) return false
         if (!rawData.contentEquals(other.rawData)) return false
         if (timestamp != other.timestamp) return false
 
@@ -1258,11 +1279,16 @@ data class RepNotification(
     }
 
     override fun hashCode(): Int {
-        var result = topCounter
-        result = 31 * result + completeCounter
+        var result = up
+        result = 31 * result + down
+        result = 31 * result + rangeTop.hashCode()
+        result = 31 * result + rangeBottom.hashCode()
+        result = 31 * result + (repsRomCount?.hashCode() ?: 0)
+        result = 31 * result + (repsRomTotal?.hashCode() ?: 0)
+        result = 31 * result + (repsSetCount?.hashCode() ?: 0)
+        result = 31 * result + (repsSetTotal?.hashCode() ?: 0)
         result = 31 * result + rawData.contentHashCode()
         result = 31 * result + timestamp.hashCode()
         return result
     }
 }
-
