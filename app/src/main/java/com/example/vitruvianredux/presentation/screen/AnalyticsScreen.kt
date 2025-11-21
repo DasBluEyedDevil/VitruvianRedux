@@ -538,6 +538,22 @@ fun DashboardTab(
             Spacer(modifier = Modifier.height(Spacing.small))
         }
 
+        // **Summary Grid - All-time stats overview**
+        item {
+            val totalVolume = remember(allWorkoutSessions) {
+                allWorkoutSessions.sumOf { (it.weightPerCableKg * it.totalReps * 2).toDouble() }.toFloat()
+            }
+            SummaryGridCard(
+                totalWorkouts = allWorkoutSessions.size,
+                totalPRs = personalRecords.size,
+                totalVolume = totalVolume,
+                currentStreak = workoutStreak ?: 0,
+                weightUnit = weightUnit,
+                formatWeight = formatWeight,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
         // **NEW: Strength Score - Hero Metric**
         item {
             StrengthScoreCard(

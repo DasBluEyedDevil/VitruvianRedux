@@ -48,6 +48,7 @@ fun WeeklyProgramsScreen(
     val connectionError by viewModel.connectionError.collectAsState()
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0), // Avoid double insets - parent handles system bars
         topBar = {
             TopAppBar(
                 title = { Text("Weekly Programs") },

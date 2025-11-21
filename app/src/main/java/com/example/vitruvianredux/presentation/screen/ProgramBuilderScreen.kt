@@ -92,6 +92,7 @@ fun ProgramBuilderScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0), // Avoid double insets - parent handles system bars
         topBar = {
             TopAppBar(
                 title = {

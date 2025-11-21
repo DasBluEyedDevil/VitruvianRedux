@@ -14,6 +14,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import com.example.vitruvianredux.domain.model.HapticEvent
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharedFlow
 import timber.log.Timber
 
@@ -64,7 +65,7 @@ fun HapticFeedbackEffect(
     LaunchedEffect(hapticEvents) {
         hapticEvents.collect { event ->
             performHapticFeedback(haptic, event)
-            performAudioCue(toneGenerator, audioManager, event)
+            performAudioCueSuspend(toneGenerator, audioManager, event)
         }
     }
 }
@@ -108,8 +109,10 @@ private fun performHapticFeedback(haptic: HapticFeedback, event: HapticEvent) {
  *
  * Uses audio focus management to allow background music to continue playing
  * at a reduced volume (ducked) while the notification beep plays.
+ *
+ * NOTE: This is a suspend function to avoid blocking the main thread during tone playback.
  */
-private fun performAudioCue(
+private suspend fun performAudioCueSuspend(
     toneGenerator: ToneGenerator?,
     audioManager: AudioManager?,
     event: HapticEvent
@@ -120,32 +123,32 @@ private fun performAudioCue(
         when (event) {
             HapticEvent.REP_COMPLETED -> {
                 // Short high beep for each rep (100ms)
-                playToneWithAudioFocus(audioManager, toneGenerator, ToneGenerator.TONE_PROP_BEEP, 100)
+                playToneWithAudioFocusSuspend(audioManager, toneGenerator, ToneGenerator.TONE_PROP_BEEP, 100)
                 Timber.v("Audio cue: rep completed")
             }
             HapticEvent.WARMUP_COMPLETE -> {
                 // Success tone for warmup completion (200ms)
-                playToneWithAudioFocus(audioManager, toneGenerator, ToneGenerator.TONE_PROP_ACK, 200)
+                playToneWithAudioFocusSuspend(audioManager, toneGenerator, ToneGenerator.TONE_PROP_ACK, 200)
                 Timber.d("Audio cue: warmup complete")
             }
             HapticEvent.WORKOUT_COMPLETE -> {
                 // Success tone for workout completion (200ms)
-                playToneWithAudioFocus(audioManager, toneGenerator, ToneGenerator.TONE_PROP_ACK, 200)
+                playToneWithAudioFocusSuspend(audioManager, toneGenerator, ToneGenerator.TONE_PROP_ACK, 200)
                 Timber.d("Audio cue: workout complete")
             }
             HapticEvent.WORKOUT_START -> {
                 // Medium beep for workout start (150ms)
-                playToneWithAudioFocus(audioManager, toneGenerator, ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 150)
+                playToneWithAudioFocusSuspend(audioManager, toneGenerator, ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 150)
                 Timber.d("Audio cue: workout start")
             }
             HapticEvent.WORKOUT_END -> {
                 // Medium beep for workout end (150ms)
-                playToneWithAudioFocus(audioManager, toneGenerator, ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 150)
+                playToneWithAudioFocusSuspend(audioManager, toneGenerator, ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD, 150)
                 Timber.d("Audio cue: workout end")
             }
             HapticEvent.ERROR -> {
                 // Error tone (400ms)
-                playToneWithAudioFocus(audioManager, toneGenerator, ToneGenerator.TONE_SUP_ERROR, 400)
+                playToneWithAudioFocusSuspend(audioManager, toneGenerator, ToneGenerator.TONE_SUP_ERROR, 400)
                 Timber.e("Audio cue: ERROR")
             }
         }
@@ -160,12 +163,15 @@ private fun performAudioCue(
  * Requests transient audio focus with ducking, which allows other audio (like music)
  * to continue playing at a reduced volume while the notification beep plays.
  *
+ * NOTE: This is a suspend function that uses delay() instead of Thread.sleep()
+ * to avoid blocking the main thread during tone playback.
+ *
  * @param audioManager AudioManager for requesting audio focus
  * @param generator ToneGenerator instance
  * @param toneType Type of tone to play (from ToneGenerator constants)
  * @param durationMs Duration of the tone in milliseconds
  */
-private fun playToneWithAudioFocus(
+private suspend fun playToneWithAudioFocusSuspend(
     audioManager: AudioManager,
     generator: ToneGenerator,
     toneType: Int,
@@ -192,8 +198,8 @@ private fun playToneWithAudioFocus(
             // Play the tone
             generator.startTone(toneType, durationMs)
 
-            // Wait for tone to complete before releasing focus
-            Thread.sleep(durationMs.toLong())
+            // Wait for tone to complete before releasing focus (non-blocking)
+            delay(durationMs.toLong())
         } else {
             Timber.w("Audio focus request denied, playing tone anyway")
             generator.startTone(toneType, durationMs)
