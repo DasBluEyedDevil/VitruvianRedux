@@ -1,0 +1,226 @@
+.class public final Lcom/patrykandpatrick/vico/core/cartesian/CartesianChart$layerMarginUpdateConsumer$1;
+.super Ljava/lang/Object;
+.source "CartesianChart.kt"
+
+# interfaces
+.implements Lcom/patrykandpatrick/vico/core/cartesian/CartesianChart$ModelAndLayerConsumer;
+
+
+# annotations
+.annotation system Ldalvik/annotation/EnclosingMethod;
+    value = Lcom/patrykandpatrick/vico/core/cartesian/CartesianChart;-><init>([Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayer;Lcom/patrykandpatrick/vico/core/cartesian/axis/Axis;Lcom/patrykandpatrick/vico/core/cartesian/axis/Axis;Lcom/patrykandpatrick/vico/core/cartesian/axis/Axis;Lcom/patrykandpatrick/vico/core/cartesian/axis/Axis;Lcom/patrykandpatrick/vico/core/cartesian/marker/CartesianMarker;Lcom/patrykandpatrick/vico/core/cartesian/marker/CartesianMarkerVisibilityListener;Lkotlin/jvm/functions/Function1;Lcom/patrykandpatrick/vico/core/common/Legend;Lcom/patrykandpatrick/vico/core/cartesian/FadingEdges;Ljava/util/List;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lcom/patrykandpatrick/vico/core/cartesian/marker/CartesianMarkerController;Ljava/util/UUID;Ljava/lang/Integer;Ljava/util/Map;Ljava/lang/Integer;)V
+.end annotation
+
+.annotation system Ldalvik/annotation/InnerClass;
+    accessFlags = 0x19
+    name = null
+.end annotation
+
+.annotation runtime Lkotlin/Metadata;
+    d1 = {
+        "\u00009\n\u0000\n\u0002\u0018\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\u0008\u0005\n\u0002\u0018\u0002\n\u0002\u0008\u0005\n\u0002\u0018\u0002\n\u0002\u0008\u0005\n\u0002\u0010\u0002\n\u0000\n\u0002\u0018\u0002\n\u0002\u0008\u0002\n\u0002\u0018\u0002\n\u0002\u0008\u0002*\u0001\u0000\u0008\n\u0018\u00002\u00020\u0001J0\u0010\u0014\u001a\u00020\u0015\"\u0008\u0008\u0000\u0010\u0016*\u00020\u00172\u0008\u0010\u0018\u001a\u0004\u0018\u0001H\u00162\u000c\u0010\u0019\u001a\u0008\u0012\u0004\u0012\u0002H\u00160\u001aH\u0096\u0002\u00a2\u0006\u0002\u0010\u001bR\u001a\u0010\u0002\u001a\u00020\u0003X\u0086.\u00a2\u0006\u000e\n\u0000\u001a\u0004\u0008\u0004\u0010\u0005\"\u0004\u0008\u0006\u0010\u0007R\u001a\u0010\u0008\u001a\u00020\tX\u0086.\u00a2\u0006\u000e\n\u0000\u001a\u0004\u0008\n\u0010\u000b\"\u0004\u0008\u000c\u0010\rR\u001a\u0010\u000e\u001a\u00020\u000fX\u0086.\u00a2\u0006\u000e\n\u0000\u001a\u0004\u0008\u0010\u0010\u0011\"\u0004\u0008\u0012\u0010\u0013\u00a8\u0006\u001c"
+    }
+    d2 = {
+        "com/patrykandpatrick/vico/core/cartesian/CartesianChart$layerMarginUpdateConsumer$1",
+        "Lcom/patrykandpatrick/vico/core/cartesian/CartesianChart$ModelAndLayerConsumer;",
+        "context",
+        "Lcom/patrykandpatrick/vico/core/cartesian/CartesianMeasuringContext;",
+        "getContext",
+        "()Lcom/patrykandpatrick/vico/core/cartesian/CartesianMeasuringContext;",
+        "setContext",
+        "(Lcom/patrykandpatrick/vico/core/cartesian/CartesianMeasuringContext;)V",
+        "layerDimensions",
+        "Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerDimensions;",
+        "getLayerDimensions",
+        "()Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerDimensions;",
+        "setLayerDimensions",
+        "(Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerDimensions;)V",
+        "layerMargins",
+        "Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerMargins;",
+        "getLayerMargins",
+        "()Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerMargins;",
+        "setLayerMargins",
+        "(Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerMargins;)V",
+        "invoke",
+        "",
+        "T",
+        "Lcom/patrykandpatrick/vico/core/cartesian/data/CartesianLayerModel;",
+        "model",
+        "layer",
+        "Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayer;",
+        "(Lcom/patrykandpatrick/vico/core/cartesian/data/CartesianLayerModel;Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayer;)V",
+        "core_release"
+    }
+    k = 0x1
+    mv = {
+        0x2,
+        0x2,
+        0x0
+    }
+    xi = 0x30
+.end annotation
+
+
+# instance fields
+.field public context:Lcom/patrykandpatrick/vico/core/cartesian/CartesianMeasuringContext;
+
+.field public layerDimensions:Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerDimensions;
+
+.field public layerMargins:Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerMargins;
+
+
+# direct methods
+.method constructor <init>()V
+    .locals 0
+
+    .line 123
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    return-void
+.end method
+
+
+# virtual methods
+.method public final getContext()Lcom/patrykandpatrick/vico/core/cartesian/CartesianMeasuringContext;
+    .locals 1
+
+    .line 124
+    iget-object v0, p0, Lcom/patrykandpatrick/vico/core/cartesian/CartesianChart$layerMarginUpdateConsumer$1;->context:Lcom/patrykandpatrick/vico/core/cartesian/CartesianMeasuringContext;
+
+    if-eqz v0, :cond_0
+
+    return-object v0
+
+    :cond_0
+    const-string v0, "context"
+
+    invoke-static {v0}, Lkotlin/jvm/internal/Intrinsics;->throwUninitializedPropertyAccessException(Ljava/lang/String;)V
+
+    const/4 v0, 0x0
+
+    return-object v0
+.end method
+
+.method public final getLayerDimensions()Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerDimensions;
+    .locals 1
+
+    .line 125
+    iget-object v0, p0, Lcom/patrykandpatrick/vico/core/cartesian/CartesianChart$layerMarginUpdateConsumer$1;->layerDimensions:Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerDimensions;
+
+    if-eqz v0, :cond_0
+
+    return-object v0
+
+    :cond_0
+    const-string v0, "layerDimensions"
+
+    invoke-static {v0}, Lkotlin/jvm/internal/Intrinsics;->throwUninitializedPropertyAccessException(Ljava/lang/String;)V
+
+    const/4 v0, 0x0
+
+    return-object v0
+.end method
+
+.method public final getLayerMargins()Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerMargins;
+    .locals 1
+
+    .line 126
+    iget-object v0, p0, Lcom/patrykandpatrick/vico/core/cartesian/CartesianChart$layerMarginUpdateConsumer$1;->layerMargins:Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerMargins;
+
+    if-eqz v0, :cond_0
+
+    return-object v0
+
+    :cond_0
+    const-string v0, "layerMargins"
+
+    invoke-static {v0}, Lkotlin/jvm/internal/Intrinsics;->throwUninitializedPropertyAccessException(Ljava/lang/String;)V
+
+    const/4 v0, 0x0
+
+    return-object v0
+.end method
+
+.method public invoke(Lcom/patrykandpatrick/vico/core/cartesian/data/CartesianLayerModel;Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayer;)V
+    .locals 3
+    .param p1, "model"    # Lcom/patrykandpatrick/vico/core/cartesian/data/CartesianLayerModel;
+    .param p2, "layer"    # Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayer;
+    .annotation system Ldalvik/annotation/Signature;
+        value = {
+            "<T::",
+            "Lcom/patrykandpatrick/vico/core/cartesian/data/CartesianLayerModel;",
+            ">(TT;",
+            "Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayer<",
+            "TT;>;)V"
+        }
+    .end annotation
+
+    const-string v0, "layer"
+
+    invoke-static {p2, v0}, Lkotlin/jvm/internal/Intrinsics;->checkNotNullParameter(Ljava/lang/Object;Ljava/lang/String;)V
+
+    .line 129
+    invoke-virtual {p0}, Lcom/patrykandpatrick/vico/core/cartesian/CartesianChart$layerMarginUpdateConsumer$1;->getContext()Lcom/patrykandpatrick/vico/core/cartesian/CartesianMeasuringContext;
+
+    move-result-object v0
+
+    invoke-virtual {p0}, Lcom/patrykandpatrick/vico/core/cartesian/CartesianChart$layerMarginUpdateConsumer$1;->getLayerMargins()Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerMargins;
+
+    move-result-object v1
+
+    invoke-virtual {p0}, Lcom/patrykandpatrick/vico/core/cartesian/CartesianChart$layerMarginUpdateConsumer$1;->getLayerDimensions()Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerDimensions;
+
+    move-result-object v2
+
+    if-nez p1, :cond_0
+
+    return-void
+
+    :cond_0
+    invoke-interface {p2, v0, v1, v2, p1}, Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayer;->updateLayerMargins(Lcom/patrykandpatrick/vico/core/cartesian/CartesianMeasuringContext;Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerMargins;Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerDimensions;Ljava/lang/Object;)V
+
+    .line 130
+    return-void
+.end method
+
+.method public final setContext(Lcom/patrykandpatrick/vico/core/cartesian/CartesianMeasuringContext;)V
+    .locals 1
+    .param p1, "<set-?>"    # Lcom/patrykandpatrick/vico/core/cartesian/CartesianMeasuringContext;
+
+    const-string v0, "<set-?>"
+
+    invoke-static {p1, v0}, Lkotlin/jvm/internal/Intrinsics;->checkNotNullParameter(Ljava/lang/Object;Ljava/lang/String;)V
+
+    .line 124
+    iput-object p1, p0, Lcom/patrykandpatrick/vico/core/cartesian/CartesianChart$layerMarginUpdateConsumer$1;->context:Lcom/patrykandpatrick/vico/core/cartesian/CartesianMeasuringContext;
+
+    return-void
+.end method
+
+.method public final setLayerDimensions(Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerDimensions;)V
+    .locals 1
+    .param p1, "<set-?>"    # Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerDimensions;
+
+    const-string v0, "<set-?>"
+
+    invoke-static {p1, v0}, Lkotlin/jvm/internal/Intrinsics;->checkNotNullParameter(Ljava/lang/Object;Ljava/lang/String;)V
+
+    .line 125
+    iput-object p1, p0, Lcom/patrykandpatrick/vico/core/cartesian/CartesianChart$layerMarginUpdateConsumer$1;->layerDimensions:Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerDimensions;
+
+    return-void
+.end method
+
+.method public final setLayerMargins(Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerMargins;)V
+    .locals 1
+    .param p1, "<set-?>"    # Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerMargins;
+
+    const-string v0, "<set-?>"
+
+    invoke-static {p1, v0}, Lkotlin/jvm/internal/Intrinsics;->checkNotNullParameter(Ljava/lang/Object;Ljava/lang/String;)V
+
+    .line 126
+    iput-object p1, p0, Lcom/patrykandpatrick/vico/core/cartesian/CartesianChart$layerMarginUpdateConsumer$1;->layerMargins:Lcom/patrykandpatrick/vico/core/cartesian/layer/CartesianLayerMargins;
+
+    return-void
+.end method

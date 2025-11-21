@@ -1,0 +1,6 @@
+.class public interface abstract Ldagger/hilt/android/internal/managers/HiltWrapper_ActivityRetainedComponentManager_ActivityRetainedLifecycleEntryPoint;
+.super Ljava/lang/Object;
+.source "HiltWrapper_ActivityRetainedComponentManager_ActivityRetainedLifecycleEntryPoint.java"
+
+# interfaces
+.implements Ldagger/hilt/android/internal/managers/ActivityRetainedComponentManager$ActivityRetainedLifecycleEntryPoint;

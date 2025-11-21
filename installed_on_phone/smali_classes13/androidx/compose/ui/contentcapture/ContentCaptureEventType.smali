@@ -1,0 +1,169 @@
+.class final enum Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+.super Ljava/lang/Enum;
+.source "AndroidContentCaptureManager.android.kt"
+
+
+# annotations
+.annotation system Ldalvik/annotation/Signature;
+    value = {
+        "Ljava/lang/Enum<",
+        "Landroidx/compose/ui/contentcapture/ContentCaptureEventType;",
+        ">;"
+    }
+.end annotation
+
+.annotation runtime Lkotlin/Metadata;
+    d1 = {
+        "\u0000\u000c\n\u0002\u0018\u0002\n\u0002\u0010\u0010\n\u0002\u0008\u0005\u0008\u0082\u0081\u0002\u0018\u00002\u0008\u0012\u0004\u0012\u00020\u00000\u0001B\t\u0008\u0002\u00a2\u0006\u0004\u0008\u0002\u0010\u0003j\u0002\u0008\u0004j\u0002\u0008\u0005\u00a8\u0006\u0006"
+    }
+    d2 = {
+        "Landroidx/compose/ui/contentcapture/ContentCaptureEventType;",
+        "",
+        "<init>",
+        "(Ljava/lang/String;I)V",
+        "VIEW_APPEAR",
+        "VIEW_DISAPPEAR",
+        "ui_release"
+    }
+    k = 0x1
+    mv = {
+        0x2,
+        0x0,
+        0x0
+    }
+    xi = 0x30
+.end annotation
+
+
+# static fields
+.field private static final synthetic $ENTRIES:Lkotlin/enums/EnumEntries;
+
+.field private static final synthetic $VALUES:[Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+.field public static final enum VIEW_APPEAR:Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+.field public static final enum VIEW_DISAPPEAR:Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+
+# direct methods
+.method private static final synthetic $values()[Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+    .locals 2
+
+    sget-object v0, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;->VIEW_APPEAR:Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    sget-object v1, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;->VIEW_DISAPPEAR:Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    filled-new-array {v0, v1}, [Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    move-result-object v0
+
+    return-object v0
+.end method
+
+.method static constructor <clinit>()V
+    .locals 3
+
+    .line 655
+    new-instance v0, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    const-string v1, "VIEW_APPEAR"
+
+    const/4 v2, 0x0
+
+    invoke-direct {v0, v1, v2}, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;-><init>(Ljava/lang/String;I)V
+
+    sput-object v0, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;->VIEW_APPEAR:Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    .line 656
+    new-instance v0, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    const-string v1, "VIEW_DISAPPEAR"
+
+    const/4 v2, 0x1
+
+    invoke-direct {v0, v1, v2}, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;-><init>(Ljava/lang/String;I)V
+
+    sput-object v0, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;->VIEW_DISAPPEAR:Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    invoke-static {}, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;->$values()[Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    move-result-object v0
+
+    sput-object v0, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;->$VALUES:[Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    sget-object v0, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;->$VALUES:[Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    check-cast v0, [Ljava/lang/Enum;
+
+    invoke-static {v0}, Lkotlin/enums/EnumEntriesKt;->enumEntries([Ljava/lang/Enum;)Lkotlin/enums/EnumEntries;
+
+    move-result-object v0
+
+    sput-object v0, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;->$ENTRIES:Lkotlin/enums/EnumEntries;
+
+    return-void
+.end method
+
+.method private constructor <init>(Ljava/lang/String;I)V
+    .locals 0
+    .param p1, "$enum$name"    # Ljava/lang/String;
+    .param p2, "$enum$ordinal"    # I
+    .annotation system Ldalvik/annotation/Signature;
+        value = {
+            "()V"
+        }
+    .end annotation
+
+    .line 654
+    invoke-direct {p0, p1, p2}, Ljava/lang/Enum;-><init>(Ljava/lang/String;I)V
+
+    return-void
+.end method
+
+.method public static getEntries()Lkotlin/enums/EnumEntries;
+    .locals 1
+    .annotation system Ldalvik/annotation/Signature;
+        value = {
+            "()",
+            "Lkotlin/enums/EnumEntries<",
+            "Landroidx/compose/ui/contentcapture/ContentCaptureEventType;",
+            ">;"
+        }
+    .end annotation
+
+    sget-object v0, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;->$ENTRIES:Lkotlin/enums/EnumEntries;
+
+    .line 657
+    return-object v0
+.end method
+
+.method public static valueOf(Ljava/lang/String;)Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+    .locals 1
+    .param p0, "value"    # Ljava/lang/String;
+
+    const-class v0, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    invoke-static {v0, p0}, Ljava/lang/Enum;->valueOf(Ljava/lang/Class;Ljava/lang/String;)Ljava/lang/Enum;
+
+    move-result-object v0
+
+    .line 657
+    check-cast v0, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    return-object v0
+.end method
+
+.method public static values()[Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+    .locals 1
+
+    sget-object v0, Landroidx/compose/ui/contentcapture/ContentCaptureEventType;->$VALUES:[Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    invoke-virtual {v0}, Ljava/lang/Object;->clone()Ljava/lang/Object;
+
+    move-result-object v0
+
+    .line 657
+    check-cast v0, [Landroidx/compose/ui/contentcapture/ContentCaptureEventType;
+
+    return-object v0
+.end method

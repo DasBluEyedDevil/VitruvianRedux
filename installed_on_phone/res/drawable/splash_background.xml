@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/ic_launcher_background" />
+    <item android:left="60.0dip" android:top="60.0dip" android:right="60.0dip" android:bottom="60.0dip">
+        <bitmap android:gravity="fill" android:src="@drawable/vitphoe_logo_foreground" />
+    </item>
+</layer-list>
