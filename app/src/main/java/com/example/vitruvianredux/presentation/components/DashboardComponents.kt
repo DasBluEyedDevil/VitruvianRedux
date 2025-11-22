@@ -15,8 +15,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,7 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.example.vitruvianredux.domain.model.PersonalRecord
 import com.example.vitruvianredux.domain.model.WeightUnit
 import com.example.vitruvianredux.domain.model.WorkoutSession
-import com.example.vitruvianredux.ui.theme.Spacing
+import com.example.vitruvianredux.presentation.components.charts.GaugeChart
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneId
@@ -56,85 +54,87 @@ fun StrengthScoreCard(
     }
 
     val scoreDiff = strengthScore - previousScore
-    val animatedScore by animateFloatAsState(
-        targetValue = strengthScore.toFloat(),
-        animationSpec = tween(1000),
-        label = "strength score"
-    )
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(12.dp, RoundedCornerShape(24.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        ),
-        shape = RoundedCornerShape(24.dp),
-        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+    // Target max score (dynamic or static). Let's make it dynamic based on current score to make it look achievable.
+    // Round up to next 1000
+    val targetScore = remember(strengthScore) {
+        ((strengthScore / 1000) + 1) * 1000f
+    }
+
+    VitruvianSurface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.1f), // Subtle background
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
     ) {
-        Box(
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primaryContainer,
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-                        )
-                    )
-                )
                 .padding(24.dp)
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Strength Score",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
+                Icon(
+                    imageVector = Icons.Default.Star,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = animatedScore.toInt().toString(),
-                    style = MaterialTheme.typography.displayLarge,
-                    fontWeight = FontWeight.Black,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 72.sp
+                    text = "Strength Score",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Use Gauge Chart for Visual Impact
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.height(220.dp)
+            ) {
+                GaugeChart(
+                    currentValue = strengthScore.toFloat(),
+                    targetValue = targetScore,
+                    label = "",
+                    showPercentage = false,
+                    modifier = Modifier.fillMaxSize()
                 )
 
+                // Overlay Score Difference
                 if (scoreDiff != 0) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 40.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(
-                            imageVector = if (scoreDiff > 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
-                            contentDescription = null,
-                            tint = if (scoreDiff > 0) Color(0xFF10B981) else Color(0xFFEF4444),
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "${if (scoreDiff > 0) "+" else ""}$scoreDiff from last week",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (scoreDiff > 0) Color(0xFF10B981) else Color(0xFFEF4444),
-                            fontWeight = FontWeight.SemiBold
-                        )
+                         Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(
+                                    color = if (scoreDiff > 0) Color(0xFF10B981).copy(alpha = 0.1f) else Color(0xFFEF4444).copy(alpha = 0.1f),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (scoreDiff > 0) Icons.AutoMirrored.Filled.TrendingUp else Icons.AutoMirrored.Filled.TrendingDown,
+                                contentDescription = null,
+                                tint = if (scoreDiff > 0) Color(0xFF10B981) else Color(0xFFEF4444),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${if (scoreDiff > 0) "+" else ""}$scoreDiff",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (scoreDiff > 0) Color(0xFF10B981) else Color(0xFFEF4444),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -143,7 +143,7 @@ fun StrengthScoreCard(
 }
 
 /**
- * This Week Stats Card - Shows current week performance
+ * This Week Stats Card - Shows current week performance as a grid of cards
  */
 @Composable
 fun ThisWeekStatsCard(
@@ -174,87 +174,113 @@ fun ThisWeekStatsCard(
         thisWeekSessions.sumOf { (it.weightPerCableKg * it.totalReps * 2).toDouble() }.toFloat()
     }
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-        ),
-        shape = RoundedCornerShape(20.dp)
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+    Column(modifier = modifier) {
+        Text(
+            text = "This Week",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Workouts Card
+            VitruvianCard(
+                modifier = Modifier.weight(1f),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
             ) {
-                Icon(
-                    imageVector = Icons.Default.CalendarToday,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "This Week",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FitnessCenter,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = thisWeekSessions.size.toString(),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Workouts",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+            // PRs Card
+            VitruvianCard(
+                modifier = Modifier.weight(1f),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
             ) {
-                WeekStatItem(
-                    icon = Icons.Default.FitnessCenter,
-                    label = "Workouts",
-                    value = thisWeekSessions.size.toString()
-                )
-                WeekStatItem(
-                    icon = Icons.AutoMirrored.Filled.TrendingUp,
-                    label = "PRs",
-                    value = thisWeekPRs.size.toString()
-                )
-                WeekStatItem(
-                    icon = Icons.Default.MonitorWeight,
-                    label = "Volume",
-                    value = formatWeight(thisWeekVolume, weightUnit)
-                )
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.TrendingUp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = thisWeekPRs.size.toString(),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "New PRs",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Volume Card
+            VitruvianCard(
+                modifier = Modifier.weight(1f),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MonitorWeight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    // Simplified volume display for small card
+                    val volume = thisWeekVolume
+                    val volumeText = if (volume >= 1000) {
+                        String.format(Locale.getDefault(), "%.1fk", volume / 1000)
+                    } else {
+                        String.format(Locale.getDefault(), "%.0f", volume)
+                    }
+
+                    Text(
+                        text = volumeText,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (weightUnit == WeightUnit.KG) "Vol (kg)" else "Vol (lb)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun WeekStatItem(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    value: String
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = label,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(32.dp)
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
@@ -273,14 +299,9 @@ fun RecentPRsCard(
         personalRecords.sortedByDescending { it.timestamp }.take(5)
     }
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-        ),
-        shape = RoundedCornerShape(20.dp)
+    VitruvianCard(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
@@ -290,7 +311,7 @@ fun RecentPRsCard(
                     imageVector = Icons.Default.EmojiEvents,
                     contentDescription = null,
                     tint = Color(0xFFFFD700), // Gold
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -339,9 +360,9 @@ private fun PRListItem(
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = if (isFirst) 
-            MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
         else 
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -368,7 +389,7 @@ private fun PRListItem(
                 text = formatWeight(pr.weightPerCableKg, weightUnit),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.primary
             )
         }
     }
@@ -394,14 +415,9 @@ fun TopExercisesCard(
             .take(3)
     }
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(8.dp, RoundedCornerShape(20.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-        ),
-        shape = RoundedCornerShape(20.dp)
+    VitruvianCard(
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(
@@ -411,7 +427,7 @@ fun TopExercisesCard(
                     imageVector = Icons.Default.EmojiEvents,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.tertiary,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -466,7 +482,7 @@ private fun TopExerciseItem(
 
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -529,29 +545,30 @@ private fun calculateStrengthScore(
     if (personalRecords.isEmpty() && workoutSessions.isEmpty()) return 0
 
     // PR Score: Sum of top weights per exercise (normalized)
+    // Assuming average "good" lift is 50kg per cable, normalized to 100 points
     val prScore = if (personalRecords.isNotEmpty()) {
         personalRecords
             .groupBy { it.exerciseId }
             .mapValues { (_, prs) -> prs.maxOf { it.weightPerCableKg } }
             .values
-            .sumOf { it.toDouble() } * 10
+            .sumOf { it.toDouble() } * 2 // Multiplier
     } else {
         0.0
     }
 
     // Volume Score: Recent volume (last 30 days)
-    val thirtyDaysAgo = System.currentTimeMillis() - (30 * 24 * 60 * 60 * 1000)
+    val thirtyDaysAgo = System.currentTimeMillis() - (30L * 24 * 60 * 60 * 1000)
     val volumeScore = if (workoutSessions.isNotEmpty()) {
         workoutSessions
             .filter { it.timestamp >= thirtyDaysAgo }
-            .sumOf { (it.weightPerCableKg * it.totalReps * 0.5).toDouble() }
+            .sumOf { (it.weightPerCableKg * it.totalReps * 2).toDouble() } / 100 // Divide by 100 to keep scale reasonable
     } else {
         0.0
     }
 
-    // Consistency Score: Number of workouts in last 30 days
+    // Consistency Score: Number of workouts in last 30 days * 50
     val consistencyScore = workoutSessions
-        .count { it.timestamp >= thirtyDaysAgo } * 5
+        .count { it.timestamp >= thirtyDaysAgo } * 50
 
     val totalScore = (prScore + volumeScore + consistencyScore).toInt()
     
@@ -564,4 +581,3 @@ private fun calculateStrengthScore(
         0
     }
 }
-

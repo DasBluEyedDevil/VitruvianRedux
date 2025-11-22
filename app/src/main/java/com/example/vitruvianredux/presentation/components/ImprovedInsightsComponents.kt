@@ -1,7 +1,6 @@
 package com.example.vitruvianredux.presentation.components
 
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -59,7 +58,6 @@ fun MuscleBalanceRadarCard(
         }
         
         // Convert to relative frequency (0.0 - 1.0) relative to the max category
-        // This makes the chart look full even if absolute counts are low
         val maxCount = counts.values.maxOrNull()?.toFloat() ?: 1f
         
         // Ensure all standard groups are represented
@@ -71,12 +69,8 @@ fun MuscleBalanceRadarCard(
         }
     }
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-        shape = RoundedCornerShape(20.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    VitruvianCard(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Text(
                 "Muscle Balance",
                 style = MaterialTheme.typography.titleLarge,
@@ -87,7 +81,7 @@ fun MuscleBalanceRadarCard(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             
             if (radarData.isNotEmpty() && radarData.any { it.second > 0 }) {
                 RadarChart(
@@ -121,12 +115,8 @@ fun ConsistencyGaugeCard(
     // Dynamic target based on history, defaulting to 12 (3/week)
     val target = 12f 
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-        shape = RoundedCornerShape(20.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    VitruvianCard(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Text(
                 "Monthly Consistency",
                 style = MaterialTheme.typography.titleLarge,
@@ -138,7 +128,7 @@ fun ConsistencyGaugeCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             
             GaugeChart(
                 currentValue = stats.toFloat(),
@@ -184,12 +174,8 @@ fun VolumeVsIntensityCard(
         }
     }
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-        shape = RoundedCornerShape(20.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    VitruvianCard(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Text(
                 "Volume vs Intensity",
                 style = MaterialTheme.typography.titleLarge,
@@ -201,7 +187,7 @@ fun VolumeVsIntensityCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             
             if (columnData.isNotEmpty()) {
                 ComboChart(
@@ -236,12 +222,8 @@ fun WorkoutModeDistributionCard(
             .sortedByDescending { it.second }
     }
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-        shape = RoundedCornerShape(20.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    VitruvianCard(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Text(
                 "Mode Distribution",
                 style = MaterialTheme.typography.titleLarge,
@@ -253,7 +235,7 @@ fun WorkoutModeDistributionCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             
             if (modeData.isNotEmpty()) {
                 // Using MuscleGroupCircleChart as a donut chart

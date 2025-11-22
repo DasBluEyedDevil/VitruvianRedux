@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.vitruvianredux.domain.model.PersonalRecord
@@ -32,7 +33,7 @@ fun InsightsTab(
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(Color.Transparent)
             .padding(Spacing.medium),
         verticalArrangement = Arrangement.spacedBy(Spacing.medium)
     ) {
@@ -94,11 +95,8 @@ fun InsightsTab(
         // Empty state
         if (prs.isEmpty() && workoutSessions.isEmpty()) {
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                    )
+                VitruvianCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier

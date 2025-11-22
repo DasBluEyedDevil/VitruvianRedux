@@ -1,42 +1,38 @@
 package com.example.vitruvianredux.presentation.screen
 
+import android.content.res.Configuration
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.vitruvianredux.domain.model.WeightUnit
+import com.example.vitruvianredux.presentation.components.VitruvianCard
+import com.example.vitruvianredux.presentation.components.VitruvianSurface
 import com.example.vitruvianredux.presentation.navigation.NavigationRoutes
 import com.example.vitruvianredux.presentation.viewmodel.MainViewModel
 import com.example.vitruvianredux.ui.theme.Spacing
 import com.example.vitruvianredux.ui.theme.ThemeMode
 import java.time.LocalDate
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
-import android.content.res.Configuration
-import androidx.compose.ui.platform.LocalConfiguration
 
 /**
  * Home screen showing workout type selection with modern gradient card design.
@@ -50,8 +46,6 @@ fun HomeScreen(
 ) {
     // Collect stats from ViewModel
     val workoutStreak by viewModel.workoutStreak.collectAsState()
-    val completedWorkouts by viewModel.completedWorkouts.collectAsState()
-    val progressPercentage by viewModel.progressPercentage.collectAsState()
 
     // Collect connection state
     val isAutoConnecting by viewModel.isAutoConnecting.collectAsState()
@@ -62,7 +56,7 @@ fun HomeScreen(
     val routines by viewModel.routines.collectAsState()
     val weightUnit by viewModel.weightUnit.collectAsState()
 
-    // Determine actual theme (matching Theme.kt logic)
+    // Determine actual theme
     val useDarkColors = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
@@ -72,17 +66,17 @@ fun HomeScreen(
     val backgroundGradient = if (useDarkColors) {
         Brush.verticalGradient(
             colors = listOf(
-                Color(0xFF0F172A), // slate-900
-                Color(0xFF1E1B4B), // indigo-950
-                Color(0xFF172554)  // blue-950
+                Color(0xFF020617), // Slate 950
+                Color(0xFF0F172A), // Slate 900
+                Color(0xFF1E1B4B)  // Indigo 950
             )
         )
     } else {
         Brush.verticalGradient(
             colors = listOf(
-                Color(0xFFE0E7FF), // indigo-200 - soft lavender
-                Color(0xFFFCE7F3), // pink-100 - soft pink
-                Color(0xFFDDD6FE)  // violet-200 - soft violet
+                Color(0xFFF8FAFC), // Slate 50
+                Color(0xFFF1F5F9), // Slate 100
+                Color(0xFFE2E8F0)  // Slate 200
             )
         )
     }
@@ -109,6 +103,41 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(18.dp),
             horizontalArrangement = Arrangement.spacedBy(18.dp)
         ) {
+            // Header Section
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Column {
+                    Text(
+                        text = "Welcome back,",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Ready to lift?",
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (workoutStreak != null && workoutStreak!! > 0) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                             Icon(
+                                Icons.Default.LocalFireDepartment,
+                                contentDescription = null,
+                                tint = Color(0xFFFF6B00),
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "$workoutStreak day streak",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
             // Active Program Widget - Full Width
             if (activeProgram != null) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -116,7 +145,6 @@ fun HomeScreen(
                         program = activeProgram!!,
                         routines = routines,
                         weightUnit = weightUnit,
-                        formatWeight = viewModel::formatWeight,
                         kgToDisplay = viewModel::kgToDisplay,
                         onStartRoutine = { routineId ->
                             viewModel.ensureConnection(
@@ -136,10 +164,10 @@ fun HomeScreen(
             item {
                 WorkoutCard(
                     title = "Just Lift",
-                    description = "Quick setup, start lifting immediately",
+                    description = "Quick start",
                     icon = Icons.Default.FitnessCenter,
                     gradient = Brush.linearGradient(
-                        colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE)) // purple-500 to purple-700
+                        colors = listOf(Color(0xFF9333EA), Color(0xFF7E22CE)) // purple
                     ),
                     onClick = { navController.navigate(NavigationRoutes.JustLift.route) }
                 )
@@ -148,10 +176,10 @@ fun HomeScreen(
             item {
                 WorkoutCard(
                     title = "Single Exercise",
-                    description = "Perform a single customized exercise",
+                    description = "Customize one",
                     icon = Icons.Default.PlayArrow,
                     gradient = Brush.linearGradient(
-                        colors = listOf(Color(0xFF8B5CF6), Color(0xFF9333EA)) // violet-500 to purple-600
+                        colors = listOf(Color(0xFF8B5CF6), Color(0xFF9333EA)) // violet
                     ),
                     onClick = { navController.navigate(NavigationRoutes.SingleExercise.route) }
                 )
@@ -160,10 +188,10 @@ fun HomeScreen(
             item {
                 WorkoutCard(
                     title = "Daily Routines",
-                    description = "Build multi-exercise workouts",
+                    description = "Build workouts",
                     icon = Icons.Default.CalendarToday,
                     gradient = Brush.linearGradient(
-                        colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6)) // indigo-500 to violet-600
+                        colors = listOf(Color(0xFF6366F1), Color(0xFF8B5CF6)) // indigo
                     ),
                     onClick = { navController.navigate(NavigationRoutes.DailyRoutines.route) }
                 )
@@ -172,13 +200,30 @@ fun HomeScreen(
             item {
                 WorkoutCard(
                     title = "Weekly Programs",
-                    description = "Build a structured schedule of routines",
+                    description = "Structured plan",
                     icon = Icons.Default.DateRange,
                     gradient = Brush.linearGradient(
-                        colors = listOf(Color(0xFF3B82F6), Color(0xFF6366F1)) // blue-500 to indigo-600
+                        colors = listOf(Color(0xFF3B82F6), Color(0xFF6366F1)) // blue
                     ),
                     onClick = { navController.navigate(NavigationRoutes.WeeklyPrograms.route) }
                 )
+            }
+        }
+
+        // Floating Action Button for Instant "Just Lift"
+        FloatingActionButton(
+            onClick = { navController.navigate(NavigationRoutes.JustLift.route) },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(Spacing.large),
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(modifier = Modifier.padding(horizontal = 16.dp)) {
+                Icon(Icons.Default.Bolt, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Quick Start", fontWeight = FontWeight.Bold)
             }
         }
 
@@ -200,10 +245,7 @@ fun HomeScreen(
 
 /**
  * Compact workout card matching reference design.
- * Features: 64dp icon, title, description, smooth animations.
- * No dummy stats displayed.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WorkoutCard(
     title: String,
@@ -212,57 +254,38 @@ fun WorkoutCard(
     gradient: Brush,
     onClick: () -> Unit
 ) {
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f, // Material 3 Expressive: More scale (was 0.97f)
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy, // Material 3 Expressive: More bouncy (was MediumBouncy)
-            stiffness = Spring.StiffnessLow // Material 3 Expressive: Lower stiffness for springy feel (was 400f)
-        ),
-        label = "scale"
-    )
-
-    Card(
-        onClick = {
-            isPressed = true
-            onClick()
-        },
+    VitruvianCard(
         modifier = Modifier
             .fillMaxWidth()
-            .scale(scale),
-        shape = RoundedCornerShape(20.dp), // Material 3 Expressive: More rounded (was 16dp)
+            .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest // Expressive: Higher contrast
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isPressed) 4.dp else 8.dp // Material 3 Expressive: Higher elevation (was 2/4dp)
-        ),
-        border = BorderStroke(2.dp, Color(0xFFF5F3FF)) // Material 3 Expressive: Thicker border (was 1dp)
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f)
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp), // Material 3 Expressive: More padding (was 16dp)
+                .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Material 3 Expressive: Larger Gradient Icon Container (72dp)
+            // Gradient Icon Container
             Box(
                 modifier = Modifier
-                    .size(72.dp) // Material 3 Expressive: Larger (was 64dp)
-                    .shadow(8.dp, RoundedCornerShape(20.dp)) // Material 3 Expressive: More shadow, more rounded (was 16dp)
-                    .background(gradient, RoundedCornerShape(20.dp)), // Material 3 Expressive: More rounded (was 16dp)
+                    .size(64.dp)
+                    .shadow(8.dp, RoundedCornerShape(20.dp))
+                    .background(gradient, RoundedCornerShape(20.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = "Select $title workout",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(36.dp) // Material 3 Expressive: Larger icon (was 32dp)
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
                 )
             }
 
-            // Content Column - Only title and description
+            // Content Column
             Column(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -282,20 +305,11 @@ fun WorkoutCard(
             }
         }
     }
-
-    LaunchedEffect(isPressed) {
-        if (isPressed) {
-            kotlinx.coroutines.delay(100)
-            isPressed = false
-        }
-    }
 }
 
 /**
- * Compact Active Program Card for HomeScreen.
- * Shows today's workout exercises with expandable/collapsible format.
+ * Active Program Card for HomeScreen.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeActiveProgramCard(
     program: com.example.vitruvianredux.data.local.WeeklyProgramWithDays,
@@ -308,8 +322,6 @@ fun HomeActiveProgramCard(
     var isExpanded by remember { mutableStateOf(false) }
     
     val today = LocalDate.now().dayOfWeek
-    // Use Java DayOfWeek.value directly (MONDAY=1, TUESDAY=2, ..., SUNDAY=7)
-    // This matches what ProgramBuilder saves: day.value
     val todayDayValue = today.value
 
     // Find today's routine ID from program days
@@ -319,20 +331,38 @@ fun HomeActiveProgramCard(
     }
     val hasWorkoutToday = todayRoutineId != null
 
-    Card(
+    VitruvianSurface(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest),
-        shape = RoundedCornerShape(20.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-        border = BorderStroke(2.dp, Color(0xFFF5F3FF))
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(Spacing.medium)
         ) {
+             Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Today,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Today's Training",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             if (hasWorkoutToday) {
-                // Show exercises if routine is loaded
                 todayRoutine?.let { routine ->
                     // Expand/Collapse button
                     Row(
@@ -343,85 +373,61 @@ fun HomeActiveProgramCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = if (isExpanded) "Today's Routine" else "Today's Routine",
-                            style = MaterialTheme.typography.titleLarge,
+                            text = routine.name,
+                            style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Icon(
-                            imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                            contentDescription = if (isExpanded) "Collapse" else "Expand",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        IconButton(onClick = { isExpanded = !isExpanded }) {
+                             Icon(
+                                imageVector = if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                     
-                    Spacer(modifier = Modifier.height(Spacing.small))
-                    
                     if (isExpanded) {
-                        // Expanded view: Show all exercises with detailed format
+                        Spacer(modifier = Modifier.height(Spacing.medium))
+                        // Expanded view
                         Column(
-                            verticalArrangement = Arrangement.spacedBy(Spacing.medium)
+                            verticalArrangement = Arrangement.spacedBy(Spacing.small)
                         ) {
                             routine.exercises.forEach { exercise ->
-                                Column(
-                                    verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    // Exercise name
                                     Text(
                                         text = exercise.exercise.name,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
+                                        style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
-                                    
-                                    // Mode
                                     Text(
-                                        text = "(${exercise.workoutType.displayName} Mode)",
-                                        style = MaterialTheme.typography.bodySmall,
+                                        text = "${exercise.setReps.size} sets",
+                                        style = MaterialTheme.typography.bodyMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    
-                                    // Sets with weights
-                                    val weightSuffix = if (weightUnit == WeightUnit.LB) "lbs" else "kg"
-                                    exercise.setReps.forEachIndexed { index, reps ->
-                                        val weight = if (exercise.setWeightsPerCableKg.isNotEmpty() && index < exercise.setWeightsPerCableKg.size) {
-                                            kgToDisplay(exercise.setWeightsPerCableKg[index], weightUnit)
-                                        } else {
-                                            kgToDisplay(exercise.weightPerCableKg, weightUnit)
-                                        }
-                                        Text(
-                                            text = "${reps ?: "AMRAP"} x ${"%.1f".format(weight)} $weightSuffix",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
                                 }
                             }
                         }
                     } else {
-                        // Collapsed view: Show only exercise names
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(Spacing.extraSmall)
-                        ) {
-                            routine.exercises.forEach { exercise ->
-                                Text(
-                                    text = exercise.exercise.name,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+                        // Summary view
+                        Text(
+                            text = "${routine.exercises.size} exercises • ${routine.exercises.sumOf { it.setReps.size }} sets",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(Spacing.medium))
 
-                    // Start Routine button
                     Button(
                         onClick = { onStartRoutine(todayRoutineId) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(56.dp),
-                        shape = RoundedCornerShape(20.dp),
+                        shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.primary
                         ),
@@ -433,19 +439,37 @@ fun HomeActiveProgramCard(
                         Icon(Icons.Default.PlayArrow, contentDescription = "Start routine")
                         Spacer(modifier = Modifier.width(Spacing.small))
                         Text(
-                            "Start Routine",
-                            style = MaterialTheme.typography.titleMedium, // Reduced from titleLarge
+                            "Start Workout",
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
             } else {
                 // Rest day
-                Text(
-                    text = "Rest day",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SelfImprovement,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Rest & Recovery",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "No workout scheduled for today.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }
